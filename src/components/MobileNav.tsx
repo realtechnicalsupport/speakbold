@@ -14,8 +14,8 @@ export const MobileNav = () => {
   const { pathname } = useLocation();
 
   return (
-    <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-background/95 backdrop-blur-md border-t border-border safe-area-inset-bottom">
-      <div className="flex items-center justify-around h-16 px-2">
+    <nav className="lg:hidden fixed bottom-0 inset-x-0 z-50 bg-background border-t border-border safe-area-bottom">
+      <div className="flex items-stretch h-16 px-1">
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           const isActive = item.to === "/" 
@@ -27,13 +27,18 @@ export const MobileNav = () => {
               key={item.to}
               to={item.to}
               className={cn(
-                "flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-lg transition-colors min-w-[56px]",
+                "flex-1 flex flex-col items-center justify-center gap-0.5 py-2 transition-colors touch-target",
                 isActive 
-                  ? "text-primary" 
-                  : "text-muted-foreground hover:text-foreground"
+                  ? "text-accent" 
+                  : "text-muted-foreground active:text-foreground"
               )}
             >
-              <Icon className={cn("h-5 w-5", isActive && "text-primary")} />
+              <div className={cn(
+                "h-8 w-8 rounded-lg flex items-center justify-center transition-colors",
+                isActive && "bg-accent/10"
+              )}>
+                <Icon className="h-5 w-5" />
+              </div>
               <span className="text-[10px] font-medium leading-none">{item.label}</span>
             </NavLink>
           );
