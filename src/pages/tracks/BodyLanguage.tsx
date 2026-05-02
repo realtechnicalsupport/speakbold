@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { TrackShell } from "@/components/TrackShell";
+import { RecorderPanel } from "@/components/RecorderPanel";
 import { Camera, Check, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -192,8 +193,8 @@ const GestureCard = ({ gesture }: { gesture: typeof GESTURES[0] }) => {
           </div>
 
           <div>
-            <p className="text-xs uppercase tracking-widest text-muted-foreground mb-1">Video demo</p>
-            <p className="text-sm text-muted-foreground italic">[video demo needed]</p>
+            <p className="text-xs uppercase tracking-widest text-muted-foreground mb-1">Practice tip</p>
+            <p className="text-sm text-muted-foreground">Record yourself doing this gesture. Watch it back and check if the gesture lands on the word you are emphasizing.</p>
           </div>
 
           <div className="bg-primary/10 border border-primary/20 rounded-xl p-4">
@@ -270,6 +271,13 @@ const BodyLanguage = () => {
 
         <div className="lg:col-span-2">
           <Gotchas />
+        </div>
+
+        <div className="lg:col-span-2">
+          <RecorderPanel 
+            label="Gesture practice recording"
+            hint="Record yourself practicing gestures. Stand in front of a mirror or camera, do each gesture, then play it back. Does the gesture land on the word you're emphasizing?"
+          />
         </div>
       </div>
     </TrackShell>

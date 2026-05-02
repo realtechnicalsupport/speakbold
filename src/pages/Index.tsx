@@ -5,6 +5,7 @@ import { Tracks } from "@/components/Tracks";
 import { Techniques } from "@/components/Techniques";
 import { Progress } from "@/components/Progress";
 import { CTA } from "@/components/CTA";
+import { PreFlightBanner } from "@/components/PreFlightBanner";
 
 const Index = () => {
   return (
@@ -14,6 +15,9 @@ const Index = () => {
       <DailyChallenge />
       <PickYourGoal />
       <Tracks />
+      <section className="container py-8">
+        <PreFlightBanner />
+      </section>
       <Techniques />
       <Progress />
       <CTA />
