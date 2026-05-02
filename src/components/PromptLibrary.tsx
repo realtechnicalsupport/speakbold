@@ -17,7 +17,13 @@ import {
   Eye,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import type { CustomPrompt, Difficulty, ExampleBeat, Prompt } from "@/components/PromptAuthor";
+import type { CustomPrompt, Difficulty, ExampleBeat, Prompt } from "./PromptAuthor";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export type LibraryEntry = {
   id: string;
@@ -36,6 +42,7 @@ type Props = {
   onResetBuiltin: (id: string) => void;
   onDeleteCustom: (id: string) => void;
   onResetAll: () => void;
+  onOpenAuthor?: () => void;
 };
 
 const DIFFICULTIES: Difficulty[] = ["Easy", "Medium", "Hard"];
@@ -48,6 +55,7 @@ export const PromptLibrary = ({
   onResetBuiltin,
   onDeleteCustom,
   onResetAll,
+  onOpenAuthor,
 }: Props) => {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -74,8 +82,8 @@ export const PromptLibrary = ({
     return g;
   }, [filtered]);
 
-  if (!open) {
-    return (
+  return (
+    <>
       <div className="border border-dashed border-border rounded-2xl p-5 flex items-center justify-between gap-4 flex-wrap bg-muted/20">
         <div>
           <p className="text-xs uppercase tracking-widest text-muted-foreground font-semibold mb-1">
@@ -88,16 +96,25 @@ export const PromptLibrary = ({
             </span>
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
-          <Library className="h-4 w-4" />
-          Manage prompts
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => onOpenAuthor?.()}>
+            <Plus className="h-4 w-4" />
+            Add prompt
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+            <Library className="h-4 w-4" />
+            Manage
+          </Button>
+        </div>
       </div>
-    );
-  }
 
-  return (
-    <div className="border border-border rounded-2xl p-6 md:p-8 bg-card-gradient space-y-5">
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-display font-semibold">
+              Manage prompts
+            </DialogTitle>
+          </DialogHeader>
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <p className="text-xs uppercase tracking-widest text-primary font-semibold">
@@ -112,9 +129,6 @@ export const PromptLibrary = ({
           <Button variant="ghost" size="sm" onClick={onResetAll}>
             <RotateCcw className="h-4 w-4" />
             Reset all
-          </Button>
-          <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
-            <X className="h-4 w-4" />
           </Button>
         </div>
       </div>
@@ -255,7 +269,9 @@ export const PromptLibrary = ({
           </p>
         )}
       </div>
-    </div>
+      </DialogContent>
+      </Dialog>
+    </>
   );
 };
 

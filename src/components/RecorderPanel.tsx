@@ -21,6 +21,8 @@ interface RecorderPanelProps {
   recorderStartRef?: (fn: (() => void) | undefined) => void;
   /** Called to set the pause recording function */
   recorderPauseRef?: (fn: (() => void) | undefined) => void;
+  /** Called to set the resume recording function */
+  recorderResumeRef?: (fn: (() => void) | undefined) => void;
   /** Called to set the stop recording function */
   recorderStopRef?: (fn: (() => void) | undefined) => void;
   /** Called once when a fresh recording is finalized */
@@ -33,11 +35,12 @@ export const RecorderPanel = React.forwardRef(({
   targetSeconds,
   recorderStartRef,
   recorderPauseRef,
+  recorderResumeRef,
   recorderStopRef,
   onRecorded,
 }, ref) => {
   const { state, recording, elapsedMs, error, start, stop, pause, resume, reset } = useRecorder();
-  const externallyControlled = !!(recorderStartRef && recorderPauseRef && recorderStopRef);
+  const externallyControlled = !!(recorderStartRef && recorderPauseRef && recorderResumeRef && recorderStopRef);
   
   const lastReportedRef = useRef<number | null>(null);
   const prevStateRef = useRef<string>("idle");
@@ -46,6 +49,7 @@ export const RecorderPanel = React.forwardRef(({
   React.useImperativeHandle(ref, () => ({
     start: start,
     pause: pause,
+    resume: resume,
     stop: stop,
   }));
 
@@ -57,6 +61,10 @@ export const RecorderPanel = React.forwardRef(({
   useEffect(() => {
     recorderPauseRef?.(pause);
   }, [recorderPauseRef, pause]);
+  
+  useEffect(() => {
+    recorderResumeRef?.(resume);
+  }, [recorderResumeRef, resume]);
   
   useEffect(() => {
     recorderStopRef?.(stop);
@@ -122,7 +130,7 @@ export const RecorderPanel = React.forwardRef(({
               Stop
             </Button>
           )}
-          {recording && !isRecording && (
+          {recording && !isRecording && !isPaused && (
             <Button variant="outline" size="lg" onClick={reset}>
               <RotateCcw className="h-4 w-4" />
               Clear
@@ -138,7 +146,7 @@ export const RecorderPanel = React.forwardRef(({
         </div>
       )}
 
-      {recording && !isRecording && (
+      {recording && !isRecording && !isPaused && (
         <div className="mt-6 space-y-3">
           <p className="text-xs uppercase tracking-widest text-muted-foreground">Playback</p>
           <audio controls src={recording.url} className="w-full" />

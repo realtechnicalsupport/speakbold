@@ -56,7 +56,7 @@ export const SiteHeader = ({ transparent = false }: { transparent?: boolean }) =
               <Button variant="ghost" size="sm" asChild>
                 <Link to="/profile">
                   <User className="h-4 w-4" />
-                  Profile
+                  {user.email?.split("@")[0] || "Profile"}
                 </Link>
               </Button>
               <Button variant="outline" size="sm" onClick={handleSignOut}>

@@ -1,9 +1,15 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Plus, Trash2, Download, Upload, Pencil, X } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
 
 export type Difficulty = "Easy" | "Medium" | "Hard";
@@ -22,12 +28,25 @@ type Props = {
   onAdd: (p: CustomPrompt) => void;
   onDelete: (id: string) => void;
   onReplaceAll: (ps: CustomPrompt[]) => void;
+  isOpen?: boolean;
+  onOpen?: (open: boolean) => void;
 };
 
 const emptyBeat = (): ExampleBeat => ({ label: "", text: "" });
 
-export const PromptAuthor = ({ frameworks, customPrompts, onAdd, onDelete, onReplaceAll }: Props) => {
+export const PromptAuthor = ({ frameworks, customPrompts, onAdd, onDelete, onReplaceAll, isOpen, onOpen }: Props) => {
   const [open, setOpen] = useState(false);
+  
+  const handleSetOpen = (value: boolean) => {
+    setOpen(value);
+    onOpen?.(value);
+  };
+  
+  useEffect(() => {
+    if (isOpen !== undefined) {
+      setOpen(isOpen);
+    }
+  }, [isOpen]);
   const [difficulty, setDifficulty] = useState<Difficulty>("Medium");
   const [text, setText] = useState("");
   const [framework, setFramework] = useState(frameworks[0]?.name ?? "PREP");
@@ -133,85 +152,104 @@ export const PromptAuthor = ({ frameworks, customPrompts, onAdd, onDelete, onRep
         toast({ title: "Import failed", description: e?.message ?? "Invalid JSON" });
       }
     };
-    reader.onerror = () => toast({ title: "Could not read file" });
+reader.onerror = () => toast({ title: "Could not read file" });
     reader.readAsText(file);
   };
 
-  if (!open) {
-    return (
-      <div className="border border-dashed border-border rounded-2xl p-5 flex items-center justify-between gap-4 flex-wrap bg-muted/20">
-        <div>
-          <p className="text-xs uppercase tracking-widest text-muted-foreground font-semibold mb-1">
-            Developer tools
-          </p>
-          <p className="text-sm text-foreground/85">
-            Add your own prompts, hints, and example speeches.
-            {customPrompts.length > 0 && (
-              <span className="text-muted-foreground"> · {customPrompts.length} custom saved</span>
-            )}
-          </p>
-        </div>
-        <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
-          <Pencil className="h-4 w-4" />
-          Open author panel
-        </Button>
-      </div>
-    );
-  }
+  const handleExport = () => {
+    const data = JSON.stringify(customPrompts, null, 2);
+    const blob = new Blob([data], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "prompts.json";
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: "Exported prompts", description: `${customPrompts.length} prompts saved to file` });
+  };
+
+  const handleImport = () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".json";
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          const imported = JSON.parse(ev.target?.result as string);
+          if (Array.isArray(imported)) {
+            onReplaceAll(imported);
+            toast({ title: "Imported prompts", description: `${imported.length} prompts loaded` });
+          }
+        } catch {
+          toast({ title: "Error", description: "Invalid JSON file", variant: "destructive" });
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
+  };
 
   return (
-    <div className="border border-border rounded-2xl p-6 md:p-8 bg-card-gradient space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-xs uppercase tracking-widest text-primary font-semibold">
+    <Dialog open={open} onOpenChange={handleSetOpen}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="text-xl font-display font-semibold">
             Author a new prompt
-          </p>
-          <p className="text-sm text-muted-foreground mt-1">
-            Saved locally in your browser. Export to share or commit to the source.
-          </p>
-        </div>
-        <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
-          <X className="h-4 w-4" />
-        </Button>
-      </div>
-
-      <div className="grid md:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label>Difficulty</Label>
+          </DialogTitle>
           <div className="flex gap-2">
-            {(["Easy", "Medium", "Hard"] as Difficulty[]).map((d) => (
-              <button
-                key={d}
-                type="button"
-                onClick={() => setDifficulty(d)}
-                className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
-                  difficulty === d
-                    ? "bg-foreground text-background border-foreground"
-                    : "border-border text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {d}
-              </button>
-            ))}
+            <Button variant="outline" size="sm" onClick={handleImport}>
+              <Upload className="h-4 w-4 mr-1" />
+              Import
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleExport} disabled={customPrompts.length === 0}>
+              <Download className="h-4 w-4 mr-1" />
+              Export
+            </Button>
           </div>
-        </div>
-        <div className="space-y-2">
-          <Label>Framework</Label>
-          <select
-            value={framework}
-            onChange={(e) => setFramework(e.target.value)}
-            className="w-full h-10 rounded-md border border-border bg-background px-3 text-sm"
-          >
-            {frameworks.map((f) => (
-              <option key={f.name} value={f.name}>
-                {f.name} — {f.expanded}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
+        </DialogHeader>
 
-      <div className="space-y-2">
+        <div className="space-y-6">
+          <div className="grid md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Difficulty</Label>
+              <div className="flex gap-2">
+                {(["Easy", "Medium", "Hard"] as Difficulty[]).map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setDifficulty(d)}
+                    className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
+                      difficulty === d
+                        ? "bg-foreground text-background border-foreground"
+                        : "border-border text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {d}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Framework</Label>
+              <select
+                value={framework}
+                onChange={(e) => setFramework(e.target.value)}
+                className="w-full h-10 rounded-md border border-border bg-background px-3 text-sm"
+              >
+                {frameworks.map((f) => (
+                  <option key={f.name} value={f.name}>
+                    {f.name} — {f.expanded}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+            </div>
+
+            <div className="space-y-2">
         <Label>Prompt (the hook)</Label>
         <Textarea
           value={text}
@@ -315,30 +353,6 @@ export const PromptAuthor = ({ frameworks, customPrompts, onAdd, onDelete, onRep
           <Plus className="h-4 w-4" />
           Save prompt
         </Button>
-        <Button variant="outline" onClick={reset}>
-          Clear form
-        </Button>
-        <div className="flex-1" />
-        <Button variant="outline" onClick={exportJson} disabled={customPrompts.length === 0}>
-          <Download className="h-4 w-4" />
-          Export JSON
-        </Button>
-        <label className="inline-flex">
-          <input
-            type="file"
-            accept="application/json"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) importJson(f);
-              e.target.value = "";
-            }}
-          />
-          <span className="inline-flex items-center gap-2 h-10 px-4 rounded-md border border-border text-sm cursor-pointer hover:bg-muted">
-            <Upload className="h-4 w-4" />
-            Import JSON
-          </span>
-        </label>
       </div>
 
       {customPrompts.length > 0 && (
@@ -369,6 +383,7 @@ export const PromptAuthor = ({ frameworks, customPrompts, onAdd, onDelete, onRep
           </ul>
         </div>
       )}
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };

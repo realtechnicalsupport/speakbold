@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { TrackShell } from "@/components/TrackShell";
 import { RecorderPanel } from "@/components/RecorderPanel";
 import { Button } from "@/components/ui/button";
@@ -430,7 +431,7 @@ const Impromptu = () => {
     setDisabled,
     resetAll,
   } = useSyncedPrompts();
-  const { upload: uploadRecording } = useRecordings();
+  const { upload: uploadRecording, refresh: refreshRecordings, items: recordings } = useRecordings();
   const { markPracticed } = useSyncedStreak();
 
   // All prompts as library entries (built-ins + custom), with overrides + enabled state applied
@@ -476,13 +477,16 @@ const Impromptu = () => {
    const [duration, setDuration] = useState(60);
    const [seconds, setSeconds] = useState(60);
    const [running, setRunning] = useState(false);
-   const [revealed, setRevealed] = useState(false);
-   const [recordEnabled, setRecordEnabled] = useState(false);
-   const idRef = useRef<number | null>(null);
-   const wasRunningRef = useRef<boolean>(false);
-   const recorderStartRef = useRef<() => void>();
-   const recorderPauseRef = useRef<() => void>();
-   const recorderStopRef = useRef<() => void>();
+const [revealed, setRevealed] = useState(false);
+    const [recordEnabled, setRecordEnabled] = useState(false);
+    const [authorPanelOpen, setAuthorPanelOpen] = useState(false);
+    const idRef = useRef<number | null>(null);
+    const wasRunningRef = useRef<boolean>(false);
+    const hasStartedRef = useRef<boolean>(false);
+    const recorderStartRef = useRef<() => void>();
+    const recorderPauseRef = useRef<() => void>();
+    const recorderResumeRef = useRef<() => void>();
+    const recorderStopRef = useRef<() => void>();
 
   const shuffle = (d: Difficulty = difficulty) => {
     const list = pool[d];
@@ -516,6 +520,9 @@ const Impromptu = () => {
           if (s <= 0) {
             setRunning(false);
             setPausedAt(null);
+            hasStartedRef.current = false;
+            // Don't reset wasRunningRef here - let recording control effect handle it
+            if (recordEnabled) refreshRecordings();
             return 0;
           }
           return s - 1;
@@ -543,20 +550,24 @@ const Impromptu = () => {
     
     // When recording is enabled, sync with timer state
     if (running && !pausedAt && !wasRunningRef.current) {
-      // Started running
+      // Started running (first time)
       recorderStartRef.current?.();
       wasRunningRef.current = true;
+    } else if (running && !pausedAt && wasRunningRef.current) {
+      // Resumed from pause - resume recording
+      recorderResumeRef.current?.();
     } else if ((!running || pausedAt) && wasRunningRef.current) {
       // Stopped or paused
       if (pausedAt) {
         recorderPauseRef.current?.();
+        // Keep wasRunningRef true so we can resume later
       } else {
-        // Add small buffer to let recording finalize
+        // Add buffer to let recording finalize
         setTimeout(() => {
           recorderStopRef.current?.();
-        }, 100);
+          wasRunningRef.current = false;
+        }, 50);
       }
-      wasRunningRef.current = false;
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recordEnabled, running, pausedAt]);
@@ -660,19 +671,21 @@ const Impromptu = () => {
                     onClick={() => {
                       if (seconds === 0) setSeconds(duration);
                       setRunning(true);
+                      if (pausedAt) setPausedAt(null);
+                      hasStartedRef.current = true;
                     }}
                   >
                     <Play className="h-4 w-4" />
-                    Start {duration < 60 ? `${duration}s` : `${duration}s`}
+                    {hasStartedRef.current ? "Resume " : "Start "}{duration < 60 ? `${duration}s` : `${duration}s`}
                   </Button>
                 ) : (
-                  <Button variant="hero" size="lg" onClick={() => setRunning(false)}>
+                  <Button variant="hero" size="lg" onClick={() => { setRunning(false); setPausedAt(Date.now()); }}>
                     <Pause className="h-4 w-4" />
                     Pause
                   </Button>
                 )}
               </>
-              <Button variant="outline" size="lg" onClick={() => { setSeconds(duration); setRunning(false); }}>
+              <Button variant="outline" size="lg" onClick={() => { recorderStopRef.current?.(); setSeconds(duration); setRunning(false); setPausedAt(null); wasRunningRef.current = false; hasStartedRef.current = false; }}>
                 <RotateCcw className="h-4 w-4" />
                 Reset
               </Button>
@@ -695,19 +708,32 @@ const Impromptu = () => {
 
             <div className="mt-8 pt-6 border-t border-border flex items-center justify-between gap-4">
               <div className="flex items-start gap-3">
-                {recordEnabled ? (
+                {!user ? (
+                  <MicOff className="h-5 w-5 text-muted-foreground/50 mt-0.5" />
+                ) : recordEnabled ? (
                   <Mic className="h-5 w-5 text-primary mt-0.5" />
                 ) : (
                   <MicOff className="h-5 w-5 text-muted-foreground mt-0.5" />
                 )}
                 <div>
                   <p className="text-sm font-semibold text-foreground">Record this attempt</p>
-                  <p className="text-xs text-muted-foreground max-w-sm">
-                    Auto-starts and stops with the timer. Audio stays on your device.
-                  </p>
+                  {!user ? (
+                    <p className="text-xs text-muted-foreground max-w-sm">
+                      <Link to="/login" className="text-primary hover:underline">Sign in</Link> to save recordings to your account.
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground max-w-sm">
+                      Auto-starts and stops with the timer. Saved to your account.
+                    </p>
+                  )}
                 </div>
               </div>
-              <Switch checked={recordEnabled} onCheckedChange={setRecordEnabled} aria-label="Toggle recording" />
+              <Switch 
+                checked={recordEnabled} 
+                onCheckedChange={setRecordEnabled} 
+                aria-label="Toggle recording"
+                disabled={!user}
+              />
             </div>
 
               {recordEnabled && (
@@ -722,6 +748,7 @@ const Impromptu = () => {
                     externalRunning={running}
                     recorderStartRef={(fn) => { recorderStartRef.current = fn; }}
                     recorderPauseRef={(fn) => { recorderPauseRef.current = fn; }}
+                    recorderResumeRef={(fn) => { recorderResumeRef.current = fn; }}
                     recorderStopRef={(fn) => { recorderStopRef.current = fn; }}
                       onRecorded={async ({ blob, durationMs }) => {
                         markPracticed();
@@ -732,8 +759,9 @@ const Impromptu = () => {
                           });
                           return;
                         }
+                        const attemptNum = recordings.length + 1;
                         const saved = await uploadRecording(blob, {
-                          promptText: prompt.text,
+                          promptText: `Attempt ${attemptNum}: ${prompt.text}`,
                           difficulty,
                           durationMs,
                           targetSeconds: duration,
@@ -840,6 +868,7 @@ const Impromptu = () => {
             onResetBuiltin={(id) => clearOverride(id)}
             onDeleteCustom={(id) => deleteCustomPrompt(id)}
             onResetAll={() => resetAll()}
+            onOpenAuthor={() => setAuthorPanelOpen(true)}
           />
 
           <RecordingsList />
@@ -850,10 +879,11 @@ const Impromptu = () => {
             onAdd={(p) => upsertCustomPrompt(p)}
             onDelete={(id) => deleteCustomPrompt(id)}
             onReplaceAll={(ps) => replaceAllCustomPrompts(ps)}
+            isOpen={authorPanelOpen}
+            onOpen={(open) => setAuthorPanelOpen(open)}
           />
-        </div>
 
-        <aside className="space-y-4 lg:sticky lg:top-24 self-start">
+          <aside className="space-y-4 lg:sticky lg:top-24 self-start">
           <p className="text-xs uppercase tracking-widest text-muted-foreground">All frameworks</p>
           {FRAMEWORKS.map((f) => (
             <div key={f.name} className="border border-border rounded-2xl p-5">
@@ -869,6 +899,7 @@ const Impromptu = () => {
             </p>
           </div>
         </aside>
+        </div>
       </div>
     </TrackShell>
   );

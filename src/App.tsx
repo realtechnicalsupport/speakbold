@@ -7,6 +7,7 @@ import Index from "./pages/Index.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import PreFlightChecklist from "./pages/PreFlightChecklist.tsx";
 import Profile from "./pages/Profile.tsx";
+import ResetPassword from "./pages/ResetPassword.tsx";
 import PublicSpeaking from "./pages/tracks/PublicSpeaking.tsx";
 import Impromptu from "./pages/tracks/Impromptu.tsx";
 import Interviews from "./pages/tracks/Interviews.tsx";
@@ -28,6 +29,7 @@ const App = () => (
       <Route path="/" element={<Index />} />
       <Route path="/pre-flight" element={<PreFlightChecklist />} />
       <Route path="/profile" element={<Profile />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/tracks/public-speaking" element={<PublicSpeaking />} />
       <Route path="/tracks/impromptu" element={<Impromptu />} />
       <Route path="/tracks/interviews" element={<Interviews />} />

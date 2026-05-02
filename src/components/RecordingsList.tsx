@@ -1,7 +1,7 @@
 import { useAuth } from "@/context/AuthContext";
 import { useRecordings } from "@/hooks/useRecordings";
 import { Button } from "@/components/ui/button";
-import { Trash2, CloudOff } from "lucide-react";
+import { Trash2, CloudOff, RefreshCw } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const fmt = (ms: number) => {
@@ -11,7 +11,7 @@ const fmt = (ms: number) => {
 
 export const RecordingsList = () => {
   const { user } = useAuth();
-  const { items, loading, remove } = useRecordings();
+  const { items, loading, remove, refresh } = useRecordings();
 
   if (!user) {
     return (
@@ -30,9 +30,18 @@ export const RecordingsList = () => {
   return (
     <div className="border border-border rounded-2xl p-6 bg-card-gradient">
       <div className="flex items-center justify-between mb-4">
-        <p className="text-xs uppercase tracking-widest text-primary font-semibold">
-          Your saved recordings
-        </p>
+        <div className="flex items-center gap-3">
+          <p className="text-xs uppercase tracking-widest text-primary font-semibold">
+            Your saved recordings
+          </p>
+          <button 
+            onClick={() => refresh()} 
+            className="text-muted-foreground hover:text-foreground transition-colors"
+            title="Refresh recordings"
+          >
+            <RefreshCw className="h-4 w-4" />
+          </button>
+        </div>
         <span className="text-xs text-muted-foreground">{items.length} total</span>
       </div>
       {loading && items.length === 0 ? (

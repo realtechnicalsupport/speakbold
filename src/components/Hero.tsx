@@ -1,9 +1,12 @@
 import { Link } from "react-router-dom";
 import heroImage from "@/assets/hero-speaker.jpg";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Mic } from "lucide-react";
+import { ArrowRight, Mic, User } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 export const Hero = () => {
+  const { user } = useAuth();
+  
   return (
     <section className="relative min-h-[92vh] flex items-end overflow-hidden">
       {/* Background image */}
@@ -34,9 +37,18 @@ export const Hero = () => {
             <Link to="/tracks/interviews" className="hover:text-foreground transition-colors">Interviews</Link>
             <Link to="/tracks/body-language" className="hover:text-foreground transition-colors">Body Language</Link>
           </nav>
-          <Button variant="spotlight" size="sm" asChild>
-            <Link to="/login">Log in / Sign up</Link>
-          </Button>
+          {user ? (
+            <Button variant="spotlight" size="sm" asChild>
+              <Link to="/profile">
+                <User className="h-4 w-4 mr-2" />
+                {user.email?.split("@")[0]}
+              </Link>
+            </Button>
+          ) : (
+            <Button variant="spotlight" size="sm" asChild>
+              <Link to="/login">Log in / Sign up</Link>
+            </Button>
+          )}
         </div>
       </header>
 
@@ -55,12 +67,21 @@ export const Hero = () => {
             impromptu thinking, job interviews, and the body language that makes people listen.
           </p>
           <div className="flex flex-wrap gap-4">
-            <Button variant="hero" size="xl" asChild>
-              <Link to="/login">
-                Try the 60-second drill
-                <ArrowRight className="h-5 w-5" />
-              </Link>
-            </Button>
+            {user ? (
+              <Button variant="hero" size="xl" asChild>
+                <Link to="/tracks/impromptu">
+                  Go to Impromptu
+                  <ArrowRight className="h-5 w-5" />
+                </Link>
+              </Button>
+            ) : (
+              <Button variant="hero" size="xl" asChild>
+                <Link to="/login">
+                  Try the 60-second drill
+                  <ArrowRight className="h-5 w-5" />
+                </Link>
+              </Button>
+            )}
             <Button variant="outline" size="xl" asChild>
               <a href="#tracks">Browse the four tracks</a>
             </Button>
