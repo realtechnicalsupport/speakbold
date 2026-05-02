@@ -6,10 +6,42 @@
 
 /* Mobile overflow fixes */
 @layer base {
-  * {
-    max-width: 100% !important;
-    box-sizing: border-box !important;
+  *, *::before, *::after {
+    box-sizing: border-box;
   }
+  /* Fix mic icon circle on resize */
+  .bg-warm {
+    flex-shrink: 0 !important;
+  }
+  html, body, #root {
+    overflow-x: hidden;
+    width: 100%;
+  }
+  /* Only constrain inline/block content, never fixed/absolute/stacking-context elements */
+  img, video, audio, canvas, iframe, svg, table {
+    max-width: 100%;
+  }
+  p, span, h1, h2, h3, h4, h5, h6, li, td, th {
+    word-break: break-word;
+    overflow-wrap: break-word;
+  }
+  @media (max-width: 1023px) {
+    html, body, #root {
+      overflow-x: hidden;
+    }
+    .tabular-nums {
+      font-variant-nums: tabular-nums;
+      font-feature-settings: "tnum";
+    }
+    input, select, textarea {
+      max-width: 100%;
+    }
+    body {
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
+    }
+  }
+}
   /* Allow fixed/absolute elements that need to escape max-width constraint */
   .no-max-w, .no-max-w * {
     max-width: none !important;

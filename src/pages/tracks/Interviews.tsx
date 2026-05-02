@@ -720,10 +720,15 @@ const Interviews = () => {
           {/* Main practice card */}
           <div className="relative bg-card-gradient border border-border rounded-3xl p-8 md:p-10 overflow-hidden">
             {mode === "practice" && (
-              <div
-                className="absolute top-0 left-0 h-1 bg-warm transition-all duration-1000 ease-linear"
-                style={{ width: `${pct}%` }}
-              />
+              <div className="absolute top-0 left-0 right-0 h-[3px] bg-muted overflow-hidden rounded-t-3xl">
+                <div
+                  className={cn(
+                    "h-full transition-all ease-linear",
+                    seconds === 0 ? "bg-green-400" : running ? "bg-primary" : "bg-primary/40"
+                  )}
+                  style={{ width: `${pct}%`, transitionDuration: running ? "1000ms" : "300ms" }}
+                />
+              </div>
             )}
             
             <div className="flex items-start justify-between gap-4 mb-6">
@@ -740,9 +745,32 @@ const Interviews = () => {
                 </span>
               </div>
               {mode === "practice" && (
-                <span className="font-mono tabular-nums text-4xl md:text-5xl font-bold">
-                  {mins}:{String(secs).padStart(2, "0")}
-                </span>
+                <div className="relative w-20 h-20 shrink-0">
+                  <svg className="w-full h-full -rotate-90" viewBox="0 0 80 80">
+                    <circle cx="40" cy="40" r="34" fill="none" stroke="hsl(var(--muted))" strokeWidth="5" />
+                    <circle
+                      cx="40" cy="40" r="34"
+                      fill="none"
+                      stroke={seconds === 0 ? "rgb(74 222 128)" : seconds <= 10 && running ? "hsl(var(--destructive))" : "hsl(var(--primary))"}
+                      strokeWidth="5"
+                      strokeLinecap="round"
+                      strokeDasharray="213.63"
+                      strokeDashoffset={213.63 * (1 - pct / 100)}
+                      style={{ transition: running ? "stroke-dashoffset 1s linear, stroke 0.3s" : "stroke-dashoffset 0.3s, stroke 0.3s" }}
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className={cn(
+                      "font-mono tabular-nums font-bold text-sm leading-none",
+                      seconds === 0 ? "text-green-400" : seconds <= 10 && running ? "text-destructive" : "text-foreground"
+                    )}>
+                      {mins}:{String(secs).padStart(2, "0")}
+                    </span>
+                    <span className="text-[9px] text-muted-foreground mt-0.5 uppercase tracking-wide">
+                      {seconds === 0 ? "Done" : running ? "Live" : pausedAt ? "Paused" : "Ready"}
+                    </span>
+                  </div>
+                </div>
               )}
             </div>
 

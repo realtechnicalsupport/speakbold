@@ -661,31 +661,71 @@ const PublicSpeaking = () => {
         <aside className="lg:sticky lg:top-24 self-start space-y-6">
           {/* Timer and controls */}
           <div className="relative bg-card-gradient border border-border rounded-3xl p-6 overflow-hidden">
-            <div
-              className="absolute top-0 left-0 h-1 bg-warm transition-all duration-1000 ease-linear"
-              style={{ width: `${pct}%` }}
-            />
-            
-            <div className="text-center mb-6">
-              <p className="text-xs uppercase tracking-widest text-muted-foreground mb-2">
-                Drill {activeDrill + 1}: {current.title}
-              </p>
-              <span className="font-mono tabular-nums text-5xl font-bold">
-                {mins}:{String(secs).padStart(2, "0")}
-              </span>
+            {/* Top progress bar */}
+            <div className="absolute top-0 left-0 right-0 h-[3px] bg-muted overflow-hidden rounded-t-3xl">
+              <div
+                className={cn(
+                  "h-full transition-all ease-linear",
+                  seconds === 0 ? "bg-green-400" : running ? "bg-primary" : "bg-primary/40"
+                )}
+                style={{ width: `${pct}%`, transitionDuration: running ? "1000ms" : "300ms" }}
+              />
+            </div>
+
+            {/* Drill label */}
+            <p className="text-xs uppercase tracking-widest text-muted-foreground text-center mb-4 mt-1">
+              Drill {activeDrill + 1} · {current.title}
+            </p>
+
+            {/* Circular timer */}
+            <div className="flex items-center justify-center mb-5">
+              <div className="relative w-36 h-36">
+                <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                  <circle cx="50" cy="50" r="44" fill="none" stroke="hsl(var(--muted))" strokeWidth="6" />
+                  <circle
+                    cx="50" cy="50" r="44"
+                    fill="none"
+                    stroke={seconds === 0 ? "rgb(74 222 128)" : seconds <= 10 && running ? "hsl(var(--destructive))" : "hsl(var(--primary))"}
+                    strokeWidth="6"
+                    strokeLinecap="round"
+                    strokeDasharray="276.46"
+                    strokeDashoffset={276.46 * (1 - pct / 100)}
+                    style={{ transition: running ? "stroke-dashoffset 1s linear, stroke 0.3s" : "stroke-dashoffset 0.3s, stroke 0.3s" }}
+                  />
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  {running && (
+                    <span className="relative flex h-2 w-2 mb-1">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-destructive opacity-75" />
+                      <span className="relative inline-flex h-2 w-2 rounded-full bg-destructive" />
+                    </span>
+                  )}
+                  <span className={cn(
+                    "font-mono tabular-nums font-bold leading-none",
+                    seconds === 0 ? "text-green-400 text-2xl" : seconds <= 10 && running ? "text-destructive text-3xl" : "text-foreground text-3xl"
+                  )}>
+                    {mins}:{String(secs).padStart(2, "0")}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground mt-1 uppercase tracking-wider">
+                    {seconds === 0 ? "Done" : running ? "Live" : pausedAt ? "Paused" : "Ready"}
+                  </span>
+                </div>
+              </div>
             </div>
 
             {/* Timer presets */}
-            <div className="flex flex-wrap items-center justify-center gap-2 mb-5">
+            <div className="flex items-center justify-center gap-1.5 mb-5">
               {[30, 45, 60, 90].map((d) => (
                 <button
                   key={d}
-                  onClick={() => { setDuration(d); setSeconds(d); setRunning(false); }}
+                  onClick={() => { if (!running) { setDuration(d); setSeconds(d); } }}
+                  disabled={running}
                   className={cn(
-                    "px-3 py-1.5 rounded-full text-xs border transition-colors",
+                    "px-3 py-1.5 rounded-lg text-xs font-medium border transition-all",
                     duration === d
-                      ? "bg-foreground text-background border-foreground"
-                      : "border-border text-muted-foreground hover:text-foreground"
+                      ? "bg-primary text-primary-foreground border-primary shadow-glow"
+                      : "border-border text-muted-foreground hover:text-foreground hover:border-border/80",
+                    running && "opacity-40 cursor-not-allowed"
                   )}
                 >
                   {d}s
@@ -694,11 +734,12 @@ const PublicSpeaking = () => {
             </div>
 
             {/* Control buttons */}
-            <div className="flex flex-wrap gap-2 justify-center">
+            <div className="flex gap-2 justify-center">
               {!running ? (
                 <Button
                   variant="hero"
                   size="lg"
+                  className="flex-1"
                   onClick={() => {
                     if (seconds === 0) setSeconds(duration);
                     setRunning(true);
@@ -711,14 +752,14 @@ const PublicSpeaking = () => {
                   {hasStartedRef.current ? "Resume" : "Start Drill"}
                 </Button>
               ) : (
-                <Button variant="hero" size="lg" onClick={() => { setRunning(false); setPausedAt(Date.now()); }}>
+                <Button variant="hero" size="lg" className="flex-1" onClick={() => { setRunning(false); setPausedAt(Date.now()); }}>
                   <Pause className="h-4 w-4" />
                   Pause
                 </Button>
               )}
               <Button 
                 variant="outline" 
-                size="lg" 
+                size="icon"
                 onClick={() => { 
                   recorderStopRef.current?.(); 
                   setSeconds(duration); 
@@ -728,16 +769,16 @@ const PublicSpeaking = () => {
                   hasStartedRef.current = false;
                   setTimerStarted(false);
                 }}
+                aria-label="Reset timer"
               >
                 <RotateCcw className="h-4 w-4" />
-                Reset
               </Button>
             </div>
 
             {seconds === 0 && (
-              <div className="mt-5 flex items-center justify-center gap-2 text-primary font-semibold animate-fade-in">
-                <Trophy className="h-5 w-5" />
-                <span>Drill complete! Review your recording.</span>
+              <div className="mt-4 flex items-center justify-center gap-2 text-green-400 font-semibold text-sm animate-fade-in">
+                <Trophy className="h-4 w-4" />
+                <span>Drill complete!</span>
               </div>
             )}
 
