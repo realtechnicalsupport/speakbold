@@ -496,12 +496,12 @@ const PublicSpeaking = () => {
       <div className="mb-8">
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm text-muted-foreground">Drills completed</span>
-          <span className="text-sm font-medium">{completedCount}/{DRILLS.length} mastered</span>
+          <span className="text-sm font-medium">{completedCount}/{drills.length} mastered</span>
         </div>
         <div className="h-2 bg-muted rounded-full overflow-hidden">
           <div 
             className="h-full bg-primary transition-all duration-500"
-            style={{ width: `${(completedCount / DRILLS.length) * 100}%` }}
+            style={{ width: `${(completedCount / drills.length) * 100}%` }}
           />
         </div>
       </div>
@@ -537,7 +537,7 @@ const PublicSpeaking = () => {
       <div className="grid lg:grid-cols-[1fr_420px] gap-10 mt-6">
         {/* Drills list */}
         <div className="space-y-4">
-          {DRILLS.map((drill, i) => {
+          {drills.map((drill, i) => {
             const isActive = activeDrill === i;
             const isCompleted = completedDrills.has(drill.id);
             
@@ -808,8 +808,8 @@ const PublicSpeaking = () => {
             <Button 
               variant="hero" 
               className="flex-1"
-              onClick={() => setActiveDrill(a => Math.min(DRILLS.length - 1, a + 1))}
-              disabled={activeDrill === DRILLS.length - 1}
+              onClick={() => setActiveDrill(a => Math.min(drills.length - 1, a + 1))}
+              disabled={activeDrill === drills.length - 1}
             >
               Next drill
               <ArrowRight className="h-4 w-4" />
