@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { TrackShell } from "@/components/TrackShell";
 import { RecorderPanel } from "@/components/RecorderPanel";
+import { MobileTimerHeader } from "@/components/MobileTimerHeader";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -280,6 +281,7 @@ const PublicSpeaking = () => {
   const [seconds, setSeconds] = useState(DEFAULT_DRILLS[0].duration);
   const [running, setRunning] = useState(false);
   const [pausedAt, setPausedAt] = useState<number | null>(null);
+  const [timerStarted, setTimerStarted] = useState(false);
   const idRef = useRef<number | null>(null);
   const hasStartedRef = useRef<boolean>(false);
   const wasRunningRef = useRef<boolean>(false);
@@ -428,6 +430,7 @@ const PublicSpeaking = () => {
     setPausedAt(null);
     hasStartedRef.current = false;
     wasRunningRef.current = false;
+    setTimerStarted(false);
   }, [activeDrill, current.duration]);
 
   // Timer logic
@@ -499,6 +502,18 @@ const PublicSpeaking = () => {
       }
       intro="Six focused drills on hooks, structure, pause, pace, energy, and the close. Each one is timed practice - record yourself, listen back, improve."
     >
+      <MobileTimerHeader
+        visible={timerStarted}
+        seconds={seconds}
+        duration={duration}
+        running={running}
+        paused={pausedAt !== null}
+        label={current.title}
+        onResume={() => { if (seconds === 0) setSeconds(duration); setRunning(true); setPausedAt(null); hasStartedRef.current = true; setTimerStarted(true); }}
+        onPause={() => { setRunning(false); setPausedAt(Date.now()); }}
+        onReset={() => { recorderStopRef.current?.(); setSeconds(duration); setRunning(false); setPausedAt(null); wasRunningRef.current = false; hasStartedRef.current = false; setTimerStarted(false); }}
+      />
+
       {/* Progress bar */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-2">
@@ -689,6 +704,7 @@ const PublicSpeaking = () => {
                     setRunning(true);
                     if (pausedAt) setPausedAt(null);
                     hasStartedRef.current = true;
+                    setTimerStarted(true);
                   }}
                 >
                   <Play className="h-4 w-4" />
@@ -709,7 +725,8 @@ const PublicSpeaking = () => {
                   setRunning(false); 
                   setPausedAt(null); 
                   wasRunningRef.current = false; 
-                  hasStartedRef.current = false; 
+                  hasStartedRef.current = false;
+                  setTimerStarted(false);
                 }}
               >
                 <RotateCcw className="h-4 w-4" />

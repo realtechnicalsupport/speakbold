@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { TrackShell } from "@/components/TrackShell";
 import { RecorderPanel } from "@/components/RecorderPanel";
+import { MobileTimerHeader } from "@/components/MobileTimerHeader";
 import { Button } from "@/components/ui/button";
 import { Shuffle, Play, Pause, RotateCcw, Lightbulb, EyeOff, Mic, MicOff } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
@@ -484,6 +485,7 @@ const [revealed, setRevealed] = useState(false);
   });
     const [recordEnabled, setRecordEnabled] = useState(false);
     const [authorPanelOpen, setAuthorPanelOpen] = useState(false);
+    const [timerStarted, setTimerStarted] = useState(false);
     const idRef = useRef<number | null>(null);
     const wasRunningRef = useRef<boolean>(false);
     const hasStartedRef = useRef<boolean>(false);
@@ -598,6 +600,18 @@ const [revealed, setRevealed] = useState(false);
       }
       intro="The fastest way to build speaking confidence is to speak when you don't feel ready. Pick a difficulty, hit start, and talk until the timer ends. Stuck? Reveal hints — but try without them first."
     >
+      <MobileTimerHeader
+        visible={timerStarted}
+        seconds={seconds}
+        duration={duration}
+        running={running}
+        paused={pausedAt !== null}
+        label={prompt.text.length > 50 ? prompt.text.slice(0, 50) + "…" : prompt.text}
+        onResume={() => { if (seconds === 0) setSeconds(duration); setRunning(true); setPausedAt(null); hasStartedRef.current = true; setTimerStarted(true); }}
+        onPause={() => { setRunning(false); setPausedAt(Date.now()); }}
+        onReset={() => { recorderStopRef.current?.(); setSeconds(duration); setRunning(false); setPausedAt(null); wasRunningRef.current = false; hasStartedRef.current = false; setTimerStarted(false); }}
+      />
+
       <div className="grid lg:grid-cols-[1fr_380px] gap-10">
         <div className="space-y-6">
           <div className="flex flex-wrap gap-2">
@@ -678,6 +692,7 @@ const [revealed, setRevealed] = useState(false);
                       setRunning(true);
                       if (pausedAt) setPausedAt(null);
                       hasStartedRef.current = true;
+                      setTimerStarted(true);
                     }}
                   >
                     <Play className="h-4 w-4" />
@@ -690,7 +705,7 @@ const [revealed, setRevealed] = useState(false);
                   </Button>
                 )}
               </>
-              <Button variant="outline" size="lg" onClick={() => { recorderStopRef.current?.(); setSeconds(duration); setRunning(false); setPausedAt(null); wasRunningRef.current = false; hasStartedRef.current = false; }}>
+              <Button variant="outline" size="lg" onClick={() => { recorderStopRef.current?.(); setSeconds(duration); setRunning(false); setPausedAt(null); wasRunningRef.current = false; hasStartedRef.current = false; setTimerStarted(false); }}>
                 <RotateCcw className="h-4 w-4" />
                 Reset
               </Button>

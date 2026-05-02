@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { TrackShell } from "@/components/TrackShell";
 import { RecorderPanel } from "@/components/RecorderPanel";
+import { MobileTimerHeader } from "@/components/MobileTimerHeader";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -308,6 +309,7 @@ const Interviews = () => {
   const [seconds, setSeconds] = useState(75);
   const [running, setRunning] = useState(false);
   const [pausedAt, setPausedAt] = useState<number | null>(null);
+  const [timerStarted, setTimerStarted] = useState(false);
   const [dismissedTips, setDismissedTips] = useState<Set<string>>(new Set());
   const idRef = useRef<number | null>(null);
   const hasStartedRef = useRef<boolean>(false);
@@ -459,6 +461,7 @@ const Interviews = () => {
       setRevealed(false);
       hasStartedRef.current = false;
       wasRunningRef.current = false;
+      setTimerStarted(false);
     }
   }, [active, current?.targetSeconds]);
 
@@ -543,6 +546,18 @@ const Interviews = () => {
       }
       intro="Pick a question, hit start, and answer out loud under time pressure. AI can generate unlimited new questions."
     >
+      <MobileTimerHeader
+        visible={timerStarted}
+        seconds={seconds}
+        duration={duration}
+        running={running}
+        paused={pausedAt !== null}
+        label={current?.q}
+        onResume={() => { if (seconds === 0) setSeconds(duration); setRunning(true); setPausedAt(null); hasStartedRef.current = true; setTimerStarted(true); }}
+        onPause={() => { setRunning(false); setPausedAt(Date.now()); }}
+        onReset={() => { recorderStopRef.current?.(); setSeconds(duration); setRunning(false); setPausedAt(null); wasRunningRef.current = false; hasStartedRef.current = false; setTimerStarted(false); }}
+      />
+
       {/* Progress bar */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-2">
@@ -768,6 +783,7 @@ const Interviews = () => {
                         setRunning(true);
                         if (pausedAt) setPausedAt(null);
                         hasStartedRef.current = true;
+                        setTimerStarted(true);
                       }}
                     >
                       <Play className="h-4 w-4" />
@@ -788,7 +804,8 @@ const Interviews = () => {
                       setRunning(false); 
                       setPausedAt(null); 
                       wasRunningRef.current = false; 
-                      hasStartedRef.current = false; 
+                      hasStartedRef.current = false;
+                      setTimerStarted(false);
                     }}
                   >
                     <RotateCcw className="h-4 w-4" />
