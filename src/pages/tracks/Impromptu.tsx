@@ -478,6 +478,10 @@ const Impromptu = () => {
    const [seconds, setSeconds] = useState(60);
    const [running, setRunning] = useState(false);
 const [revealed, setRevealed] = useState(false);
+  const [completedPrompts, setCompletedPrompts] = useState<Set<string>>(() => {
+    const saved = localStorage.getItem("speakbold:impromptu-completed");
+    return saved ? new Set(JSON.parse(saved)) : new Set();
+  });
     const [recordEnabled, setRecordEnabled] = useState(false);
     const [authorPanelOpen, setAuthorPanelOpen] = useState(false);
     const idRef = useRef<number | null>(null);
