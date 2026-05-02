@@ -492,8 +492,8 @@ const PublicSpeaking = () => {
 
   return (
     <>
-      {/* Timer Header - appears only when timer is running */}
-      {running && (
+      {/* Timer Header - appears when timer is running or paused */}
+      {(running || pausedAt) && (
         <TimerHeader
           running={running}
           seconds={seconds}
@@ -520,7 +520,7 @@ const PublicSpeaking = () => {
           }}
         />
       )}
-      <div className={running ? "pt-32" : ""}>
+      <div className={(running || pausedAt) ? "pt-32" : ""}>
         <TrackShell
           eyebrow="Public Speaking - 6 drills"
           title={

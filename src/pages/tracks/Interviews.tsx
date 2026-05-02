@@ -536,8 +536,8 @@ const Interviews = () => {
 
   return (
     <>
-      {/* Timer Header - appears only when timer is running */}
-      {running && current && (
+      {/* Timer Header - appears when timer is running or paused */}
+      {(running || pausedAt) && current && (
         <TimerHeader
           running={running}
           seconds={seconds}
@@ -564,7 +564,7 @@ const Interviews = () => {
           }}
         />
       )}
-      <div className={running ? "pt-32" : ""}>
+      <div className={(running || pausedAt) ? "pt-32" : ""}>
         <TrackShell
           eyebrow={`Job Interviews - ${questions.length} questions`}
           title={

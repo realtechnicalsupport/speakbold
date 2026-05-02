@@ -590,8 +590,8 @@ const [revealed, setRevealed] = useState(false);
 
   return (
     <>
-      {/* Timer Header - appears only when timer is running */}
-      {running && (
+      {/* Timer Header - appears when timer is running or paused */}
+      {(running || pausedAt) && (
         <TimerHeader
           running={running}
           seconds={seconds}
@@ -618,7 +618,7 @@ const [revealed, setRevealed] = useState(false);
           }}
         />
       )}
-      <div className={running ? "pt-32 max-w-full overflow-x-hidden" : "max-w-full overflow-x-hidden"}>
+      <div className={(running || pausedAt) ? "pt-32 max-w-full overflow-x-hidden" : "max-w-full overflow-x-hidden"}>
       <TrackShell
         eyebrow="Impromptu · 60-second drills"
         title={
