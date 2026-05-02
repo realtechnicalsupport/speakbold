@@ -13,6 +13,7 @@ import PublicSpeaking from "./pages/tracks/PublicSpeaking.tsx";
 import Impromptu from "./pages/tracks/Impromptu.tsx";
 import Interviews from "./pages/tracks/Interviews.tsx";
 import BodyLanguage from "./pages/tracks/BodyLanguage.tsx";
+import PitchDeck from "./pages/PitchDeck.tsx";
 import Login from "./pages/Login.tsx";
 import Callback from "./pages/auth/callback";
 import { AuthProvider } from "./context/AuthContext";
@@ -38,6 +39,7 @@ const App = () => (
         <Route path="/tracks/body-language" element={<BodyLanguage />} />
         <Route path="/login" element={<Login />} />
         <Route path="/auth/callback" element={<Callback />} />
+        <Route path="/pitch" element={<PitchDeck />} />
         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
         <Route path="*" element={<NotFound />} />
       </Routes>

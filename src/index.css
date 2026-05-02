@@ -10,6 +10,17 @@
     max-width: 100% !important;
     box-sizing: border-box !important;
   }
+  /* Fix mic icon circle on resize */
+  .bg-warm {
+    flex-shrink: 0 !important;
+  }
+  /* Center all page content except headers */
+  main > div:not(.site-header),
+  .TrackShell > div:not(.site-header),
+  section > div {
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
   html, body, #root {
     overflow-x: hidden !important;
     width: 100% !important;
