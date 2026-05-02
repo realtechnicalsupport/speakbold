@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Play, Pause, RotateCcw, Flame, CheckCircle2 } from "lucide-react";
 import { useStreak } from "@/hooks/useStreak";
+import { RecorderPanel } from "@/components/RecorderPanel";
 
 const DAILY_PROMPTS = [
   "The best advice you've ever ignored.",
@@ -36,6 +37,27 @@ export const DailyChallenge = () => {
   const [finished, setFinished] = useState(false);
   const ref = useRef<number | null>(null);
   const { count, practicedToday, markPracticed } = useStreak();
+  
+  // Recorder control refs
+  const recorderRef = useRef<{ start: () => void; pause: () => void; resume: () => void; stop: () => void } | null>(null);
+  
+  // Sync recorder with timer state
+  useEffect(() => {
+    if (running && recorderRef.current) {
+      // Start or resume recording when timer starts
+      if (left === DURATION) {
+        recorderRef.current.start();
+      } else {
+        recorderRef.current.resume();
+      }
+    } else if (!running && recorderRef.current && left < DURATION && !finished) {
+      // Pause recording when timer pauses
+      recorderRef.current.pause();
+    } else if (finished && recorderRef.current) {
+      // Stop recording when timer finishes
+      recorderRef.current.stop();
+    }
+  }, [running, finished, left]);
 
   useEffect(() => {
     if (!running) return;
@@ -166,6 +188,19 @@ export const DailyChallenge = () => {
             })}
           </div>
           <p className="text-xs text-muted-foreground mt-3">Last 7 days</p>
+        </div>
+
+        {/* Recorder panel - synced with timer */}
+        <div className="md:col-span-5">
+          <RecorderPanel
+            ref={recorderRef}
+            label="Your response"
+            hint="Recording syncs with the timer. Hit Start speaking above, speak for 60 seconds, then play it back to hear yourself."
+            recorderStartRef={() => {}}
+            recorderPauseRef={() => {}}
+            recorderResumeRef={() => {}}
+            recorderStopRef={() => {}}
+          />
         </div>
       </div>
     </section>
