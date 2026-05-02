@@ -534,9 +534,6 @@ const Interviews = () => {
   const pct = duration > 0 ? (seconds / duration) * 100 : 0;
   const completedCount = completedQuestions.size;
 
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-
   return (
     <>
       {/* Timer Header - appears only when timer is running */}
