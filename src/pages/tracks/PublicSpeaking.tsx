@@ -1,9 +1,27 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { TrackShell } from "@/components/TrackShell";
 import { RecorderPanel } from "@/components/RecorderPanel";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { 
   Check, 
   ChevronRight, 
@@ -18,12 +36,19 @@ import {
   Volume2,
   Clock,
   Target,
-  Zap
+  Zap,
+  Sparkles,
+  Loader2,
+  FolderOpen,
+  Trash2,
+  Download,
+  Calendar
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { useRecordings, useSyncedStreak } from "@/hooks/useRecordings";
 import { toast } from "@/hooks/use-toast";
+import { generateSpeakingDrills, type SpeakingDrill as AISpeakingDrill } from "@/services/geminiService";
 
 type Context = "small" | "large" | "stage" | "virtual";
 
@@ -43,9 +68,32 @@ interface Drill {
   prompt: string;
   selfReviewQuestions: string[];
   contexts: Record<Context, string>;
+  isAI?: boolean;
 }
 
-const DRILLS: Drill[] = [
+interface SavedRecording {
+  id: string;
+  drillId: string;
+  drillTitle: string;
+  blob: Blob;
+  url: string;
+  timestamp: number;
+  duration: number;
+  attemptNumber: number;
+}
+
+const RECORDINGS_STORAGE_KEY = "speakbold:speaking-recordings";
+
+const formatDate = (timestamp: number): string => {
+  return new Date(timestamp).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+const DEFAULT_DRILLS: Drill[] = [
   {
     id: "hook",
     title: "The 10-Second Hook",
@@ -202,6 +250,8 @@ const CommonMistake = ({ children }: { children: React.ReactNode }) => (
 );
 
 const PublicSpeaking = () => {
+  // Drills state (includes AI generated drills)
+  const [drills, setDrills] = useState<Drill[]>(DEFAULT_DRILLS);
   const [activeDrill, setActiveDrill] = useState(0);
   const [context, setContext] = useState<Context>("large");
   const [completedDrills, setCompletedDrills] = useState<Set<string>>(() => {
@@ -209,10 +259,18 @@ const PublicSpeaking = () => {
     return saved ? new Set(JSON.parse(saved)) : new Set();
   });
   const [recordEnabled, setRecordEnabled] = useState(false);
+
+  // AI generation state
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [aiFocus, setAiFocus] = useState("Vocal Variety");
+  const [aiCount, setAiCount] = useState(2);
+
+  // Saved recordings state
+  const [savedRecordings, setSavedRecordings] = useState<SavedRecording[]>([]);
   
   // Timer state
-  const [duration, setDuration] = useState(DRILLS[0].duration);
-  const [seconds, setSeconds] = useState(DRILLS[0].duration);
+  const [duration, setDuration] = useState(DEFAULT_DRILLS[0].duration);
+  const [seconds, setSeconds] = useState(DEFAULT_DRILLS[0].duration);
   const [running, setRunning] = useState(false);
   const [pausedAt, setPausedAt] = useState<number | null>(null);
   const idRef = useRef<number | null>(null);
@@ -229,7 +287,126 @@ const PublicSpeaking = () => {
   const { upload: uploadRecording, refresh: refreshRecordings } = useRecordings();
   const { markPracticed } = useSyncedStreak();
   
-  const current = DRILLS[activeDrill];
+  const current = drills[activeDrill];
+
+  // Load saved recordings from localStorage
+  useEffect(() => {
+    const loadRecordings = async () => {
+      try {
+        const stored = localStorage.getItem(RECORDINGS_STORAGE_KEY);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          const recs: SavedRecording[] = await Promise.all(
+            parsed.map(async (r: SavedRecording & { blobData: string }) => {
+              const response = await fetch(r.blobData);
+              const blob = await response.blob();
+              return {
+                ...r,
+                blob,
+                url: URL.createObjectURL(blob),
+              };
+            })
+          );
+          setSavedRecordings(recs);
+        }
+      } catch (error) {
+        console.error("Failed to load recordings:", error);
+      }
+    };
+    loadRecordings();
+  }, []);
+
+  // Save recordings to localStorage
+  const saveRecordingsToStorage = useCallback(async (recs: SavedRecording[]) => {
+    try {
+      const dataToStore = await Promise.all(
+        recs.map(async (r) => {
+          const reader = new FileReader();
+          const blobData = await new Promise<string>((resolve) => {
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.readAsDataURL(r.blob);
+          });
+          return {
+            id: r.id,
+            drillId: r.drillId,
+            drillTitle: r.drillTitle,
+            timestamp: r.timestamp,
+            duration: r.duration,
+            attemptNumber: r.attemptNumber,
+            blobData,
+          };
+        })
+      );
+      localStorage.setItem(RECORDINGS_STORAGE_KEY, JSON.stringify(dataToStore));
+    } catch (error) {
+      console.error("Failed to save recordings:", error);
+    }
+  }, []);
+
+  // Get recordings for current drill
+  const currentDrillRecordings = savedRecordings
+    .filter((r) => r.drillId === current?.id)
+    .sort((a, b) => b.timestamp - a.timestamp);
+
+  // Delete a recording
+  const deleteRecording = (recordingId: string) => {
+    const recording = savedRecordings.find((r) => r.id === recordingId);
+    if (recording) {
+      URL.revokeObjectURL(recording.url);
+    }
+    const updated = savedRecordings.filter((r) => r.id !== recordingId);
+    setSavedRecordings(updated);
+    saveRecordingsToStorage(updated);
+  };
+
+  // Download a recording
+  const downloadRecording = (recording: SavedRecording) => {
+    const a = document.createElement("a");
+    a.href = recording.url;
+    a.download = `Speaking-${recording.drillTitle.replace(/[^a-z0-9]/gi, '_')}-Attempt${recording.attemptNumber}.webm`;
+    a.click();
+  };
+
+  // AI Drill Generation
+  const generateAIDrills = async () => {
+    setIsGenerating(true);
+    try {
+      const newDrills = await generateSpeakingDrills(aiFocus, aiCount);
+      
+      // Convert AI drills to our format
+      const formattedDrills: Drill[] = newDrills.map((d, idx) => ({
+        id: `ai-drill-${Date.now()}-${idx}`,
+        title: d.title,
+        duration: d.duration,
+        objective: d.objective,
+        instructions: d.steps,
+        prompt: d.prompt,
+        selfReviewQuestions: d.selfReviewQuestions,
+        contexts: {
+          small: "Adapt this drill for an intimate setting with direct eye contact.",
+          large: "Project your voice and use larger gestures for a conference room.",
+          stage: "Full commitment - your energy must reach the back row.",
+          virtual: "Stay close to camera, slightly elevated energy.",
+        },
+        isAI: true,
+      }));
+
+      setDrills(prev => [...prev, ...formattedDrills]);
+      toast({
+        title: "Drills generated",
+        description: `Added ${formattedDrills.length} new AI-generated drills.`,
+      });
+    } catch (error) {
+      console.error("Failed to generate drills:", error);
+      toast({
+        title: "Generation failed",
+        description: "Could not generate drills. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   // Save completed drills
   useEffect(() => {

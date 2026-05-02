@@ -1,9 +1,28 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { TrackShell } from "@/components/TrackShell";
 import { RecorderPanel } from "@/components/RecorderPanel";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { 
   ChevronRight, 
   AlertTriangle, 
@@ -18,12 +37,19 @@ import {
   CheckCircle2,
   Clock,
   Target,
-  Trophy
+  Trophy,
+  Sparkles,
+  Loader2,
+  FolderOpen,
+  Trash2,
+  Download,
+  Calendar
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { useRecordings, useSyncedStreak } from "@/hooks/useRecordings";
 import { toast } from "@/hooks/use-toast";
+import { generateInterviewQuestions } from "@/services/geminiService";
 
 const CommonMistake = ({ children }: { children: React.ReactNode }) => (
   <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-4 flex items-start gap-3">
@@ -33,17 +59,33 @@ const CommonMistake = ({ children }: { children: React.ReactNode }) => (
 );
 
 interface Question {
+  id: string;
   q: string;
-  type: "Behavioural" | "Tell me about yourself" | "Strengths/Weaknesses" | "Why this role" | "Salary" | "Curveball";
+  type: "Behavioural" | "Tell me about yourself" | "Strengths/Weaknesses" | "Why this role" | "Salary" | "Curveball" | "AI Generated";
   guidance: string;
   example: string;
   targetSeconds: number;
   difficulty: "Warm-up" | "Standard" | "Pressure";
   keyPoints: string[];
+  isAI?: boolean;
 }
 
-const QUESTIONS: Question[] = [
+interface SavedRecording {
+  id: string;
+  questionId: string;
+  questionText: string;
+  blob: Blob;
+  url: string;
+  timestamp: number;
+  duration: number;
+  attemptNumber: number;
+}
+
+const RECORDINGS_STORAGE_KEY = "speakbold:interview-recordings";
+
+const DEFAULT_QUESTIONS: Question[] = [
   {
+    id: "q1",
     q: "Tell me about yourself.",
     type: "Tell me about yourself",
     guidance:
@@ -59,6 +101,7 @@ const QUESTIONS: Question[] = [
     ],
   },
   {
+    id: "q2",
     q: "Tell me about a time you failed.",
     type: "Behavioural",
     guidance:
@@ -75,6 +118,7 @@ const QUESTIONS: Question[] = [
     ],
   },
   {
+    id: "q3",
     q: "Tell me about a time you had a conflict with a coworker.",
     type: "Behavioural",
     guidance:
@@ -91,6 +135,7 @@ const QUESTIONS: Question[] = [
     ],
   },
   {
+    id: "q4",
     q: "What is your greatest strength?",
     type: "Strengths/Weaknesses",
     guidance:
@@ -106,6 +151,7 @@ const QUESTIONS: Question[] = [
     ],
   },
   {
+    id: "q5",
     q: "What is your greatest weakness?",
     type: "Strengths/Weaknesses",
     guidance:
@@ -122,6 +168,7 @@ const QUESTIONS: Question[] = [
     ],
   },
   {
+    id: "q6",
     q: "Why do you want to work here?",
     type: "Why this role",
     guidance:
@@ -137,6 +184,7 @@ const QUESTIONS: Question[] = [
     ],
   },
   {
+    id: "q7",
     q: "What are your salary expectations?",
     type: "Salary",
     guidance:
@@ -153,6 +201,7 @@ const QUESTIONS: Question[] = [
     ],
   },
   {
+    id: "q8",
     q: "Where do you see yourself in five years?",
     type: "Why this role",
     guidance:
@@ -168,6 +217,7 @@ const QUESTIONS: Question[] = [
     ],
   },
   {
+    id: "q9",
     q: "Why are you leaving your current job?",
     type: "Curveball",
     guidance:
@@ -183,6 +233,7 @@ const QUESTIONS: Question[] = [
     ],
   },
   {
+    id: "q10",
     q: "Do you have any questions for us?",
     type: "Curveball",
     guidance:
@@ -212,15 +263,36 @@ const DIFFICULTY_COLORS = {
   "Pressure": "bg-orange-500/10 text-orange-600 border-orange-500/30",
 };
 
+const formatDate = (timestamp: number): string => {
+  return new Date(timestamp).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
 const Interviews = () => {
+  // Questions state (includes AI generated questions)
+  const [questions, setQuestions] = useState<Question[]>(DEFAULT_QUESTIONS);
   const [active, setActive] = useState(0);
   const [mode, setMode] = useState<"browse" | "practice">("browse");
+  const [activeTab, setActiveTab] = useState<"practice" | "recordings">("practice");
   const [revealed, setRevealed] = useState(false);
   const [recordEnabled, setRecordEnabled] = useState(false);
-  const [completedQuestions, setCompletedQuestions] = useState<Set<number>>(() => {
+  const [completedQuestions, setCompletedQuestions] = useState<Set<string>>(() => {
     const saved = localStorage.getItem("speakbold:interview-completed");
     return saved ? new Set(JSON.parse(saved)) : new Set();
   });
+
+  // AI generation state
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [aiCategory, setAiCategory] = useState("Behavioural");
+  const [aiDifficulty, setAiDifficulty] = useState<"Warm-up" | "Standard" | "Pressure">("Standard");
+  const [aiCount, setAiCount] = useState(3);
+
+  // Saved recordings state
+  const [savedRecordings, setSavedRecordings] = useState<SavedRecording[]>([]);
   
   // Timer state
   const [duration, setDuration] = useState(75);
@@ -241,7 +313,126 @@ const Interviews = () => {
   const { upload: uploadRecording, refresh: refreshRecordings, items: recordings } = useRecordings();
   const { markPracticed } = useSyncedStreak();
   
-  const current = QUESTIONS[active];
+  const current = questions[active];
+
+  // Load saved recordings from localStorage
+  useEffect(() => {
+    const loadRecordings = async () => {
+      try {
+        const stored = localStorage.getItem(RECORDINGS_STORAGE_KEY);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          const recs: SavedRecording[] = await Promise.all(
+            parsed.map(async (r: SavedRecording & { blobData: string }) => {
+              const response = await fetch(r.blobData);
+              const blob = await response.blob();
+              return {
+                ...r,
+                blob,
+                url: URL.createObjectURL(blob),
+              };
+            })
+          );
+          setSavedRecordings(recs);
+        }
+      } catch (error) {
+        console.error("Failed to load recordings:", error);
+      }
+    };
+    loadRecordings();
+  }, []);
+
+  // Save recordings to localStorage
+  const saveRecordingsToStorage = useCallback(async (recs: SavedRecording[]) => {
+    try {
+      const dataToStore = await Promise.all(
+        recs.map(async (r) => {
+          const reader = new FileReader();
+          const blobData = await new Promise<string>((resolve) => {
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.readAsDataURL(r.blob);
+          });
+          return {
+            id: r.id,
+            questionId: r.questionId,
+            questionText: r.questionText,
+            timestamp: r.timestamp,
+            duration: r.duration,
+            attemptNumber: r.attemptNumber,
+            blobData,
+          };
+        })
+      );
+      localStorage.setItem(RECORDINGS_STORAGE_KEY, JSON.stringify(dataToStore));
+    } catch (error) {
+      console.error("Failed to save recordings:", error);
+    }
+  }, []);
+
+  // Get recordings for current question
+  const currentQuestionRecordings = savedRecordings
+    .filter((r) => r.questionId === current?.id)
+    .sort((a, b) => b.timestamp - a.timestamp);
+
+  // Delete a recording
+  const deleteRecording = (recordingId: string) => {
+    const recording = savedRecordings.find((r) => r.id === recordingId);
+    if (recording) {
+      URL.revokeObjectURL(recording.url);
+    }
+    const updated = savedRecordings.filter((r) => r.id !== recordingId);
+    setSavedRecordings(updated);
+    saveRecordingsToStorage(updated);
+  };
+
+  // Download a recording
+  const downloadRecording = (recording: SavedRecording) => {
+    const a = document.createElement("a");
+    a.href = recording.url;
+    a.download = `Interview-${recording.questionText.slice(0, 30).replace(/[^a-z0-9]/gi, '_')}-Attempt${recording.attemptNumber}.webm`;
+    a.click();
+  };
+
+  // AI Question Generation
+  const generateAIQuestions = async () => {
+    setIsGenerating(true);
+    try {
+      const difficultyMap: Record<string, "warmup" | "standard" | "pressure"> = {
+        "Warm-up": "warmup",
+        "Standard": "standard",
+        "Pressure": "pressure",
+      };
+      const newQuestions = await generateInterviewQuestions(aiCategory, difficultyMap[aiDifficulty], aiCount);
+      
+      // Convert AI questions to our format
+      const formattedQuestions: Question[] = newQuestions.map((q, idx) => ({
+        id: `ai-${Date.now()}-${idx}`,
+        q: q.question,
+        type: "AI Generated" as const,
+        guidance: q.followUp ? `Consider this follow-up: ${q.followUp}` : "Answer using the STAR method for behavioral questions.",
+        example: "Use your own experience to craft a compelling answer.",
+        targetSeconds: aiDifficulty === "Warm-up" ? 60 : aiDifficulty === "Standard" ? 90 : 120,
+        difficulty: aiDifficulty,
+        keyPoints: q.keyPoints,
+        isAI: true,
+      }));
+
+      setQuestions(prev => [...prev, ...formattedQuestions]);
+      toast({
+        title: "Questions generated",
+        description: `Added ${formattedQuestions.length} new AI-generated questions.`,
+      });
+    } catch (error) {
+      console.error("Failed to generate questions:", error);
+      toast({
+        title: "Generation failed",
+        description: "Could not generate questions. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   // Save completed questions
   useEffect(() => {
@@ -250,14 +441,16 @@ const Interviews = () => {
 
   // Update duration when question changes
   useEffect(() => {
-    setDuration(current.targetSeconds);
-    setSeconds(current.targetSeconds);
-    setRunning(false);
-    setPausedAt(null);
-    setRevealed(false);
-    hasStartedRef.current = false;
-    wasRunningRef.current = false;
-  }, [active, current.targetSeconds]);
+    if (current) {
+      setDuration(current.targetSeconds);
+      setSeconds(current.targetSeconds);
+      setRunning(false);
+      setPausedAt(null);
+      setRevealed(false);
+      hasStartedRef.current = false;
+      wasRunningRef.current = false;
+    }
+  }, [active, current?.targetSeconds]);
 
   // Timer logic
   useEffect(() => {
@@ -273,7 +466,9 @@ const Interviews = () => {
             setRunning(false);
             setPausedAt(null);
             hasStartedRef.current = false;
-            setCompletedQuestions(prev => new Set([...prev, active]));
+            if (current) {
+              setCompletedQuestions(prev => new Set([...prev, current.id]));
+            }
             if (recordEnabled) refreshRecordings();
             return 0;
           }
@@ -287,7 +482,7 @@ const Interviews = () => {
     return () => {
       if (idRef.current) window.clearInterval(idRef.current);
     };
-  }, [running, pausedAt, active, recordEnabled, refreshRecordings]);
+  }, [running, pausedAt, current, recordEnabled, refreshRecordings]);
 
   // Recording control
   useEffect(() => {
@@ -317,7 +512,7 @@ const Interviews = () => {
     let next = active;
     let guard = 0;
     while (next === active && guard < 10) {
-      next = Math.floor(Math.random() * QUESTIONS.length);
+      next = Math.floor(Math.random() * questions.length);
       guard++;
     }
     setActive(next);
@@ -330,26 +525,99 @@ const Interviews = () => {
 
   return (
     <TrackShell
-      eyebrow="Job Interviews - 10 questions"
+      eyebrow={`Job Interviews - ${questions.length} questions`}
       title={
         <>
           Practice the questions you&apos;ll <em className="text-primary not-italic">actually be asked.</em>
         </>
       }
-      intro="Pick a question, hit start, and answer out loud under time pressure. No notes. No do-overs. Just like the real thing."
+      intro="Pick a question, hit start, and answer out loud under time pressure. AI can generate unlimited new questions."
     >
       {/* Progress bar */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm text-muted-foreground">Session progress</span>
-          <span className="text-sm font-medium">{completedCount}/{QUESTIONS.length} practiced</span>
+          <span className="text-sm font-medium">{completedCount}/{questions.length} practiced</span>
         </div>
         <div className="h-2 bg-muted rounded-full overflow-hidden">
           <div 
             className="h-full bg-primary transition-all duration-500"
-            style={{ width: `${(completedCount / QUESTIONS.length) * 100}%` }}
+            style={{ width: `${(completedCount / questions.length) * 100}%` }}
           />
         </div>
+      </div>
+
+      {/* AI Question Generator */}
+      <div className="mb-8 p-6 rounded-2xl bg-gradient-to-br from-purple-500/10 to-blue-500/10 border border-purple-500/20">
+        <div className="flex items-center gap-2 mb-4">
+          <Sparkles className="h-5 w-5 text-purple-400" />
+          <h3 className="font-semibold text-lg">AI Question Generator</h3>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+          <div>
+            <label className="text-xs text-muted-foreground mb-1.5 block">Category</label>
+            <Select value={aiCategory} onValueChange={setAiCategory}>
+              <SelectTrigger className="bg-background/50">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Behavioural">Behavioural</SelectItem>
+                <SelectItem value="Situational">Situational</SelectItem>
+                <SelectItem value="Technical">Technical</SelectItem>
+                <SelectItem value="Leadership">Leadership</SelectItem>
+                <SelectItem value="Problem Solving">Problem Solving</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1.5 block">Difficulty</label>
+            <Select value={aiDifficulty} onValueChange={(v) => setAiDifficulty(v as "Warm-up" | "Standard" | "Pressure")}>
+              <SelectTrigger className="bg-background/50">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Warm-up">Warm-up</SelectItem>
+                <SelectItem value="Standard">Standard</SelectItem>
+                <SelectItem value="Pressure">Pressure</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1.5 block">Count</label>
+            <Select value={aiCount.toString()} onValueChange={(v) => setAiCount(parseInt(v))}>
+              <SelectTrigger className="bg-background/50">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">1 question</SelectItem>
+                <SelectItem value="3">3 questions</SelectItem>
+                <SelectItem value="5">5 questions</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-end">
+            <Button
+              onClick={generateAIQuestions}
+              disabled={isGenerating}
+              className="w-full bg-purple-600 hover:bg-purple-700"
+            >
+              {isGenerating ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4" />
+                  Generate
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground mt-3">
+          Generate unique interview questions tailored to your needs using AI
+        </p>
       </div>
 
       {/* Mode toggle */}
@@ -385,9 +653,9 @@ const Interviews = () => {
 
       <div className="grid lg:grid-cols-[320px_1fr] gap-8">
         <aside className="space-y-2 lg:sticky lg:top-24 self-start max-h-[80vh] overflow-y-auto pr-2">
-          {QUESTIONS.map((qu, i) => (
+          {questions.map((qu, i) => (
             <button
-              key={qu.q}
+              key={qu.id}
               onClick={() => setActive(i)}
               className={cn(
                 "w-full text-left p-4 rounded-xl border transition-colors flex items-start gap-3",
@@ -408,7 +676,8 @@ const Interviews = () => {
                 <span className="block text-sm font-medium leading-snug">{qu.q}</span>
                 <span className="flex items-center gap-2 mt-1">
                   <span className="text-xs text-muted-foreground">{qu.type}</span>
-                  {completedQuestions.has(i) && (
+                  {qu.isAI && <Sparkles className="h-3 w-3 text-purple-400" />}
+                  {completedQuestions.has(qu.id) && (
                     <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
                   )}
                 </span>
@@ -569,8 +838,8 @@ const Interviews = () => {
                       label="Recording your answer"
                       hint={
                         user
-                          ? "Mic activates when you hit Start. Saved to your account when recording ends."
-                          : "Mic activates when you hit Start. Sign in to sync recordings to your account."
+                          ? "Mic activates when you hit Start. Saved locally and to your account."
+                          : "Mic activates when you hit Start. Saved locally."
                       }
                       externalRunning={running}
                       recorderStartRef={(fn) => { recorderStartRef.current = fn; }}
@@ -579,25 +848,43 @@ const Interviews = () => {
                       recorderStopRef={(fn) => { recorderStopRef.current = fn; }}
                       onRecorded={async ({ blob, durationMs }) => {
                         markPracticed();
-                        if (!user) {
-                          toast({
-                            title: "Recording captured",
-                            description: "Sign in to save it to your account.",
+                        
+                        // Save recording locally
+                        const attemptNumber = savedRecordings.filter(r => r.questionId === current.id).length + 1;
+                        const newRecording: SavedRecording = {
+                          id: `rec-${Date.now()}`,
+                          questionId: current.id,
+                          questionText: current.q,
+                          blob,
+                          url: URL.createObjectURL(blob),
+                          timestamp: Date.now(),
+                          duration: Math.round(durationMs / 1000),
+                          attemptNumber,
+                        };
+                        const updated = [...savedRecordings, newRecording];
+                        setSavedRecordings(updated);
+                        saveRecordingsToStorage(updated);
+                        
+                        // Also upload to account if signed in
+                        if (user) {
+                          const saved = await uploadRecording(blob, {
+                            promptText: `Interview: ${current.q}`,
+                            difficulty: current.difficulty,
+                            durationMs,
+                            targetSeconds: duration,
                           });
-                          return;
+                          toast({
+                            title: saved ? "Recording saved" : "Saved locally only",
+                            description: saved
+                              ? `Attempt ${attemptNumber} synced to your account.`
+                              : "We saved locally but couldn't sync to your account.",
+                          });
+                        } else {
+                          toast({
+                            title: "Recording saved locally",
+                            description: `Attempt ${attemptNumber} saved. Sign in to sync to your account.`,
+                          });
                         }
-                        const saved = await uploadRecording(blob, {
-                          promptText: `Interview: ${current.q}`,
-                          difficulty: current.difficulty,
-                          durationMs,
-                          targetSeconds: duration,
-                        });
-                        toast({
-                          title: saved ? "Recording saved" : "Save failed",
-                          description: saved
-                            ? "Synced to your account."
-                            : "We couldn't upload your recording.",
-                        });
                       }}
                     />
                   </div>
@@ -638,6 +925,100 @@ const Interviews = () => {
             )}
           </div>
 
+          {/* Saved Recordings for this question */}
+          {mode === "practice" && (
+            <div className="border border-border rounded-3xl p-6 md:p-8">
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center gap-2">
+                  <FolderOpen className="h-5 w-5 text-primary" />
+                  <p className="text-xs uppercase tracking-widest text-muted-foreground">
+                    Saved Recordings for this question
+                  </p>
+                </div>
+                <span className="text-sm text-muted-foreground">
+                  {currentQuestionRecordings.length} attempt{currentQuestionRecordings.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+              
+              {currentQuestionRecordings.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Mic className="h-10 w-10 mx-auto mb-3 opacity-50" />
+                  <p>No recordings yet for this question</p>
+                  <p className="text-sm mt-1">Hit Start with recording enabled to capture your first attempt</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {currentQuestionRecordings.map((recording) => (
+                    <div
+                      key={recording.id}
+                      className="flex items-center gap-4 bg-muted/30 rounded-xl p-4"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
+                            Attempt {recording.attemptNumber}
+                          </span>
+                          <span className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {Math.floor(recording.duration / 60)}:{String(recording.duration % 60).padStart(2, '0')}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Calendar className="h-3 w-3" />
+                          {formatDate(recording.timestamp)}
+                        </div>
+                      </div>
+                      <audio
+                        src={recording.url}
+                        controls
+                        className="h-10 max-w-[180px]"
+                      />
+                      <div className="flex gap-1">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => downloadRecording(recording)}
+                          className="text-muted-foreground hover:text-foreground"
+                        >
+                          <Download className="h-4 w-4" />
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="text-muted-foreground hover:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete Recording?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This will permanently delete Attempt {recording.attemptNumber}.
+                                This action cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => deleteRecording(recording.id)}
+                                className="bg-destructive hover:bg-destructive/90"
+                              >
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* STAR Framework reference */}
           <div className="border border-border rounded-3xl p-6 md:p-8">
             <p className="text-xs uppercase tracking-widest text-muted-foreground mb-5">The STAR framework</p>
@@ -667,8 +1048,8 @@ const Interviews = () => {
             </Button>
             <Button
               variant="hero"
-              onClick={() => setActive((a) => Math.min(QUESTIONS.length - 1, a + 1))}
-              disabled={active === QUESTIONS.length - 1}
+              onClick={() => setActive((a) => Math.min(questions.length - 1, a + 1))}
+              disabled={active === questions.length - 1}
             >
               Next question
             </Button>
