@@ -38,18 +38,23 @@ export const DailyChallenge = () => {
   const ref = useRef<number | null>(null);
   const { count, practicedToday, markPracticed } = useStreak();
   
+  // Recorder control refs
   const recorderRef = useRef<{ start: () => void; pause: () => void; resume: () => void; stop: () => void } | null>(null);
   
+  // Sync recorder with timer state
   useEffect(() => {
     if (running && recorderRef.current) {
+      // Start or resume recording when timer starts
       if (left === DURATION) {
         recorderRef.current.start();
       } else {
         recorderRef.current.resume();
       }
     } else if (!running && recorderRef.current && left < DURATION && !finished) {
+      // Pause recording when timer pauses
       recorderRef.current.pause();
     } else if (finished && recorderRef.current) {
+      // Stop recording when timer finishes
       recorderRef.current.stop();
     }
   }, [running, finished, left]);
@@ -83,139 +88,119 @@ export const DailyChallenge = () => {
   const pct = ((DURATION - left) / DURATION) * 100;
 
   return (
-    <section className="py-16 sm:py-20 bg-secondary/50">
-      <div className="container">
-        {/* Section header */}
-        <div className="text-center mb-10">
-          <span className="inline-block px-3 py-1 text-xs font-medium text-accent bg-accent/10 rounded-full mb-4">
-            Daily Challenge
-          </span>
-          <h2 className="text-2xl sm:text-3xl font-bold mb-2">
-            60-second speaking drill
-          </h2>
-          <p className="text-muted-foreground max-w-md mx-auto">
-            Tap start, speak for one minute, and build your streak.
-          </p>
-        </div>
+    <section className="container py-20 md:py-28 border-t border-border">
+      <div className="grid md:grid-cols-5 gap-6">
+        {/* Main challenge card */}
+        <div className="md:col-span-3 relative bg-card-gradient border border-border rounded-3xl p-8 md:p-12 overflow-hidden">
+          <div className="absolute -top-24 -right-24 h-72 w-72 rounded-full bg-primary/10 blur-3xl" />
 
-        <div className="grid lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
-          {/* Main challenge card */}
-          <div className="lg:col-span-2 bg-card rounded-2xl border border-border p-6 sm:p-8">
-            {/* Prompt */}
-            <p className="text-xl sm:text-2xl font-semibold leading-snug mb-8 text-balance">
-              &ldquo;{prompt}&rdquo;
-            </p>
+          <div className="relative">
+            <div className="flex items-center gap-3 text-primary text-xs font-semibold tracking-[0.25em] uppercase mb-6">
+              <span className="h-px w-10 bg-primary" />
+              Today's 60-second challenge
+            </div>
 
-            {/* Timer display */}
-            <div className="flex items-center gap-4 mb-6">
-              <span className="text-5xl sm:text-6xl font-bold tabular-nums">
+            <h2 className="font-display text-3xl md:text-5xl font-semibold leading-[1.1] mb-8 text-balance">
+              "{prompt}"
+            </h2>
+
+            {/* Timer bar */}
+            <div className="h-2 w-full rounded-full bg-muted overflow-hidden mb-4">
+              <div
+                className="h-full bg-warm transition-all duration-1000 ease-linear"
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+            <div className="flex items-baseline justify-between mb-8">
+              <span className="font-display text-5xl md:text-6xl font-semibold tabular-nums">
                 0:{String(left).padStart(2, "0")}
               </span>
               {finished && (
-                <span className="inline-flex items-center gap-1.5 text-sm font-medium text-accent">
-                  <CheckCircle2 className="h-4 w-4" />
-                  Done
+                <span className="inline-flex items-center gap-2 text-sm font-semibold text-primary">
+                  <CheckCircle2 className="h-4 w-4" /> Counted toward your streak
                 </span>
               )}
             </div>
 
-            {/* Progress bar */}
-            <div className="h-2 w-full rounded-full bg-secondary overflow-hidden mb-6">
-              <div
-                className="h-full bg-accent transition-all duration-1000 ease-linear rounded-full"
-                style={{ width: `${pct}%` }}
-              />
-            </div>
-
-            {/* Controls */}
             <div className="flex flex-wrap gap-3">
               {!running && left === DURATION && !finished && (
-                <Button variant="accent" size="lg" onClick={() => setRunning(true)} className="flex-1 sm:flex-none">
-                  <Play className="h-4 w-4" />
-                  Start speaking
+                <Button variant="hero" size="lg" onClick={() => setRunning(true)}>
+                  <Play className="h-4 w-4" /> Start speaking
                 </Button>
               )}
               {running && (
-                <Button variant="outline" size="lg" onClick={() => setRunning(false)} className="flex-1 sm:flex-none">
-                  <Pause className="h-4 w-4" />
-                  Pause
+                <Button variant="spotlight" size="lg" onClick={() => setRunning(false)}>
+                  <Pause className="h-4 w-4" /> Pause
                 </Button>
               )}
               {!running && left < DURATION && !finished && (
-                <Button variant="accent" size="lg" onClick={() => setRunning(true)} className="flex-1 sm:flex-none">
-                  <Play className="h-4 w-4" />
-                  Resume
+                <Button variant="hero" size="lg" onClick={() => setRunning(true)}>
+                  <Play className="h-4 w-4" /> Resume
                 </Button>
               )}
               {(left < DURATION || finished) && (
                 <Button variant="outline" size="lg" onClick={reset}>
-                  <RotateCcw className="h-4 w-4" />
-                  Reset
+                  <RotateCcw className="h-4 w-4" /> Reset
                 </Button>
               )}
+              <Button variant="ghost" size="lg" asChild>
+                <Link to="/tracks/impromptu">Full impromptu track →</Link>
+              </Button>
             </div>
-          </div>
-
-          {/* Streak card */}
-          <div className="bg-card rounded-2xl border border-border p-6 flex flex-col">
-            <div className="flex items-center gap-3 mb-4">
-              <div className={`h-12 w-12 rounded-xl flex items-center justify-center ${count > 0 ? "bg-accent/10" : "bg-secondary"}`}>
-                <Flame className={`h-6 w-6 ${count > 0 ? "text-accent" : "text-muted-foreground"}`} />
-              </div>
-              <div>
-                <div className="text-3xl font-bold">{count}</div>
-                <div className="text-sm text-muted-foreground">
-                  {count === 1 ? "day streak" : "day streak"}
-                </div>
-              </div>
-            </div>
-
-            <p className="text-sm text-muted-foreground mb-6 flex-1">
-              {practicedToday
-                ? "Great work today! Come back tomorrow."
-                : count === 0
-                  ? "Complete today's challenge to start your streak."
-                  : "One more drill to keep your streak."}
-            </p>
-
-            {/* Week visualization */}
-            <div className="grid grid-cols-7 gap-1.5">
-              {Array.from({ length: 7 }).map((_, i) => {
-                const filled = i < Math.min(count, 7);
-                return (
-                  <div
-                    key={i}
-                    className={`h-8 rounded-lg transition-colors ${filled ? "bg-accent" : "bg-secondary"}`}
-                    aria-hidden
-                  />
-                );
-              })}
-            </div>
-            <p className="text-xs text-muted-foreground mt-2 text-center">Last 7 days</p>
           </div>
         </div>
 
-        {/* Recorder */}
-        <div className="max-w-5xl mx-auto mt-6">
+        {/* Streak widget */}
+        <div className="md:col-span-2 bg-card-gradient border border-border rounded-3xl p-8 md:p-10 flex flex-col">
+          <div className="flex items-center gap-3 text-primary text-xs font-semibold tracking-[0.25em] uppercase mb-6">
+            <span className="h-px w-10 bg-primary" />
+            Your streak
+          </div>
+
+          <div className="flex items-end gap-4 mb-2">
+            <Flame className={`h-12 w-12 ${count > 0 ? "text-primary" : "text-muted-foreground"}`} />
+            <div>
+              <div className="font-display text-6xl font-semibold leading-none">{count}</div>
+              <div className="text-sm text-muted-foreground mt-2">
+                {count === 1 ? "day" : "days"} in a row
+              </div>
+            </div>
+          </div>
+
+          <p className="text-muted-foreground text-pretty leading-relaxed mt-6 mb-auto">
+            {practicedToday
+              ? "You've practiced today. Come back tomorrow to keep the flame alive."
+              : count === 0
+                ? "Finish today's 60-second challenge to start a streak. No account needed — it lives on your device."
+                : "One more minute today keeps your streak going."}
+          </p>
+
+          <div className="grid grid-cols-7 gap-1.5 mt-8">
+            {Array.from({ length: 7 }).map((_, i) => {
+              const filled = i < Math.min(count, 7);
+              return (
+                <div
+                  key={i}
+                  className={`h-8 rounded-md ${filled ? "bg-warm" : "bg-muted"} transition-colors`}
+                  aria-hidden
+                />
+              );
+            })}
+          </div>
+          <p className="text-xs text-muted-foreground mt-3">Last 7 days</p>
+        </div>
+
+        {/* Recorder panel - synced with timer */}
+        <div className="md:col-span-5">
           <RecorderPanel
             ref={recorderRef}
-            label="Your recording"
-            hint="Recording syncs with the timer above."
+            label="Your response"
+            hint="Recording syncs with the timer. Hit Start speaking above, speak for 60 seconds, then play it back to hear yourself."
             recorderStartRef={() => {}}
             recorderPauseRef={() => {}}
             recorderResumeRef={() => {}}
             recorderStopRef={() => {}}
           />
-        </div>
-
-        {/* Link to full track */}
-        <div className="text-center mt-8">
-          <Link 
-            to="/tracks/impromptu" 
-            className="text-sm font-medium text-accent hover:underline"
-          >
-            View all 24 impromptu prompts
-          </Link>
         </div>
       </div>
     </section>

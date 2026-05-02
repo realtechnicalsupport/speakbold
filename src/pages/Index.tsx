@@ -9,13 +9,13 @@ import { PreFlightBanner } from "@/components/PreFlightBanner";
 
 const Index = () => {
   return (
-    <main className="min-h-screen bg-background pb-20 lg:pb-0">
+    <main className="min-h-screen bg-background">
       <h1 className="sr-only">SpeakBold — Build speaking confidence for public speaking, interviews, and impromptu moments</h1>
       <Hero />
       <DailyChallenge />
       <PickYourGoal />
       <Tracks />
-      <section className="container py-8 sm:py-12">
+      <section className="container py-8">
         <PreFlightBanner />
       </section>
       <Techniques />

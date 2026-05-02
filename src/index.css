@@ -1,93 +1,131 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@300;400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Speak Bold — Clean, modern, mobile-first design system */
+/* Mobile overflow fixes */
+@layer base {
+  * {
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  /* Fix mic icon circle on resize */
+  .bg-warm {
+    flex-shrink: 0 !important;
+  }
+  /* Center all page content except headers */
+  main > div:not(.site-header),
+  .TrackShell > div:not(.site-header),
+  section > div {
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+  html, body, #root {
+    overflow-x: hidden !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  div {
+    max-width: 100% !important;
+  }
+  p, span, h1, h2, h3, h4, h5, h6, li, td, th {
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+  }
+  audio {
+    max-width: 100% !important;
+  }
+  table, thead, tbody, tr, td, th {
+    max-width: 100% !important;
+  }
+  @media (max-width: 1023px) {
+    html, body, #root {
+      position: relative !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      overflow-x: hidden !important;
+    }
+    body * {
+      max-width: 100% !important;
+    }
+    .grid {
+      display: flex !important;
+      flex-direction: column !important;
+    }
+    .tabular-nums {
+      font-variant-nums: tabular-nums;
+      font-feature-settings: "tnum";
+    }
+    input, select, textarea {
+      max-width: 100% !important;
+    }
+    body {
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
+    }
+  }
+}
+
+/* Speak Bold — Confidence-building speaking app design system.
+   Editorial, warm, cinematic. All colors HSL. */
 
 @layer base {
   :root {
-    /* Clean light canvas - warm off-white */
-    --background: 40 20% 98%;
-    --foreground: 220 20% 10%;
+    /* Core canvas — deep midnight navy */
+    --background: 220 45% 8%;
+    --foreground: 35 30% 94%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 220 20% 10%;
+    --card: 220 40% 11%;
+    --card-foreground: 35 30% 94%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 220 20% 10%;
+    --popover: 220 45% 8%;
+    --popover-foreground: 35 30% 94%;
 
-    /* Primary — deep charcoal/black for bold CTAs */
-    --primary: 220 15% 12%;
-    --primary-foreground: 0 0% 100%;
+    /* Primary — warm coral, the spotlight */
+    --primary: 14 88% 62%;
+    --primary-foreground: 220 45% 8%;
+    --primary-glow: 22 95% 70%;
 
-    /* Secondary — soft gray */
-    --secondary: 220 10% 94%;
-    --secondary-foreground: 220 20% 10%;
+    /* Secondary — warm cream */
+    --secondary: 35 30% 94%;
+    --secondary-foreground: 220 45% 8%;
 
-    --muted: 220 10% 92%;
-    --muted-foreground: 220 10% 45%;
+    --muted: 220 30% 14%;
+    --muted-foreground: 35 15% 65%;
 
-    /* Accent — warm coral for highlights */
-    --accent: 12 85% 58%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 42 90% 65%;
+    --accent-foreground: 220 45% 8%;
 
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 0 0% 100%;
+    --destructive: 0 75% 60%;
+    --destructive-foreground: 35 30% 94%;
 
-    --border: 220 10% 90%;
-    --input: 220 10% 90%;
-    --ring: 12 85% 58%;
+    --border: 220 25% 18%;
+    --input: 220 25% 18%;
+    --ring: 14 88% 62%;
 
-    --radius: 0.75rem;
+    --radius: 1rem;
 
+    /* Gradients */
+    --gradient-spotlight: radial-gradient(ellipse at top, hsl(14 88% 62% / 0.35), transparent 60%);
+    --gradient-warm: linear-gradient(135deg, hsl(14 88% 62%), hsl(42 90% 65%));
+    --gradient-fade: linear-gradient(180deg, transparent, hsl(220 45% 8%) 90%);
+    --gradient-card: linear-gradient(160deg, hsl(220 40% 13%), hsl(220 45% 9%));
+  
     /* Shadows */
-    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-  }
-
-  .dark {
-    --background: 220 20% 8%;
-    --foreground: 40 10% 95%;
-
-    --card: 220 18% 11%;
-    --card-foreground: 40 10% 95%;
-
-    --popover: 220 18% 11%;
-    --popover-foreground: 40 10% 95%;
-
-    --primary: 0 0% 100%;
-    --primary-foreground: 220 20% 8%;
-
-    --secondary: 220 15% 18%;
-    --secondary-foreground: 40 10% 95%;
-
-    --muted: 220 15% 16%;
-    --muted-foreground: 220 10% 60%;
-
-    --accent: 12 85% 58%;
-    --accent-foreground: 0 0% 100%;
-
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 0 0% 100%;
-
-    --border: 220 15% 18%;
-    --input: 220 15% 18%;
-    --ring: 12 85% 58%;
+    --shadow-glow: 0 20px 80px -20px hsl(14 88% 62% / 0.5);
+    --shadow-soft: 0 10px 40px -15px hsl(220 60% 4% / 0.6);
+    --shadow-card: 0 4px 30px -10px hsl(220 60% 4% / 0.4);
   }
 }
 
 @layer base {
   * {
     @apply border-border;
-    box-sizing: border-box;
   }
 
   html {
     scroll-behavior: smooth;
-    -webkit-tap-highlight-color: transparent;
   }
 
   body {
@@ -96,21 +134,7 @@
   }
 
   h1, h2, h3, h4 {
-    @apply font-sans font-semibold tracking-tight;
-  }
-
-  /* Mobile overflow prevention */
-  html, body, #root {
-    overflow-x: hidden;
-    width: 100%;
-    max-width: 100%;
-  }
-
-  /* Safe area for mobile devices */
-  @supports (padding-bottom: env(safe-area-inset-bottom)) {
-    .safe-area-bottom {
-      padding-bottom: env(safe-area-inset-bottom);
-    }
+    @apply font-display tracking-tight;
   }
 }
 
@@ -121,92 +145,40 @@
   .text-pretty {
     text-wrap: pretty;
   }
-  
-  /* Gradient backgrounds */
-  .bg-warm {
-    background: linear-gradient(135deg, hsl(12 85% 58%), hsl(25 90% 55%));
-  }
-  
   .bg-spotlight {
-    background: radial-gradient(ellipse at top, hsl(12 85% 58% / 0.15), transparent 60%);
+    background-image: var(--gradient-spotlight);
   }
-  
+  .bg-warm {
+    background-image: var(--gradient-warm);
+  }
   .bg-card-gradient {
-    background: linear-gradient(160deg, hsl(var(--card)), hsl(var(--card) / 0.8));
+    background-image: var(--gradient-card);
   }
-
-  /* Shadow utilities */
   .shadow-glow {
-    box-shadow: 0 8px 32px -8px hsl(12 85% 58% / 0.4);
+    box-shadow: var(--shadow-glow);
   }
-  
   .shadow-soft {
-    box-shadow: var(--shadow-lg);
-  }
-
-  /* Touch-friendly tap targets */
-  .touch-target {
-    min-height: 44px;
-    min-width: 44px;
-  }
-
-  /* Mobile card styles */
-  .card-mobile {
-    @apply bg-card rounded-2xl border border-border p-4 sm:p-6;
+    box-shadow: var(--shadow-soft);
   }
 }
 
-/* Animations */
 @keyframes fade-up {
-  from { opacity: 0; transform: translateY(16px); }
+  from { opacity: 0; transform: translateY(24px); }
   to { opacity: 1; transform: translateY(0); }
 }
-
 @keyframes fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
 }
-
 @keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 0 0 hsl(12 85% 58% / 0.4); }
-  50% { box-shadow: 0 0 0 12px hsl(12 85% 58% / 0); }
+  0%, 100% { box-shadow: 0 0 0 0 hsl(14 88% 62% / 0.5); }
+  50% { box-shadow: 0 0 0 24px hsl(14 88% 62% / 0); }
+}
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
 }
 
-@keyframes slide-up {
-  from { opacity: 0; transform: translateY(100%); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.animate-fade-up { 
-  animation: fade-up 0.5s ease-out both; 
-}
-
-.animate-fade-in { 
-  animation: fade-in 0.6s ease-out both; 
-}
-
-.animate-pulse-glow { 
-  animation: pulse-glow 2s ease-in-out infinite; 
-}
-
-.animate-slide-up {
-  animation: slide-up 0.3s ease-out both;
-}
-
-/* Focus styles for accessibility */
-@layer base {
-  :focus-visible {
-    @apply outline-none ring-2 ring-accent ring-offset-2 ring-offset-background;
-  }
-}
-
-/* Custom scrollbar */
-@layer utilities {
-  .scrollbar-hide {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
-  .scrollbar-hide::-webkit-scrollbar {
-    display: none;
-  }
-}
+.animate-fade-up { animation: fade-up 0.8s var(--ease-out) both; }
+.animate-fade-in { animation: fade-in 1.2s var(--ease-out) both; }
+.animate-pulse-glow { animation: pulse-glow 2.4s ease-in-out infinite; }

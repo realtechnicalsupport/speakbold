@@ -27,7 +27,7 @@ const App = () => (
       <Toaster />
       <Sonner />
   <BrowserRouter>
-    <div className="min-h-screen">
+    <div className="pb-16 lg:pb-0">
       <Routes>
         <Route path="/" element={<Index />} />
         <Route path="/pre-flight" element={<PreFlightChecklist />} />

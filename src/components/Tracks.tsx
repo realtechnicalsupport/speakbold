@@ -1,87 +1,89 @@
 import { Link } from "react-router-dom";
-import { Mic, Zap, Briefcase, Activity, ArrowRight } from "lucide-react";
+import { Mic, Zap, Briefcase, Activity, ArrowUpRight } from "lucide-react";
 
 const TRACKS = [
   {
     icon: Mic,
     name: "Public Speaking",
-    duration: "6 drills",
-    desc: "Build talks that land. Hooks, structure, pacing, and the pause that earns attention.",
+    duration: "6 drills · timed practice",
+    desc: "Build a talk that lands. Hooks, structure, pacing, and the pause that earns attention.",
+    accent: "from-primary/20 to-transparent",
     href: "/tracks/public-speaking",
-    color: "bg-blue-500/10 text-blue-600",
   },
   {
     icon: Zap,
-    name: "Impromptu",
-    duration: "24 prompts",
-    desc: "Train the muscle that responds when you're put on the spot.",
+    name: "Impromptu Speech",
+    duration: "24 prompts · 3 difficulties",
+    desc: "Train the muscle that responds when you're put on the spot — meetings, toasts, hot seats.",
+    accent: "from-accent/20 to-transparent",
     href: "/tracks/impromptu",
-    color: "bg-accent/10 text-accent",
   },
   {
     icon: Briefcase,
-    name: "Interviews",
-    duration: "10 questions",
-    desc: "STAR stories, salary talk, and confident introductions.",
+    name: "Job Interviews",
+    duration: "10 questions · STAR + examples",
+    desc: "STAR stories, salary talk, and the answer to 'tell me about yourself' that doesn't ramble.",
+    accent: "from-primary/20 to-transparent",
     href: "/tracks/interviews",
-    color: "bg-emerald-500/10 text-emerald-600",
   },
   {
     icon: Activity,
     name: "Body Language",
-    duration: "4 drills",
-    desc: "Stance, gestures, eye contact, and breath control.",
+    duration: "4 gesture drills · posture + eyes",
+    desc: "Stance, gestures, eye contact, and the breath patterns that quiet a shaky voice.",
+    accent: "from-accent/20 to-transparent",
     href: "/tracks/body-language",
-    color: "bg-violet-500/10 text-violet-600",
   },
 ];
 
 export const Tracks = () => {
   return (
-    <section id="tracks" className="py-16 sm:py-24">
-      <div className="container">
-        {/* Section header */}
-        <div className="max-w-2xl mb-12">
-          <span className="inline-block px-3 py-1 text-xs font-medium text-accent bg-accent/10 rounded-full mb-4">
-            4 Tracks
-          </span>
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold leading-tight text-balance mb-4">
-            Choose your focus
+    <section id="tracks" className="container py-24 md:py-32 border-t border-border">
+      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 mb-16">
+        <div className="max-w-2xl">
+          <div className="flex items-center gap-3 text-primary text-xs font-semibold tracking-[0.2em] uppercase mb-6">
+            <span className="h-px w-10 bg-primary" />
+            Four tracks
+          </div>
+          <h2 className="font-display text-4xl md:text-6xl font-semibold leading-[1.05] text-balance">
+            Pick the moment <em className="text-primary not-italic">you'll own</em> next.
           </h2>
-          <p className="text-lg text-muted-foreground">
-            Each track has real lessons, drills, and a built-in recorder. Pick one and start practicing.
-          </p>
         </div>
+        <p className="text-muted-foreground max-w-sm text-pretty">
+          Each track is its own page with real lessons, drills, prompts, and a built-in recorder.
+          Free. No sign-up. Five minutes a day is enough.
+        </p>
+      </div>
 
-        {/* Track cards */}
-        <div className="grid sm:grid-cols-2 gap-4">
-          {TRACKS.map((track) => (
-            <Link
-              key={track.name}
-              to={track.href}
-              className="group flex flex-col p-6 bg-card border border-border rounded-2xl hover:border-foreground/20 hover:shadow-lg transition-all duration-200"
-            >
-              <div className="flex items-start justify-between mb-4">
-                <div className={`h-12 w-12 rounded-xl flex items-center justify-center ${track.color}`}>
-                  <track.icon className="h-5 w-5" />
-                </div>
-                <span className="text-xs font-medium text-muted-foreground bg-secondary px-2 py-1 rounded-md">
-                  {track.duration}
-                </span>
+      <div className="grid gap-5 md:grid-cols-2">
+        {TRACKS.map((t, i) => (
+          <Link
+            to={t.href}
+            key={t.name}
+            className="group relative bg-card-gradient border border-border rounded-3xl p-8 md:p-10 hover:border-primary/40 transition-all duration-500 cursor-pointer overflow-hidden block"
+            style={{ animationDelay: `${i * 80}ms` }}
+          >
+            <div className={`absolute -top-20 -right-20 h-64 w-64 rounded-full bg-gradient-radial ${t.accent} blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-700`} />
+
+            <div className="relative flex items-start justify-between mb-10">
+              <div className="grid place-items-center h-14 w-14 rounded-2xl bg-muted border border-border group-hover:bg-warm group-hover:border-transparent transition-all duration-500">
+                <t.icon className="h-6 w-6 text-foreground group-hover:text-primary-foreground transition-colors" />
               </div>
+              <ArrowUpRight className="h-5 w-5 text-muted-foreground group-hover:text-primary group-hover:-translate-y-1 group-hover:translate-x-1 transition-all" />
+            </div>
 
-              <h3 className="text-xl font-semibold mb-2">{track.name}</h3>
-              <p className="text-muted-foreground text-sm leading-relaxed mb-4 flex-1">
-                {track.desc}
-              </p>
-
-              <div className="flex items-center gap-1.5 text-sm font-medium text-accent group-hover:gap-2 transition-all">
-                Start track
-                <ArrowRight className="h-4 w-4" />
-              </div>
-            </Link>
-          ))}
-        </div>
+            <div className="relative">
+              <p className="text-xs uppercase tracking-widest text-muted-foreground mb-3">{t.duration}</p>
+              <h3 className="font-display text-3xl md:text-4xl font-semibold mb-4 leading-tight">
+                {t.name}
+              </h3>
+              <p className="text-muted-foreground text-pretty leading-relaxed mb-6">{t.desc}</p>
+              <span className="inline-flex items-center gap-2 text-sm font-semibold text-primary">
+                Open track →
+              </span>
+            </div>
+          </Link>
+        ))}
       </div>
     </section>
   );

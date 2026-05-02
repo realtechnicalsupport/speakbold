@@ -4,60 +4,35 @@ import { ArrowRight, Mic } from "lucide-react";
 
 export const CTA = () => {
   return (
-    <section>
-      {/* CTA */}
-      <div className="py-16 sm:py-24 bg-primary text-primary-foreground">
-        <div className="container text-center">
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-4 text-balance max-w-2xl mx-auto">
-            Ready to speak with confidence?
+    <section className="border-t border-border">
+      <div className="container py-24 md:py-40 text-center relative overflow-hidden">
+        <div className="absolute inset-0 bg-spotlight opacity-50 pointer-events-none" />
+        <div className="relative max-w-3xl mx-auto">
+          <h2 className="font-display text-5xl md:text-7xl font-semibold leading-[1] text-balance mb-8">
+            Your next room is waiting. <em className="text-primary not-italic">Be ready.</em>
           </h2>
-          <p className="text-primary-foreground/70 mb-8 max-w-md mx-auto">
-            Start with a 60-second drill. No account needed.
+          <p className="text-lg text-muted-foreground mb-10 max-w-xl mx-auto text-pretty">
+            Pick a track and start now. Sixty seconds is enough. Free, no account, audio stays on your device.
           </p>
-          <Button 
-            variant="spotlight" 
-            size="xl" 
-            asChild
-            className="bg-accent hover:bg-accent/90 text-accent-foreground"
-          >
+          <Button variant="hero" size="xl" asChild>
             <Link to="/tracks/impromptu">
-              Start practicing
-              <ArrowRight className="h-4 w-4" />
+              Start with today's prompt
+              <ArrowRight className="h-5 w-5" />
             </Link>
           </Button>
         </div>
       </div>
 
-      {/* Footer */}
-      <footer className="border-t border-border bg-background">
-        <div className="container py-8">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <Link to="/" className="flex items-center gap-2">
-              <span className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-                <Mic className="h-4 w-4 text-primary-foreground" />
-              </span>
-              <span className="font-semibold">
-                Speak<span className="text-accent">Bold</span>
-              </span>
-            </Link>
-            
-            <div className="flex items-center gap-6 text-sm text-muted-foreground">
-              <Link to="/tracks/public-speaking" className="hover:text-foreground transition-colors">
-                Public Speaking
-              </Link>
-              <Link to="/tracks/impromptu" className="hover:text-foreground transition-colors">
-                Impromptu
-              </Link>
-              <Link to="/tracks/interviews" className="hover:text-foreground transition-colors">
-                Interviews
-              </Link>
-            </div>
-
-            <p className="text-sm text-muted-foreground">
-              {new Date().getFullYear()} SpeakBold
-            </p>
-          </div>
-        </div>
+      <footer className="container border-t border-border py-10 flex flex-col md:flex-row items-center justify-between gap-4">
+        <Link to="/" className="flex items-center gap-2 font-display text-lg font-semibold">
+          <span className="grid place-items-center h-8 w-8 rounded-full bg-warm text-primary-foreground">
+            <Mic className="h-3.5 w-3.5" />
+          </span>
+          <span className="font-display text-lg font-semibold leading-none">Speak<em className="not-italic text-primary">Bold</em></span>
+        </Link>
+        <p className="text-sm text-muted-foreground">
+          © {new Date().getFullYear()} SpeakBold. Practice out loud.
+        </p>
       </footer>
     </section>
   );
