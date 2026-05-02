@@ -1,8 +1,60 @@
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700;9..144,800&family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@300;400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Mobile overflow fixes */
+@layer base {
+  * {
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  html, body, #root {
+    overflow-x: hidden !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  div {
+    max-width: 100% !important;
+  }
+  p, span, h1, h2, h3, h4, h5, h6, li, td, th {
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+  }
+  audio {
+    max-width: 100% !important;
+  }
+  table, thead, tbody, tr, td, th {
+    max-width: 100% !important;
+  }
+  @media (max-width: 1023px) {
+    html, body, #root {
+      position: relative !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      overflow-x: hidden !important;
+    }
+    body * {
+      max-width: 100% !important;
+    }
+    .grid {
+      display: flex !important;
+      flex-direction: column !important;
+    }
+    .tabular-nums {
+      font-variant-nums: tabular-nums;
+      font-feature-settings: "tnum";
+    }
+    input, select, textarea {
+      max-width: 100% !important;
+    }
+    body {
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
+    }
+  }
+}
 
 /* Speak Bold — Confidence-building speaking app design system.
    Editorial, warm, cinematic. All colors HSL. */
@@ -48,25 +100,11 @@
     --gradient-warm: linear-gradient(135deg, hsl(14 88% 62%), hsl(42 90% 65%));
     --gradient-fade: linear-gradient(180deg, transparent, hsl(220 45% 8%) 90%);
     --gradient-card: linear-gradient(160deg, hsl(220 40% 13%), hsl(220 45% 9%));
-
+  
     /* Shadows */
     --shadow-glow: 0 20px 80px -20px hsl(14 88% 62% / 0.5);
     --shadow-soft: 0 10px 40px -15px hsl(220 60% 4% / 0.6);
     --shadow-card: 0 4px 30px -10px hsl(220 60% 4% / 0.4);
-
-    /* Motion */
-    --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
-    --transition-smooth: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
-
-    /* Sidebar (unchanged structure) */
-    --sidebar-background: 220 45% 8%;
-    --sidebar-foreground: 35 30% 94%;
-    --sidebar-primary: 14 88% 62%;
-    --sidebar-primary-foreground: 220 45% 8%;
-    --sidebar-accent: 220 30% 14%;
-    --sidebar-accent-foreground: 35 30% 94%;
-    --sidebar-border: 220 25% 18%;
-    --sidebar-ring: 14 88% 62%;
   }
 }
 

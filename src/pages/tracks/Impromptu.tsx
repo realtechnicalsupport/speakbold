@@ -588,6 +588,7 @@ const [revealed, setRevealed] = useState(false);
   const suggestedFramework = FRAMEWORKS.find((f) => f.name === prompt.framework);
 
   return (
+    <div className="max-w-full overflow-x-hidden">
     <TrackShell
       eyebrow="Impromptu · 60-second drills"
       title={
@@ -906,6 +907,7 @@ const [revealed, setRevealed] = useState(false);
         </div>
       </div>
     </TrackShell>
+    </div>
   );
 };
 
