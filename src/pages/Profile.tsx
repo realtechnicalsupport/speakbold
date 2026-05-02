@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
-import { Flame, Trophy, Mic, Calendar, Sparkles, Target, Lock, Check, ArrowRight } from "lucide-react";
+import { Flame, Trophy, Mic, Calendar, Sparkles, Target, Lock, Check, ArrowRight, Zap } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import { useSyncedStreak, useRecordings } from "@/hooks/useRecordings";
 import { cn } from "@/lib/utils";
+import { DailyChallenges } from "@/components/DailyChallenges";
 
 type Challenge = {
   id: string;
@@ -155,8 +156,11 @@ const Profile = () => {
 
       {/* Tabs */}
       <section className="container py-12 md:py-16">
-        <Tabs defaultValue="streaks" className="w-full">
-          <TabsList className="grid w-full max-w-lg grid-cols-3 mb-10">
+        <Tabs defaultValue="daily" className="w-full">
+          <TabsList className="grid w-full max-w-2xl grid-cols-4 mb-10">
+            <TabsTrigger value="daily">
+              <Zap className="h-4 w-4 mr-2" /> Daily
+            </TabsTrigger>
             <TabsTrigger value="streaks">
               <Flame className="h-4 w-4 mr-2" /> Streaks
             </TabsTrigger>
@@ -167,6 +171,11 @@ const Profile = () => {
               <Trophy className="h-4 w-4 mr-2" /> Achievements
             </TabsTrigger>
           </TabsList>
+
+          {/* DAILY CHALLENGES TAB */}
+          <TabsContent value="daily" className="space-y-8">
+            <DailyChallenges />
+          </TabsContent>
 
           {/* STREAKS TAB */}
           <TabsContent value="streaks" className="space-y-10">
