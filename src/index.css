@@ -10,6 +10,10 @@
     max-width: 100% !important;
     box-sizing: border-box !important;
   }
+  /* Allow fixed/absolute elements that need to escape max-width constraint */
+  .no-max-w, .no-max-w * {
+    max-width: none !important;
+  }
   /* Fix mic icon circle on resize */
   .bg-warm {
     flex-shrink: 0 !important;
@@ -72,6 +76,9 @@
 
 @layer base {
   :root {
+    /* Header height — used to offset fixed overlays */
+    --header-h: 4.75rem;
+
     /* Core canvas — deep midnight navy */
     --background: 220 45% 8%;
     --foreground: 35 30% 94%;
