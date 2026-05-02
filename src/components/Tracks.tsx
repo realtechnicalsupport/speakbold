@@ -5,7 +5,7 @@ const TRACKS = [
   {
     icon: Mic,
     name: "Public Speaking",
-    duration: "5 lessons · drills inside",
+    duration: "6 drills · timed practice",
     desc: "Build a talk that lands. Hooks, structure, pacing, and the pause that earns attention.",
     accent: "from-primary/20 to-transparent",
     href: "/tracks/public-speaking",
@@ -29,7 +29,7 @@ const TRACKS = [
   {
     icon: Activity,
     name: "Body Language",
-    duration: "4 live drills · breathing + pose",
+    duration: "4 gesture drills · posture + eyes",
     desc: "Stance, gestures, eye contact, and the breath patterns that quiet a shaky voice.",
     accent: "from-accent/20 to-transparent",
     href: "/tracks/body-language",
