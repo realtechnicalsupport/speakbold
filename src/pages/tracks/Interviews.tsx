@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { TrackShell } from "@/components/TrackShell";
 import { RecorderPanel } from "@/components/RecorderPanel";
+import { TimerHeader } from "@/components/TimerHeader";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -534,15 +535,45 @@ const Interviews = () => {
   const completedCount = completedQuestions.size;
 
   return (
-    <TrackShell
-      eyebrow={`Job Interviews - ${questions.length} questions`}
-      title={
-        <>
-          Practice the questions you&apos;ll <em className="text-primary not-italic">actually be asked.</em>
-        </>
-      }
-      intro="Pick a question, hit start, and answer out loud under time pressure. AI can generate unlimited new questions."
-    >
+    <>
+      {/* Timer Header - appears when timer is running or paused */}
+      {(running || pausedAt) && current && (
+        <TimerHeader
+          running={running}
+          seconds={seconds}
+          duration={duration}
+          title={`Question: ${current.question}`}
+          recordingActive={recordEnabled}
+          onPlay={() => {
+            if (seconds === 0) setSeconds(duration);
+            setRunning(true);
+            if (pausedAt) setPausedAt(null);
+            hasStartedRef.current = true;
+          }}
+          onPause={() => {
+            setRunning(false);
+            setPausedAt(Date.now());
+          }}
+          onReset={() => {
+            recorderStopRef.current?.();
+            setSeconds(duration);
+            setRunning(false);
+            setPausedAt(null);
+            wasRunningRef.current = false;
+            hasStartedRef.current = false;
+          }}
+        />
+      )}
+      <div className={(running || pausedAt) ? "pt-32" : ""}>
+        <TrackShell
+          eyebrow={`Job Interviews - ${questions.length} questions`}
+          title={
+            <>
+              Practice the questions you&apos;ll <em className="text-primary not-italic">actually be asked.</em>
+            </>
+          }
+          intro="Pick a question, hit start, and answer out loud under time pressure. AI can generate unlimited new questions."
+        >
       {/* Progress bar */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-2">
@@ -1071,6 +1102,8 @@ const Interviews = () => {
         </div>
       </div>
     </TrackShell>
+      </div>
+    </>
   );
 };
 

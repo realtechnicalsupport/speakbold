@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { TrackShell } from "@/components/TrackShell";
 import { RecorderPanel } from "@/components/RecorderPanel";
+import { TimerHeader } from "@/components/TimerHeader";
 import { Button } from "@/components/ui/button";
 import { Shuffle, Play, Pause, RotateCcw, Lightbulb, EyeOff, Mic, MicOff } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
@@ -588,16 +589,45 @@ const [revealed, setRevealed] = useState(false);
   const suggestedFramework = FRAMEWORKS.find((f) => f.name === prompt.framework);
 
   return (
-    <div className="max-w-full overflow-x-hidden">
-    <TrackShell
-      eyebrow="Impromptu · 60-second drills"
-      title={
-        <>
-          One prompt. Sixty seconds. <em className="text-primary not-italic">No notes.</em>
-        </>
-      }
-      intro="The fastest way to build speaking confidence is to speak when you don't feel ready. Pick a difficulty, hit start, and talk until the timer ends. Stuck? Reveal hints — but try without them first."
-    >
+    <>
+      {/* Timer Header - appears when timer is running or paused */}
+      {(running || pausedAt) && (
+        <TimerHeader
+          running={running}
+          seconds={seconds}
+          duration={duration}
+          title={`${difficulty} prompt`}
+          recordingActive={recordEnabled}
+          onPlay={() => {
+            if (seconds === 0) setSeconds(duration);
+            setRunning(true);
+            if (pausedAt) setPausedAt(null);
+            hasStartedRef.current = true;
+          }}
+          onPause={() => {
+            setRunning(false);
+            setPausedAt(Date.now());
+          }}
+          onReset={() => {
+            recorderStopRef.current?.();
+            setSeconds(duration);
+            setRunning(false);
+            setPausedAt(null);
+            wasRunningRef.current = false;
+            hasStartedRef.current = false;
+          }}
+        />
+      )}
+      <div className={(running || pausedAt) ? "pt-32 max-w-full overflow-x-hidden" : "max-w-full overflow-x-hidden"}>
+      <TrackShell
+        eyebrow="Impromptu · 60-second drills"
+        title={
+          <>
+            One prompt. Sixty seconds. <em className="text-primary not-italic">No notes.</em>
+          </>
+        }
+        intro="The fastest way to build speaking confidence is to speak when you don't feel ready. Pick a difficulty, hit start, and talk until the timer ends. Stuck? Reveal hints — but try without them first."
+      >
       <div className="grid lg:grid-cols-[1fr_380px] gap-10">
         <div className="space-y-6">
           <div className="flex flex-wrap gap-2">
@@ -907,7 +937,8 @@ const [revealed, setRevealed] = useState(false);
         </div>
       </div>
     </TrackShell>
-    </div>
+      </div>
+    </>
   );
 };
 

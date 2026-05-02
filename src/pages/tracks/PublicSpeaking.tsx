@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { TrackShell } from "@/components/TrackShell";
 import { RecorderPanel } from "@/components/RecorderPanel";
+import { TimerHeader } from "@/components/TimerHeader";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -490,15 +491,45 @@ const PublicSpeaking = () => {
   const completedCount = completedDrills.size;
 
   return (
-    <TrackShell
-      eyebrow="Public Speaking - 6 drills"
-      title={
-        <>
-          Train the skills that make talks <em className="text-primary not-italic">land.</em>
-        </>
-      }
-      intro="Six focused drills on hooks, structure, pause, pace, energy, and the close. Each one is timed practice - record yourself, listen back, improve."
-    >
+    <>
+      {/* Timer Header - appears when timer is running or paused */}
+      {(running || pausedAt) && (
+        <TimerHeader
+          running={running}
+          seconds={seconds}
+          duration={duration}
+          title={`Drill ${activeDrill + 1}: ${current.title}`}
+          recordingActive={recordEnabled}
+          onPlay={() => {
+            if (seconds === 0) setSeconds(duration);
+            setRunning(true);
+            if (pausedAt) setPausedAt(null);
+            hasStartedRef.current = true;
+          }}
+          onPause={() => {
+            setRunning(false);
+            setPausedAt(Date.now());
+          }}
+          onReset={() => {
+            recorderStopRef.current?.();
+            setSeconds(duration);
+            setRunning(false);
+            setPausedAt(null);
+            wasRunningRef.current = false;
+            hasStartedRef.current = false;
+          }}
+        />
+      )}
+      <div className={(running || pausedAt) ? "pt-32" : ""}>
+        <TrackShell
+          eyebrow="Public Speaking - 6 drills"
+          title={
+            <>
+              Train the skills that make talks <em className="text-primary not-italic">land.</em>
+            </>
+          }
+          intro="Six focused drills on hooks, structure, pause, pace, energy, and the close. Each one is timed practice - record yourself, listen back, improve."
+        >
       {/* Progress bar */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-2">
@@ -837,6 +868,8 @@ const PublicSpeaking = () => {
         </aside>
       </div>
     </TrackShell>
+      </div>
+    </>
   );
 };
 
