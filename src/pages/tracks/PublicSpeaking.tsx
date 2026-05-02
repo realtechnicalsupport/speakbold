@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { TrackShell } from "@/components/TrackShell";
 import { RecorderPanel } from "@/components/RecorderPanel";
+import { TimerHeader } from "@/components/TimerHeader";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -493,71 +494,31 @@ const PublicSpeaking = () => {
     <>
       {/* Timer Header - appears only when timer is running */}
       {running && (
-        <div className="fixed top-0 left-0 right-0 z-50 bg-card border-b border-border backdrop-blur-sm">
-          <div className="container flex items-center justify-between py-4">
-            <div className="flex items-center gap-4">
-              <div>
-                <p className="text-xs uppercase tracking-widest text-muted-foreground">
-                  Drill {activeDrill + 1}: {current.title}
-                </p>
-                <p className="text-sm text-muted-foreground mt-0.5">
-                  Recording {recordEnabled ? "active" : "inactive"}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-6">
-              <div className="text-right">
-                <span className="font-mono tabular-nums text-4xl font-bold">
-                  {mins}:{String(secs).padStart(2, "0")}
-                </span>
-              </div>
-              <div className="flex gap-2">
-                {!running ? (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      if (seconds === 0) setSeconds(duration);
-                      setRunning(true);
-                      if (pausedAt) setPausedAt(null);
-                      hasStartedRef.current = true;
-                    }}
-                  >
-                    <Play className="h-4 w-4" />
-                  </Button>
-                ) : (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => { setRunning(false); setPausedAt(Date.now()); }}
-                  >
-                    <Pause className="h-4 w-4" />
-                  </Button>
-                )}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    recorderStopRef.current?.();
-                    setSeconds(duration);
-                    setRunning(false);
-                    setPausedAt(null);
-                    wasRunningRef.current = false;
-                    hasStartedRef.current = false;
-                  }}
-                >
-                  <RotateCcw className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          </div>
-          <div className="h-1 bg-muted">
-            <div
-              className="h-full bg-warm transition-all duration-1000 ease-linear"
-              style={{ width: `${pct}%` }}
-            />
-          </div>
-        </div>
+        <TimerHeader
+          running={running}
+          seconds={seconds}
+          duration={duration}
+          title={`Drill ${activeDrill + 1}: ${current.title}`}
+          recordingActive={recordEnabled}
+          onPlay={() => {
+            if (seconds === 0) setSeconds(duration);
+            setRunning(true);
+            if (pausedAt) setPausedAt(null);
+            hasStartedRef.current = true;
+          }}
+          onPause={() => {
+            setRunning(false);
+            setPausedAt(Date.now());
+          }}
+          onReset={() => {
+            recorderStopRef.current?.();
+            setSeconds(duration);
+            setRunning(false);
+            setPausedAt(null);
+            wasRunningRef.current = false;
+            hasStartedRef.current = false;
+          }}
+        />
       )}
       <div className={running ? "pt-32" : ""}>
         <TrackShell
