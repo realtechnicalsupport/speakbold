@@ -266,3 +266,45 @@ Provide helpful, actionable advice or content. Be concise and practical.`;
     throw error;
   }
 }
+
+export interface RecordingFeedback {
+  overallScore: number;
+  clarityScore: number;
+  paceScore: number;
+  structureScore: number;
+  strengths: string[];
+  improvements: string[];
+  tips: string[];
+  summary: string;
+}
+
+export async function analyzeRecording(promptText: string, difficulty: string): Promise<RecordingFeedback> {
+  const prompt = `You are a public speaking coach. Analyze a user's practice recording for the prompt: "${promptText}" (difficulty: ${difficulty}).
+
+Provide detailed feedback with scores (1-10) and specific advice. Return ONLY a JSON object with this exact structure:
+{
+  "overallScore": 7,
+  "clarityScore": 8,
+  "paceScore": 6,
+  "structureScore": 7,
+  "strengths": ["Strong opening hook", "Good examples used"],
+  "improvements": ["More pauses needed", "Avoid filler words"],
+  "tips": ["Practice breathing before speaking", "Record yourself weekly"],
+  "summary": "A 1-2 sentence summary of their performance"
+}
+
+Make the feedback actionable and specific to the prompt topic.`;
+
+  try {
+    const response = await callAI(prompt);
+    const jsonMatch = response.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error("Invalid response format");
+    }
+    const feedback = JSON.parse(jsonMatch[0]) as RecordingFeedback;
+    return feedback;
+  } catch (error) {
+    console.error("Failed to generate recording feedback:", error);
+    throw error;
+  }
+}

@@ -1,8 +1,11 @@
+import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useRecordings } from "@/hooks/useRecordings";
 import { Button } from "@/components/ui/button";
-import { Trash2, CloudOff, RefreshCw } from "lucide-react";
+import { Trash2, CloudOff, RefreshCw, Sparkles, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { analyzeRecording, type RecordingFeedback } from "@/services/geminiService";
+import { FeedbackModal } from "@/components/FeedbackModal";
 
 const fmt = (ms: number) => {
   const s = Math.floor(ms / 1000);
@@ -12,6 +15,20 @@ const fmt = (ms: number) => {
 export const RecordingsList = () => {
   const { user } = useAuth();
   const { items, loading, remove, refresh } = useRecordings();
+  const [feedbackLoading, setFeedbackLoading] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<RecordingFeedback | null>(null);
+
+  const handleGetFeedback = async (rec: typeof items[0]) => {
+    setFeedbackLoading(rec.id);
+    try {
+      const result = await analyzeRecording(rec.prompt_text || "Practice session", rec.difficulty || "Medium");
+      setFeedback(result);
+    } catch (error) {
+      console.error("Failed to get feedback:", error);
+    } finally {
+      setFeedbackLoading(null);
+    }
+  };
 
   if (!user) {
     return (
@@ -65,14 +82,33 @@ export const RecordingsList = () => {
                     {new Date(r.created_at).toLocaleDateString()}
                   </p>
                 </div>
-                <Button variant="ghost" size="icon" onClick={() => remove(r)}>
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                <div className="flex gap-1">
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => handleGetFeedback(r)}
+                    disabled={feedbackLoading === r.id}
+                    title="Get AI Feedback"
+                  >
+                    {feedbackLoading === r.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-4 w-4 text-primary" />
+                    )}
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => remove(r)}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
               {r.signedUrl && <audio controls src={r.signedUrl} className="w-full" />}
             </li>
           ))}
         </ul>
+      )}
+
+      {feedback && (
+        <FeedbackModal feedback={feedback} onClose={() => setFeedback(null)} />
       )}
     </div>
   );
