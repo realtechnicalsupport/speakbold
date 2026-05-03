@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { Mic, MessageSquare, Briefcase, Activity, Home } from "lucide-react";
+import { Mic, MessageSquare, Briefcase, Activity, Home, Calendar } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { to: "/tracks/impromptu", icon: MessageSquare, label: "Impromptu" },
   { to: "/tracks/interviews", icon: Briefcase, label: "Interviews" },
   { to: "/tracks/body-language", icon: Activity, label: "Body" },
+  { to: "/events", icon: Calendar, label: "Events" },
 ];
 
 export const MobileNav = () => {

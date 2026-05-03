@@ -15,9 +15,10 @@ import {
   Search,
   EyeOff,
   Eye,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import type { CustomPrompt, Difficulty, ExampleBeat, Prompt } from "./PromptAuthor";
+import type { CustomPrompt, Difficulty, Example, Prompt } from "./PromptAuthor";
 import {
   Dialog,
   DialogContent,
@@ -32,6 +33,7 @@ export type LibraryEntry = {
   prompt: Prompt;
   enabled: boolean;
   edited: boolean;
+  ai?: boolean;
 };
 
 type Props = {
@@ -208,6 +210,11 @@ export const PromptLibrary = ({
                               Custom
                             </span>
                           )}
+                          {entry.ai && (
+                            <span className="text-[10px] font-mono uppercase tracking-wider text-primary inline-flex items-center gap-0.5">
+                              <Sparkles className="h-3 w-3" /> AI
+                            </span>
+                          )}
                           {entry.edited && entry.source === "builtin" && (
                             <span className="text-[10px] font-mono uppercase tracking-wider text-warm">
                               Edited
@@ -290,7 +297,7 @@ const EditCard = ({
   const [text, setText] = useState(entry.prompt.text);
   const [framework, setFramework] = useState(entry.prompt.framework);
   const [points, setPoints] = useState<string[]>(entry.prompt.points);
-  const [example, setExample] = useState<ExampleBeat[]>(entry.prompt.example);
+  const [example, setExample] = useState<Example[]>(entry.prompt.example);
 
   const save = () => {
     const cleanPoints = points.map((p) => p.trim()).filter(Boolean);
@@ -299,7 +306,7 @@ const EditCard = ({
       .filter((b) => b.label && b.text);
     if (!text.trim()) return toast({ title: "Prompt text is required" });
     if (cleanPoints.length < 2) return toast({ title: "Add at least 2 talking points" });
-    if (cleanExample.length < 2) return toast({ title: "Add at least 2 example beats" });
+    if (cleanExample.length < 2) return toast({ title: "Add at least 2 examples" });
 
     onSave({
       difficulty,
@@ -384,7 +391,7 @@ const EditCard = ({
 
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <Label>Example beats</Label>
+          <Label>Example</Label>
           <Button
             type="button"
             variant="ghost"

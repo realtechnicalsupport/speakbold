@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft, Clipboard } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
@@ -8,21 +8,32 @@ interface TrackShellProps {
   title: ReactNode;
   intro: string;
   children: ReactNode;
+  hideHeader?: boolean;
 }
 
-export const TrackShell = ({ eyebrow, title, intro, children }: TrackShellProps) => {
+export const TrackShell = ({ eyebrow, title, intro, children, hideHeader = false }: TrackShellProps) => {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setMounted(true), 50);
+    return () => clearTimeout(t);
+  }, []);
+
   return (
     <main className="min-h-screen bg-background">
-      <SiteHeader />
-      <section className="container pt-12 md:pt-20 pb-10">
+      {!hideHeader && <SiteHeader />}
+      {hideHeader && (
+        <div className="h-1" aria-hidden />
+      )}
+      <section className={`container pb-10 ${hideHeader ? "pt-20 md:pt-24" : "pt-12 md:pt-20"}`}>
         <Link
           to="/"
-          className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-10"
+          className={`inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-10 ${mounted ? "animate-fade-right" : "opacity-0"}`}
         >
           <ArrowLeft className="h-4 w-4" />
           All tracks
         </Link>
-        <div className="max-w-3xl">
+        <div className={`max-w-3xl ${mounted ? "animate-fade-up" : "opacity-0"}`} style={{ animationDelay: "100ms" }}>
           <div className="flex items-center gap-3 text-primary text-xs font-semibold tracking-[0.25em] uppercase mb-6">
             <span className="h-px w-10 bg-primary" />
             {eyebrow}
@@ -33,10 +44,9 @@ export const TrackShell = ({ eyebrow, title, intro, children }: TrackShellProps)
           <p className="text-lg text-muted-foreground text-pretty leading-relaxed">{intro}</p>
         </div>
       </section>
-      <div className="container pb-32">{children}</div>
+      <div className={`container pb-32 ${mounted ? "animate-fade-in" : "opacity-0"}`} style={{ animationDelay: "250ms" }}>{children}</div>
       
-      {/* Pre-Flight Checklist Link */}
-      <div className="container pb-12">
+      <div className={`container pb-12 ${mounted ? "animate-fade-up" : "opacity-0"}`} style={{ animationDelay: "400ms" }}>
         <Link
           to="/pre-flight"
           className="group flex items-center gap-4 bg-card-gradient border border-border rounded-2xl p-5 hover:border-primary/50 transition-colors"

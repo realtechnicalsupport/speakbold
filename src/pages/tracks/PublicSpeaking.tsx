@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { TrackShell } from "@/components/TrackShell";
 import { RecorderPanel } from "@/components/RecorderPanel";
-import { TimerHeader } from "@/components/TimerHeader";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -49,8 +48,11 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { useRecordings, useSyncedStreak } from "@/hooks/useRecordings";
+import { FloatingTimer } from "@/components/FloatingTimer";
 import { toast } from "@/hooks/use-toast";
 import { generateSpeakingDrills, type SpeakingDrill as AISpeakingDrill } from "@/services/geminiService";
+import { setTimerActive } from "@/lib/timerState";
+import { setRecordingActive } from "@/lib/recordingState";
 
 type Context = "small" | "large" | "stage" | "virtual";
 
@@ -281,6 +283,11 @@ const PublicSpeaking = () => {
   const [seconds, setSeconds] = useState(DEFAULT_DRILLS[0].duration);
   const [running, setRunning] = useState(false);
   const [pausedAt, setPausedAt] = useState<number | null>(null);
+  
+  useEffect(() => {
+    setTimerActive(running || pausedAt !== null);
+    return () => setTimerActive(false);
+  }, [running, pausedAt]);
   const idRef = useRef<number | null>(null);
   const hasStartedRef = useRef<boolean>(false);
   const wasRunningRef = useRef<boolean>(false);
@@ -295,7 +302,7 @@ const PublicSpeaking = () => {
   const { upload: uploadRecording, refresh: refreshRecordings } = useRecordings();
   const { markPracticed } = useSyncedStreak();
   
-  const current = drills[activeDrill];
+  const current = drills[activeDrill >= 0 ? activeDrill : 0];
 
   // Load saved recordings from localStorage
   useEffect(() => {
@@ -485,51 +492,29 @@ const PublicSpeaking = () => {
     }
   }, [recordEnabled, running, pausedAt]);
 
+  // Notify global recording state for microphone border
+  useEffect(() => {
+    const isActuallyRecording = recordEnabled && running && !pausedAt;
+    setRecordingActive(isActuallyRecording);
+    return () => setRecordingActive(false);
+  }, [recordEnabled, running, pausedAt]);
+
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
   const pct = duration > 0 ? (seconds / duration) * 100 : 0;
   const completedCount = completedDrills.size;
 
   return (
-    <>
-      {/* Timer Header - appears when timer is running or paused */}
-      {(running || pausedAt) && (
-        <TimerHeader
-          running={running}
-          seconds={seconds}
-          duration={duration}
-          title={`Drill ${activeDrill + 1}: ${current.title}`}
-          recordingActive={recordEnabled}
-          onPlay={() => {
-            if (seconds === 0) setSeconds(duration);
-            setRunning(true);
-            if (pausedAt) setPausedAt(null);
-            hasStartedRef.current = true;
-          }}
-          onPause={() => {
-            setRunning(false);
-            setPausedAt(Date.now());
-          }}
-          onReset={() => {
-            recorderStopRef.current?.();
-            setSeconds(duration);
-            setRunning(false);
-            setPausedAt(null);
-            wasRunningRef.current = false;
-            hasStartedRef.current = false;
-          }}
-        />
-      )}
-      <div className={(running || pausedAt) ? "pt-32" : ""}>
-        <TrackShell
-          eyebrow="Public Speaking - 6 drills"
-          title={
-            <>
-              Train the skills that make talks <em className="text-primary not-italic">land.</em>
-            </>
-          }
-          intro="Six focused drills on hooks, structure, pause, pace, energy, and the close. Each one is timed practice - record yourself, listen back, improve."
-        >
+    <TrackShell
+      eyebrow="Public Speaking - 6 drills"
+      title={
+        <>
+          Train the skills that make talks <em className="text-primary not-italic">land.</em>
+        </>
+      }
+      intro="Six focused drills on hooks, structure, pause, pace, energy, and the close. Each one is timed practice - record yourself, listen back, improve."
+      hideHeader={running || pausedAt !== null}
+    >
       {/* Progress bar */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-2">
@@ -592,7 +577,7 @@ const PublicSpeaking = () => {
                 )}
               >
                 <button
-                  onClick={() => setActiveDrill(i)}
+                  onClick={() => setActiveDrill(activeDrill === i ? -1 : i)}
                   className="w-full flex items-center justify-between gap-4 p-6 text-left"
                 >
                   <div className="flex items-center gap-4">
@@ -684,7 +669,7 @@ const PublicSpeaking = () => {
             
             <div className="text-center mb-6">
               <p className="text-xs uppercase tracking-widest text-muted-foreground mb-2">
-                Drill {activeDrill + 1}: {current.title}
+                Drill {activeDrill >= 0 ? activeDrill + 1 : 1}: {current.title}
               </p>
               <span className="font-mono tabular-nums text-5xl font-bold">
                 {mins}:{String(secs).padStart(2, "0")}
@@ -867,9 +852,16 @@ const PublicSpeaking = () => {
           </Button>
         </aside>
       </div>
+      <FloatingTimer
+        isRunning={running}
+        seconds={seconds}
+        duration={duration}
+        isPaused={pausedAt !== null}
+        onPause={() => { setRunning(false); setPausedAt(Date.now()); }}
+        onResume={() => { setRunning(true); setPausedAt(null); }}
+        onReset={() => { recorderStopRef.current?.(); setSeconds(duration); setRunning(false); setPausedAt(null); wasRunningRef.current = false; hasStartedRef.current = false; }}
+      />
     </TrackShell>
-      </div>
-    </>
   );
 };
 

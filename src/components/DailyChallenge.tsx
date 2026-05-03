@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Play, Pause, RotateCcw, Flame, CheckCircle2 } from "lucide-react";
 import { useStreak } from "@/hooks/useStreak";
 import { RecorderPanel } from "@/components/RecorderPanel";
+import { useInView } from "@/hooks/useInView";
 
 const DAILY_PROMPTS = [
   "The best advice you've ever ignored.",
@@ -37,24 +38,20 @@ export const DailyChallenge = () => {
   const [finished, setFinished] = useState(false);
   const ref = useRef<number | null>(null);
   const { count, practicedToday, markPracticed } = useStreak();
+  const { ref: sectionRef, isInView } = useInView({ threshold: 0.05 });
   
-  // Recorder control refs
   const recorderRef = useRef<{ start: () => void; pause: () => void; resume: () => void; stop: () => void } | null>(null);
   
-  // Sync recorder with timer state
   useEffect(() => {
     if (running && recorderRef.current) {
-      // Start or resume recording when timer starts
       if (left === DURATION) {
         recorderRef.current.start();
       } else {
         recorderRef.current.resume();
       }
     } else if (!running && recorderRef.current && left < DURATION && !finished) {
-      // Pause recording when timer pauses
       recorderRef.current.pause();
     } else if (finished && recorderRef.current) {
-      // Stop recording when timer finishes
       recorderRef.current.stop();
     }
   }, [running, finished, left]);
@@ -88,10 +85,9 @@ export const DailyChallenge = () => {
   const pct = ((DURATION - left) / DURATION) * 100;
 
   return (
-    <section className="container py-20 md:py-28 border-t border-border">
+    <section className="container py-20 md:py-28 border-t border-border" ref={sectionRef}>
       <div className="grid md:grid-cols-5 gap-6">
-        {/* Main challenge card */}
-        <div className="md:col-span-3 relative bg-card-gradient border border-border rounded-3xl p-8 md:p-12 overflow-hidden">
+        <div className={`md:col-span-3 relative bg-card-gradient border border-border rounded-3xl p-8 md:p-12 overflow-hidden ${isInView ? "animate-fade-right" : "opacity-0"}`}>
           <div className="absolute -top-24 -right-24 h-72 w-72 rounded-full bg-primary/10 blur-3xl" />
 
           <div className="relative">
@@ -104,7 +100,6 @@ export const DailyChallenge = () => {
               "{prompt}"
             </h2>
 
-            {/* Timer bar */}
             <div className="h-2 w-full rounded-full bg-muted overflow-hidden mb-4">
               <div
                 className="h-full bg-warm transition-all duration-1000 ease-linear"
@@ -116,7 +111,7 @@ export const DailyChallenge = () => {
                 0:{String(left).padStart(2, "0")}
               </span>
               {finished && (
-                <span className="inline-flex items-center gap-2 text-sm font-semibold text-primary">
+                <span className="inline-flex items-center gap-2 text-sm font-semibold text-primary animate-fade-up">
                   <CheckCircle2 className="h-4 w-4" /> Counted toward your streak
                 </span>
               )}
@@ -150,15 +145,14 @@ export const DailyChallenge = () => {
           </div>
         </div>
 
-        {/* Streak widget */}
-        <div className="md:col-span-2 bg-card-gradient border border-border rounded-3xl p-8 md:p-10 flex flex-col">
+        <div className={`md:col-span-2 bg-card-gradient border border-border rounded-3xl p-8 md:p-10 flex flex-col ${isInView ? "animate-fade-left" : "opacity-0"}`} style={{ animationDelay: "150ms" }}>
           <div className="flex items-center gap-3 text-primary text-xs font-semibold tracking-[0.25em] uppercase mb-6">
             <span className="h-px w-10 bg-primary" />
             Your streak
           </div>
 
           <div className="flex items-end gap-4 mb-2">
-            <Flame className={`h-12 w-12 ${count > 0 ? "text-primary" : "text-muted-foreground"}`} />
+            <Flame className={`h-12 w-12 ${count > 0 ? "text-primary animate-float" : "text-muted-foreground"}`} />
             <div>
               <div className="font-display text-6xl font-semibold leading-none">{count}</div>
               <div className="text-sm text-muted-foreground mt-2">
@@ -190,8 +184,7 @@ export const DailyChallenge = () => {
           <p className="text-xs text-muted-foreground mt-3">Last 7 days</p>
         </div>
 
-        {/* Recorder panel - synced with timer */}
-        <div className="md:col-span-5">
+        <div className={`md:col-span-5 ${isInView ? "animate-fade-up" : "opacity-0"}`} style={{ animationDelay: "300ms" }}>
           <RecorderPanel
             ref={recorderRef}
             label="Your response"

@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { TrackShell } from "@/components/TrackShell";
 import { RecorderPanel } from "@/components/RecorderPanel";
-import { TimerHeader } from "@/components/TimerHeader";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -26,13 +25,13 @@ import {
 } from "@/components/ui/alert-dialog";
 import { 
   ChevronRight, 
-  AlertTriangle, 
   Play, 
   Pause, 
   RotateCcw, 
   Shuffle, 
   Lightbulb, 
   EyeOff,
+  Eye,
   Mic,
   MicOff,
   CheckCircle2,
@@ -45,28 +44,16 @@ import {
   Trash2,
   Download,
   Calendar,
-  X
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { useRecordings, useSyncedStreak } from "@/hooks/useRecordings";
+import { useSyncedInterviewQuestions } from "@/hooks/useSyncedInterviewQuestions";
+import { FloatingTimer } from "@/components/FloatingTimer";
 import { toast } from "@/hooks/use-toast";
 import { generateInterviewQuestions } from "@/services/geminiService";
-
-const CommonMistake = ({ children, onDismiss }: { children: React.ReactNode; onDismiss?: () => void }) => (
-  <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-4 flex items-start gap-3">
-    <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-    <div className="text-sm text-foreground/90 flex-1">{children}</div>
-    {onDismiss && (
-      <button
-        onClick={onDismiss}
-        className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
-      >
-        <X className="h-4 w-4" />
-      </button>
-    )}
-  </div>
-);
+import { setTimerActive } from "@/lib/timerState";
+import { setRecordingActive } from "@/lib/recordingState";
 
 interface Question {
   id: string;
@@ -77,7 +64,7 @@ interface Question {
   targetSeconds: number;
   difficulty: "Warm-up" | "Standard" | "Pressure";
   keyPoints: string[];
-  isAI?: boolean;
+  is_ai?: boolean;
 }
 
 interface SavedRecording {
@@ -288,6 +275,7 @@ const Interviews = () => {
   const [active, setActive] = useState(0);
   const [mode, setMode] = useState<"browse" | "practice">("browse");
   const [activeTab, setActiveTab] = useState<"practice" | "recordings">("practice");
+  const [questionsTab, setQuestionsTab] = useState<"default" | "ai">("default");
   const [revealed, setRevealed] = useState(false);
   const [recordEnabled, setRecordEnabled] = useState(false);
   const [completedQuestions, setCompletedQuestions] = useState<Set<string>>(() => {
@@ -301,6 +289,9 @@ const Interviews = () => {
   const [aiDifficulty, setAiDifficulty] = useState<"Warm-up" | "Standard" | "Pressure">("Standard");
   const [aiCount, setAiCount] = useState(3);
 
+  // Synced AI questions from Supabase
+  const { questions: syncedAIQuestions, addQuestions: saveAIQuestions } = useSyncedInterviewQuestions();
+
   // Saved recordings state
   const [savedRecordings, setSavedRecordings] = useState<SavedRecording[]>([]);
   
@@ -310,6 +301,11 @@ const Interviews = () => {
   const [running, setRunning] = useState(false);
   const [pausedAt, setPausedAt] = useState<number | null>(null);
   const [dismissedTips, setDismissedTips] = useState<Set<string>>(new Set());
+  
+  useEffect(() => {
+    setTimerActive(running || pausedAt !== null);
+    return () => setTimerActive(false);
+  }, [running, pausedAt]);
   const idRef = useRef<number | null>(null);
   const hasStartedRef = useRef<boolean>(false);
   const wasRunningRef = useRef<boolean>(false);
@@ -324,7 +320,10 @@ const Interviews = () => {
   const { upload: uploadRecording, refresh: refreshRecordings, items: recordings } = useRecordings();
   const { markPracticed } = useSyncedStreak();
   
-  const current = questions[active];
+  const defaultQuestions = DEFAULT_QUESTIONS;
+  const aiQuestions = syncedAIQuestions;
+  const displayedQuestions = questionsTab === "default" ? defaultQuestions : aiQuestions;
+  const current = displayedQuestions[active] || null;
 
   // Load saved recordings from localStorage
   useEffect(() => {
@@ -416,8 +415,7 @@ const Interviews = () => {
       const newQuestions = await generateInterviewQuestions(aiCategory, difficultyMap[aiDifficulty], aiCount);
       
       // Convert AI questions to our format
-      const formattedQuestions: Question[] = newQuestions.map((q, idx) => ({
-        id: `ai-${Date.now()}-${idx}`,
+      const formattedQuestions = newQuestions.map((q, idx) => ({
         q: q.question,
         type: "AI Generated" as const,
         guidance: q.followUp ? `Consider this follow-up: ${q.followUp}` : "Answer using the STAR method for behavioral questions.",
@@ -425,14 +423,22 @@ const Interviews = () => {
         targetSeconds: aiDifficulty === "Warm-up" ? 60 : aiDifficulty === "Standard" ? 90 : 120,
         difficulty: aiDifficulty,
         keyPoints: q.keyPoints,
-        isAI: true,
+        is_ai: true,
       }));
 
-      setQuestions(prev => [...prev, ...formattedQuestions]);
-      toast({
-        title: "Questions generated",
-        description: `Added ${formattedQuestions.length} new AI-generated questions.`,
-      });
+      // Save to Supabase if logged in, otherwise show message
+      if (user) {
+        await saveAIQuestions(formattedQuestions);
+        toast({
+          title: "Questions generated",
+          description: `Added ${formattedQuestions.length} new AI-generated questions to your account.`,
+        });
+      } else {
+        toast({
+          title: "Sign in to save",
+          description: "Please sign in to save AI questions to your account.",
+        });
+      }
     } catch (error) {
       console.error("Failed to generate questions:", error);
       toast({
@@ -519,6 +525,13 @@ const Interviews = () => {
     }
   }, [recordEnabled, running, pausedAt]);
 
+  // Notify global recording state for microphone border
+  useEffect(() => {
+    const isActuallyRecording = recordEnabled && running && !pausedAt;
+    setRecordingActive(isActuallyRecording);
+    return () => setRecordingActive(false);
+  }, [recordEnabled, running, pausedAt]);
+
   const shuffleQuestion = () => {
     let next = active;
     let guard = 0;
@@ -535,45 +548,16 @@ const Interviews = () => {
   const completedCount = completedQuestions.size;
 
   return (
-    <>
-      {/* Timer Header - appears when timer is running or paused */}
-      {(running || pausedAt) && current && (
-        <TimerHeader
-          running={running}
-          seconds={seconds}
-          duration={duration}
-          title={`Question: ${current.question}`}
-          recordingActive={recordEnabled}
-          onPlay={() => {
-            if (seconds === 0) setSeconds(duration);
-            setRunning(true);
-            if (pausedAt) setPausedAt(null);
-            hasStartedRef.current = true;
-          }}
-          onPause={() => {
-            setRunning(false);
-            setPausedAt(Date.now());
-          }}
-          onReset={() => {
-            recorderStopRef.current?.();
-            setSeconds(duration);
-            setRunning(false);
-            setPausedAt(null);
-            wasRunningRef.current = false;
-            hasStartedRef.current = false;
-          }}
-        />
-      )}
-      <div className={(running || pausedAt) ? "pt-32" : ""}>
-        <TrackShell
-          eyebrow={`Job Interviews - ${questions.length} questions`}
-          title={
-            <>
-              Practice the questions you&apos;ll <em className="text-primary not-italic">actually be asked.</em>
-            </>
-          }
-          intro="Pick a question, hit start, and answer out loud under time pressure. AI can generate unlimited new questions."
-        >
+    <TrackShell
+      eyebrow={`Job Interviews - ${questions.length} questions`}
+      title={
+        <>
+          Practice the questions you&apos;ll <em className="text-primary not-italic">actually be asked.</em>
+        </>
+      }
+      intro="Pick a question, hit start, and answer out loud under time pressure. AI can generate unlimited new questions."
+      hideHeader={running || pausedAt !== null}
+    >
       {/* Progress bar */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-2">
@@ -589,9 +573,9 @@ const Interviews = () => {
       </div>
 
       {/* AI Question Generator */}
-      <div className="mb-8 p-6 rounded-2xl bg-gradient-to-br from-purple-500/10 to-blue-500/10 border border-purple-500/20">
+      <div className="mb-8 p-6 rounded-2xl bg-gradient-to-br from-primary/10 to-accent/10 border border-primary/20">
         <div className="flex items-center gap-2 mb-4">
-          <Sparkles className="h-5 w-5 text-purple-400" />
+          <Sparkles className="h-5 w-5 text-primary" />
           <h3 className="font-semibold text-lg">AI Question Generator</h3>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
@@ -640,7 +624,7 @@ const Interviews = () => {
             <Button
               onClick={generateAIQuestions}
               disabled={isGenerating}
-              className="w-full bg-purple-600 hover:bg-purple-700"
+              className="w-full bg-primary hover:bg-primary/90"
             >
               {isGenerating ? (
                 <>
@@ -662,74 +646,104 @@ const Interviews = () => {
       </div>
 
       {/* Mode toggle */}
-      <div className="flex gap-2 mb-6">
+      <div className="grid grid-cols-2 gap-2 mb-8 p-1.5 bg-card-gradient border border-border rounded-2xl">
         <button
           onClick={() => setMode("browse")}
           className={cn(
-            "px-4 py-2 rounded-full text-sm border transition-colors",
+            "flex items-center justify-center gap-3 px-5 py-4 rounded-xl text-base font-semibold transition-all",
             mode === "browse"
-              ? "bg-foreground text-background border-foreground"
-              : "border-border text-muted-foreground hover:text-foreground"
+              ? "bg-background text-foreground shadow-lg border border-border"
+              : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
           )}
         >
-          Browse Questions
+          <Eye className={cn("h-5 w-5 transition-colors", mode === "browse" ? "text-primary" : "")} />
+          Browse
         </button>
         <button
           onClick={() => setMode("practice")}
           className={cn(
-            "px-4 py-2 rounded-full text-sm border transition-colors",
+            "flex items-center justify-center gap-3 px-5 py-4 rounded-xl text-base font-semibold transition-all",
             mode === "practice"
-              ? "bg-foreground text-background border-foreground"
-              : "border-border text-muted-foreground hover:text-foreground"
+              ? "bg-primary text-primary-foreground shadow-lg border border-primary"
+              : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
           )}
         >
-          Practice Mode
+          <Mic className="h-5 w-5" />
+          Practice
         </button>
       </div>
 
-<div className="space-y-4 mb-6">
-        {!dismissedTips.has("star") && (
-          <CommonMistake onDismiss={() => setDismissedTips(prev => new Set([...prev, "star"]))}>The STAR framework helps, but the real test is: did I own it? Use "I" not "we" in the Action step.</CommonMistake>
-        )}
-        {!dismissedTips.has("weakness") && (
-          <CommonMistake onDismiss={() => setDismissedTips(prev => new Set([...prev, "weakness"]))}>Avoid fake-humble weaknesses ("I work too hard"). Pick a real one and show how you fixed it.</CommonMistake>
-        )}
-      </div>
-
       <div className="grid lg:grid-cols-[320px_1fr] gap-8">
-        <aside className="space-y-2 lg:sticky lg:top-24 self-start max-h-[80vh] overflow-y-auto pr-2">
-          {questions.map((qu, i) => (
+        <aside className="space-y-3 lg:sticky lg:top-24 self-start max-h-[80vh] overflow-y-auto pr-2">
+          {/* Tab buttons */}
+          <div className="flex gap-2 mb-3">
             <button
-              key={qu.id}
-              onClick={() => setActive(i)}
+              onClick={() => { setQuestionsTab("default"); setActive(0); }}
               className={cn(
-                "w-full text-left p-4 rounded-xl border transition-colors flex items-start gap-3",
-                active === i
-                  ? "bg-card-gradient border-primary/40"
-                  : "border-border hover:border-foreground/30",
+                "flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors",
+                questionsTab === "default"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground hover:text-foreground"
               )}
             >
-              <span
+              Default ({defaultQuestions.length})
+            </button>
+            <button
+              onClick={() => { setQuestionsTab("ai"); setActive(0); }}
+              disabled={aiQuestions.length === 0}
+              className={cn(
+                "flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2",
+                questionsTab === "ai"
+                  ? "bg-primary text-primary-foreground"
+                  : aiQuestions.length === 0
+                    ? "bg-muted text-muted-foreground/50 cursor-not-allowed"
+                    : "bg-muted text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              AI ({aiQuestions.length})
+            </button>
+          </div>
+          
+          {/* Questions list */}
+          {displayedQuestions.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground text-sm">
+              {questionsTab === "ai" ? "No AI questions yet. Generate some below!" : "No default questions."}
+            </div>
+          ) : (
+            displayedQuestions.map((qu, i) => (
+              <button
+                key={qu.id}
+                onClick={() => setActive(i)}
                 className={cn(
-                  "font-mono text-xs mt-1",
-                  active === i ? "text-primary" : "text-muted-foreground",
+                  "w-full text-left p-4 rounded-xl border transition-colors flex items-start gap-3",
+                  active === i
+                    ? "bg-card-gradient border-primary/40"
+                    : "border-border hover:border-foreground/30",
                 )}
               >
-                {String(i + 1).padStart(2, "0")}
-              </span>
-              <span className="flex-1">
-                <span className="block text-sm font-medium leading-snug">{qu.q}</span>
-                <span className="flex items-center gap-2 mt-1">
-                  <span className="text-xs text-muted-foreground">{qu.type}</span>
-                  {qu.isAI && <Sparkles className="h-3 w-3 text-purple-400" />}
-                  {completedQuestions.has(qu.id) && (
-                    <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+                <span
+                  className={cn(
+                    "font-mono text-xs mt-1",
+                    active === i ? "text-primary" : "text-muted-foreground",
                   )}
-                </span>
-              </span>
-              <ChevronRight className={cn("h-4 w-4 mt-1 shrink-0", active === i ? "text-primary" : "text-muted-foreground")} />
-            </button>
-          ))}
+                >
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <span className="flex-1">
+                    <span className="block text-sm font-medium leading-snug">{qu.q}</span>
+                    <span className="flex items-center gap-2 mt-1">
+                      <span className="text-xs text-muted-foreground">{qu.type}</span>
+                      {qu.is_ai && <Sparkles className="h-3 w-3 text-primary" />}
+                      {completedQuestions.has(qu.id) && (
+                        <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+                      )}
+                    </span>
+                  </span>
+                  <ChevronRight className={cn("h-4 w-4 mt-1 shrink-0", active === i ? "text-primary" : "text-muted-foreground")} />
+                </button>
+              ))
+          )}
         </aside>
 
         <div className="space-y-6">
@@ -742,27 +756,37 @@ const Interviews = () => {
               />
             )}
             
-            <div className="flex items-start justify-between gap-4 mb-6">
-              <div className="flex items-center gap-3 flex-wrap">
-                <span className={cn(
-                  "px-3 py-1 rounded-full text-xs font-medium border",
-                  DIFFICULTY_COLORS[current.difficulty]
-                )}>
-                  {current.difficulty}
-                </span>
-                <span className="text-xs text-muted-foreground flex items-center gap-1">
-                  <Clock className="h-3.5 w-3.5" />
-                  Target: {current.targetSeconds}s
-                </span>
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-6">
+              <div className="flex items-center gap-2 flex-wrap">
+                {current && (
+                  <>
+                    <span className={cn(
+                      "px-2.5 py-1 rounded-full text-xs font-medium border",
+                      DIFFICULTY_COLORS[current.difficulty]
+                    )}>
+                      {current.difficulty}
+                    </span>
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Clock className="h-3.5 w-3.5" />
+                      {current.targetSeconds}s
+                    </span>
+                  </>
+                )}
               </div>
               {mode === "practice" && (
-                <span className="font-mono tabular-nums text-4xl md:text-5xl font-bold">
+                <span className="font-mono tabular-nums text-3xl sm:text-4xl md:text-5xl font-bold text-foreground">
                   {mins}:{String(secs).padStart(2, "0")}
                 </span>
               )}
             </div>
 
-            <p className="text-xs uppercase tracking-widest text-primary mb-3">{current.type}</p>
+            {!current ? (
+              <div className="py-12 text-center text-muted-foreground">
+                <p>Select a question from the sidebar to begin practicing.</p>
+              </div>
+            ) : (
+              <>
+                <p className="text-xs uppercase tracking-widest text-primary mb-3">{current.type}</p>
             <h2 className="font-display text-3xl md:text-4xl font-semibold leading-tight mb-8 text-pretty">
               &quot;{current.q}&quot;
             </h2>
@@ -771,7 +795,7 @@ const Interviews = () => {
               <>
                 {/* Timer controls */}
                 <div className="flex flex-wrap items-center gap-2 mb-5">
-                  <span className="text-xs uppercase tracking-widest text-muted-foreground mr-1">Timer</span>
+                  <span className="text-sm font-semibold uppercase tracking-wider text-foreground mr-1">Timer</span>
                   {[30, 60, 90, 120].map((d) => (
                     <button
                       key={d}
@@ -968,6 +992,8 @@ const Interviews = () => {
                 </div>
               </div>
             )}
+              </>
+            )}
           </div>
 
           {/* Saved Recordings for this question */}
@@ -1101,9 +1127,16 @@ const Interviews = () => {
           </div>
         </div>
       </div>
+      <FloatingTimer
+        isRunning={running}
+        seconds={seconds}
+        duration={duration}
+        isPaused={pausedAt !== null}
+        onPause={() => { setRunning(false); setPausedAt(Date.now()); }}
+        onResume={() => { setRunning(true); setPausedAt(null); }}
+        onReset={() => { recorderStopRef.current?.(); setSeconds(duration); setRunning(false); setPausedAt(null); wasRunningRef.current = false; hasStartedRef.current = false; }}
+      />
     </TrackShell>
-      </div>
-    </>
   );
 };
 

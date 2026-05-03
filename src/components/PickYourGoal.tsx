@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { Briefcase, Sparkles, MessageSquareOff, Users, ArrowUpRight } from "lucide-react";
+import { useInView } from "@/hooks/useInView";
 
 const GOALS = [
   {
@@ -33,9 +34,11 @@ const GOALS = [
 ];
 
 export const PickYourGoal = () => {
+  const { ref, isInView } = useInView({ threshold: 0.05 });
+
   return (
-    <section className="container py-24 md:py-32 border-t border-border">
-      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 mb-14">
+    <section className="container py-24 md:py-32 border-t border-border" ref={ref}>
+      <div className={`flex flex-col md:flex-row md:items-end md:justify-between gap-6 mb-14 ${isInView ? "animate-fade-up" : "opacity-0"}`}>
         <div className="max-w-2xl">
           <div className="flex items-center gap-3 text-primary text-xs font-semibold tracking-[0.2em] uppercase mb-6">
             <span className="h-px w-10 bg-primary" />
@@ -52,11 +55,12 @@ export const PickYourGoal = () => {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        {GOALS.map((g) => (
+        {GOALS.map((g, i) => (
           <Link
             key={g.title}
             to={g.href}
-            className="group relative bg-card-gradient border border-border rounded-2xl p-7 md:p-8 hover:border-primary/40 transition-all duration-500 flex items-start gap-5"
+            className={`group relative bg-card-gradient border border-border rounded-2xl p-7 md:p-8 hover:border-primary/40 transition-all duration-500 flex items-start gap-5 ${isInView ? "animate-fade-up" : "opacity-0"}`}
+            style={{ animationDelay: `${i * 100 + 100}ms` }}
           >
             <div className="grid place-items-center h-12 w-12 rounded-xl bg-muted border border-border group-hover:bg-warm group-hover:border-transparent transition-all duration-500 shrink-0">
               <g.icon className="h-5 w-5 text-foreground group-hover:text-primary-foreground transition-colors" />

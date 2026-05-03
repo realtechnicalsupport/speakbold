@@ -48,6 +48,7 @@ export interface ImpromptuPrompt {
   category: string;
   framework: string;
   frameworkSteps: string[];
+  example: { label: string; text: string }[];
 }
 
 async function callAI(prompt: string): Promise<string> {
@@ -159,20 +160,54 @@ export async function generateImpromptuPrompts(
   count: number = 3
 ): Promise<ImpromptuPrompt[]> {
   const frameworks = [
-    { name: "PREP", steps: ["Point - State your main point", "Reason - Explain why", "Example - Give a specific example", "Point - Restate your point"] },
-    { name: "Past-Present-Future", steps: ["Past - How things were", "Present - How things are now", "Future - How things will be"] },
-    { name: "Problem-Solution-Benefit", steps: ["Problem - Identify the issue", "Solution - Propose your solution", "Benefit - Explain the positive outcome"] },
+    { name: "PREP", stepLabels: ["Point", "Reason", "Example", "Point"] },
+    { name: "Past-Present-Future", stepLabels: ["Past", "Present", "Future"] },
+    { name: "Problem-Solution-Benefit", stepLabels: ["Problem", "Solution", "Benefit"] },
   ];
 
+  const frameworkInstructions = {
+    PREP: "Point: State a clear, decisive stance on the topic. Reason: Give 2-3 concrete reasons why you hold that view. Example: Share a specific real-world scenario, study, or personal story that illustrates your reasoning. Point: Circle back and restate your stance with added conviction.",
+    "Past-Present-Future": "Past: Describe how this topic was viewed or handled historically, with a concrete example. Present: Explain the current state of affairs, citing recent trends or developments. Future: Project where this is headed and what it means, offering a bold but reasoned prediction.",
+    "Problem-Solution-Benefit": "Problem: Pinpoint the core issue with a specific example of who it affects and why it matters. Solution: Propose a realistic, actionable fix — not a vague idea. Benefit: Paint a vivid picture of the positive outcome if your solution is adopted, including measurable impact.",
+  };
+
   const prompt = `Generate ${count} unique impromptu speaking topics for the category "${category}".
+
+For EACH topic, I need you to generate TWO things:
+1. DETAILED, TOPIC-SPECIFIC talking points for a speaking framework — NOT generic placeholders.
+2. A COMPLETE EXAMPLE SPEECH broken into beats — this should be a realistic, well-spoken 60-90 second response to the prompt, written in first person as if someone is actually delivering it. Each beat should have a label and the actual spoken text.
 
 Return ONLY a valid JSON array with this exact structure, no markdown or extra text:
 [
   {
     "topic": "The speaking topic or question",
-    "category": "${category}"
+    "category": "${category}",
+    "framework": "PREP" or "Past-Present-Future" or "Problem-Solution-Benefit",
+    "frameworkSteps": [
+      "Label - detailed, topic-specific guidance (2-3 sentences) on what to say for this step",
+      "Label - detailed, topic-specific guidance (2-3 sentences) on what to say for this step",
+      "Label - detailed, topic-specific guidance (2-3 sentences) on what to say for this step"
+    ],
+    "example": [
+      { "label": "Beat label (e.g. Opening, Point, Story, Closing)", "text": "The actual spoken sentences for this beat — write it as if someone is speaking it aloud" },
+      { "label": "Beat label", "text": "The actual spoken sentences for this beat" },
+      { "label": "Beat label", "text": "The actual spoken sentences for this beat" }
+    ]
   }
 ]
+
+Requirements for frameworkSteps:
+- Each should follow the format: "Label - detailed guidance"
+- The guidance must be SPECIFIC to the topic — mention concrete angles, examples, statistics, or arguments the speaker could make
+- Make each step substantive so the speaker has real material to work with
+
+Requirements for example:
+- Write 4-5 beats that together form a complete, natural-sounding 60-90 second speech
+- Use first-person voice, as if someone is actually speaking on stage
+- The text should be conversational and realistic — not academic or stiff
+- Each beat's text should be 2-4 sentences of actual spoken content
+- The labels should match the framework structure (e.g., for PREP: "Point", "Reason", "Example", "Closing Point")
+- The example should demonstrate HOW the framework holds the speech together
 
 Topics should be thought-provoking and suitable for 60-90 second impromptu speeches.`;
 
@@ -183,13 +218,14 @@ Topics should be thought-provoking and suitable for 60-90 second impromptu speec
       throw new Error("Invalid response format");
     }
     const topics = JSON.parse(jsonMatch[0]);
-    return topics.map((t: { topic: string; category: string }, index: number) => {
+    return topics.map((t: { topic: string; category: string; framework: string; frameworkSteps: string[]; example: { label: string; text: string }[] }, index: number) => {
       const framework = frameworks[index % frameworks.length];
       return {
         ...t,
         id: `ai-impromptu-${Date.now()}-${index}`,
-        framework: framework.name,
-        frameworkSteps: framework.steps,
+        framework: t.framework || framework.name,
+        frameworkSteps: t.frameworkSteps || framework.stepLabels.map((label: string) => `${label} - ${frameworkInstructions[t.framework || framework.name as keyof typeof frameworkInstructions]?.split(":")[0] || "Develop your argument"}`),
+        example: t.example || [],
       };
     });
   } catch (error) {

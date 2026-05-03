@@ -1,3 +1,5 @@
+import { useInView } from "@/hooks/useInView";
+
 const TECHNIQUES = [
   {
     n: "01",
@@ -32,10 +34,12 @@ const TECHNIQUES = [
 ];
 
 export const Techniques = () => {
+  const { ref, isInView } = useInView({ threshold: 0.05 });
+
   return (
-    <section id="techniques" className="border-t border-border bg-muted/30">
+    <section id="techniques" className="border-t border-border bg-muted/30" ref={ref}>
       <div className="container py-24 md:py-32">
-        <div className="max-w-2xl mb-16">
+        <div className={`max-w-2xl mb-16 ${isInView ? "animate-fade-up" : "opacity-0"}`}>
           <div className="flex items-center gap-3 text-primary text-xs font-semibold tracking-[0.2em] uppercase mb-6">
             <span className="h-px w-10 bg-primary" />
             Six things great speakers do
@@ -46,8 +50,12 @@ export const Techniques = () => {
         </div>
 
         <div className="grid gap-x-12 gap-y-10 md:grid-cols-2 lg:grid-cols-3">
-          {TECHNIQUES.map((t) => (
-            <div key={t.n} className="group">
+          {TECHNIQUES.map((t, i) => (
+            <div
+              key={t.n}
+              className={`group ${isInView ? "animate-fade-up" : "opacity-0"}`}
+              style={{ animationDelay: `${i * 100 + 100}ms` }}
+            >
               <div className="flex items-baseline gap-4 mb-4">
                 <span className="font-display text-5xl text-primary/40 font-semibold group-hover:text-primary transition-colors duration-500">
                   {t.n}

@@ -13,12 +13,12 @@ import {
 import { toast } from "@/hooks/use-toast";
 
 export type Difficulty = "Easy" | "Medium" | "Hard";
-export type ExampleBeat = { label: string; text: string };
+export type Example = { label: string; text: string };
 export type Prompt = {
   text: string;
   framework: string;
   points: string[];
-  example: ExampleBeat[];
+  example: Example[];
 };
 export type CustomPrompt = Prompt & { id: string; difficulty: Difficulty };
 
@@ -32,7 +32,7 @@ type Props = {
   onOpen?: (open: boolean) => void;
 };
 
-const emptyBeat = (): ExampleBeat => ({ label: "", text: "" });
+const emptyBeat = (): Example => ({ label: "", text: "" });
 
 export const PromptAuthor = ({ frameworks, customPrompts, onAdd, onDelete, onReplaceAll, isOpen, onOpen }: Props) => {
   const [open, setOpen] = useState(false);
@@ -51,7 +51,7 @@ export const PromptAuthor = ({ frameworks, customPrompts, onAdd, onDelete, onRep
   const [text, setText] = useState("");
   const [framework, setFramework] = useState(frameworks[0]?.name ?? "PREP");
   const [points, setPoints] = useState<string[]>(["", "", ""]);
-  const [example, setExample] = useState<ExampleBeat[]>([emptyBeat(), emptyBeat(), emptyBeat()]);
+  const [example, setExample] = useState<Example[]>([emptyBeat(), emptyBeat(), emptyBeat()]);
 
   const reset = () => {
     setText("");
@@ -67,7 +67,7 @@ export const PromptAuthor = ({ frameworks, customPrompts, onAdd, onDelete, onRep
 
     if (!text.trim()) return toast({ title: "Prompt text is required" });
     if (cleanPoints.length < 2) return toast({ title: "Add at least 2 talking points" });
-    if (cleanExample.length < 2) return toast({ title: "Add at least 2 example beats" });
+    if (cleanExample.length < 2) return toast({ title: "Add at least 2 examples" });
 
     const entry: CustomPrompt = {
       id: crypto.randomUUID(),
@@ -122,9 +122,9 @@ export const PromptAuthor = ({ frameworks, customPrompts, onAdd, onDelete, onRep
                   label: String(b?.label ?? "").trim(),
                   text: String(b?.text ?? "").trim(),
                 }))
-                .filter((b: ExampleBeat) => b.label && b.text)
+                .filter((b: Example) => b.label && b.text)
             : [];
-          if (example.length < 2) return errors.push(`${where}: need at least 2 "example" beats with label+text`);
+          if (example.length < 2) return errors.push(`${where}: need at least 2 "example" entries with label+text`);
 
           cleaned.push({
             id: typeof p.id === "string" && p.id ? p.id : crypto.randomUUID(),
@@ -301,14 +301,14 @@ reader.onerror = () => toast({ title: "Could not read file" });
 
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <Label>Example speech (beats)</Label>
+          <Label>Example</Label>
           <Button
             type="button"
             variant="ghost"
             size="sm"
             onClick={() => setExample([...example, emptyBeat()])}
           >
-            <Plus className="h-4 w-4" /> Add beat
+            <Plus className="h-4 w-4" /> Add example
           </Button>
         </div>
         <div className="space-y-3">

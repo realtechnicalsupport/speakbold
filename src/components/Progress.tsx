@@ -1,14 +1,17 @@
 import { Flame, Trophy, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useInView } from "@/hooks/useInView";
 
 const DAYS = ["M", "T", "W", "T", "F", "S", "S"];
 const COMPLETED = [true, true, true, false, true, true, false];
 
 export const Progress = () => {
+  const { ref, isInView } = useInView({ threshold: 0.1 });
+
   return (
-    <section id="progress" className="container py-24 md:py-32 border-t border-border">
+    <section id="progress" className="container py-24 md:py-32 border-t border-border" ref={ref}>
       <div className="grid lg:grid-cols-2 gap-16 items-center">
-        <div>
+        <div className={isInView ? "animate-fade-right" : "opacity-0"}>
           <div className="flex items-center gap-3 text-primary text-xs font-semibold tracking-[0.2em] uppercase mb-6">
             <span className="h-px w-10 bg-primary" />
             Your practice
@@ -23,7 +26,7 @@ export const Progress = () => {
           <Button variant="hero" size="lg">Begin your streak</Button>
         </div>
 
-        <div className="bg-card-gradient border border-border rounded-3xl p-8 md:p-10 shadow-soft">
+        <div className={`bg-card-gradient border border-border rounded-3xl p-8 md:p-10 shadow-soft ${isInView ? "animate-scale-in" : "opacity-0"}`} style={{ animationDelay: "200ms" }}>
           <div className="flex items-center justify-between mb-10">
             <div>
               <p className="text-xs uppercase tracking-widest text-muted-foreground mb-2">This week</p>
@@ -38,18 +41,19 @@ export const Progress = () => {
             {DAYS.map((d, i) => (
               <div key={i} className="text-center">
                 <div
-                  className={`h-16 rounded-xl mb-2 transition-all ${
+                  className={`h-16 rounded-xl mb-2 transition-all ${isInView ? "animate-count-up" : ""} ${
                     COMPLETED[i]
                       ? "bg-warm shadow-glow"
                       : "bg-muted border border-border"
                   }`}
+                  style={{ animationDelay: `${i * 80 + 300}ms` }}
                 />
                 <span className="text-xs text-muted-foreground">{d}</span>
               </div>
             ))}
           </div>
 
-          <div className="grid grid-cols-2 gap-4 pt-8 border-t border-border">
+          <div className={`grid grid-cols-2 gap-4 pt-8 border-t border-border ${isInView ? "animate-fade-up" : "opacity-0"}`} style={{ animationDelay: "800ms" }}>
             <div className="flex items-center gap-3">
               <div className="grid place-items-center h-10 w-10 rounded-xl bg-muted">
                 <Trophy className="h-4 w-4 text-accent" />

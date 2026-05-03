@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { Mic, Zap, Briefcase, Activity, ArrowUpRight } from "lucide-react";
+import { useInView } from "@/hooks/useInView";
 
 const TRACKS = [
   {
@@ -37,9 +38,11 @@ const TRACKS = [
 ];
 
 export const Tracks = () => {
+  const { ref, isInView } = useInView({ threshold: 0.05 });
+
   return (
-    <section id="tracks" className="container py-24 md:py-32 border-t border-border">
-      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 mb-16">
+    <section id="tracks" className="container py-24 md:py-32 border-t border-border" ref={ref}>
+      <div className={`flex flex-col md:flex-row md:items-end md:justify-between gap-6 mb-16 ${isInView ? "animate-fade-up" : "opacity-0"}`}>
         <div className="max-w-2xl">
           <div className="flex items-center gap-3 text-primary text-xs font-semibold tracking-[0.2em] uppercase mb-6">
             <span className="h-px w-10 bg-primary" />
@@ -60,8 +63,8 @@ export const Tracks = () => {
           <Link
             to={t.href}
             key={t.name}
-            className="group relative bg-card-gradient border border-border rounded-3xl p-8 md:p-10 hover:border-primary/40 transition-all duration-500 cursor-pointer overflow-hidden block"
-            style={{ animationDelay: `${i * 80}ms` }}
+            className={`group relative bg-card-gradient border border-border rounded-3xl p-8 md:p-10 hover:border-primary/40 transition-all duration-500 cursor-pointer overflow-hidden block ${isInView ? "animate-fade-up" : "opacity-0"}`}
+            style={{ animationDelay: `${i * 120 + 100}ms` }}
           >
             <div className={`absolute -top-20 -right-20 h-64 w-64 rounded-full bg-gradient-radial ${t.accent} blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-700`} />
 

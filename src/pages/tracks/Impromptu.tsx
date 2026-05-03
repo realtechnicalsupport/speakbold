@@ -2,17 +2,21 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { TrackShell } from "@/components/TrackShell";
 import { RecorderPanel } from "@/components/RecorderPanel";
-import { TimerHeader } from "@/components/TimerHeader";
 import { Button } from "@/components/ui/button";
-import { Shuffle, Play, Pause, RotateCcw, Lightbulb, EyeOff, Mic, MicOff } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Shuffle, Play, Pause, RotateCcw, Lightbulb, EyeOff, Mic, MicOff, Sparkles, Loader2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { PromptAuthor, type CustomPrompt, type Difficulty, type Prompt } from "@/components/PromptAuthor";
 import { PromptLibrary, type LibraryEntry } from "@/components/PromptLibrary";
 import { RecordingsList } from "@/components/RecordingsList";
+import { FloatingTimer } from "@/components/FloatingTimer";
 import { useSyncedPrompts } from "@/hooks/useSyncedPrompts";
 import { useRecordings, useSyncedStreak } from "@/hooks/useRecordings";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "@/hooks/use-toast";
+import { setTimerActive } from "@/lib/timerState";
+import { setRecordingActive } from "@/lib/recordingState";
+import { generateImpromptuPrompts } from "@/services/geminiService";
 
 // Stable ID for built-in prompts (index in the original PROMPTS array per difficulty)
 const builtinId = (d: Difficulty, i: number) => `builtin:${d}:${i}`;
@@ -435,6 +439,48 @@ const Impromptu = () => {
   const { upload: uploadRecording, refresh: refreshRecordings, items: recordings } = useRecordings();
   const { markPracticed } = useSyncedStreak();
 
+  // AI prompt generation state
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [aiCategory, setAiCategory] = useState("General");
+  const [aiDifficulty, setAiDifficulty] = useState<Difficulty>("Medium");
+  const [aiCount, setAiCount] = useState(3);
+
+  const generateAIPrompts = async () => {
+    setIsGenerating(true);
+    try {
+      const newPrompts = await generateImpromptuPrompts(aiCategory, aiCount);
+
+      for (const p of newPrompts) {
+        const customPrompt: CustomPrompt = {
+          id: p.id,
+          difficulty: aiDifficulty,
+          text: p.topic,
+          framework: p.framework,
+          points: p.frameworkSteps.map((s) => s.replace(/^(Point|Reason|Example|Past|Present|Future|Problem|Solution|Benefit)\s*[-–—]\s*/i, "").trim()),
+          example: p.example || [],
+        };
+        upsertCustomPrompt(customPrompt);
+      }
+
+      toast({
+        title: "Prompts generated",
+        description: `Added ${newPrompts.length} AI-generated prompts to your library.`,
+      });
+
+      setDifficulty(aiDifficulty);
+      shuffle(aiDifficulty);
+    } catch (error) {
+      console.error("Failed to generate prompts:", error);
+      toast({
+        title: "Generation failed",
+        description: "Could not generate prompts. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   // All prompts as library entries (built-ins + custom), with overrides + enabled state applied
   const entries = useMemo<LibraryEntry[]>(() => {
     const out: LibraryEntry[] = [];
@@ -460,6 +506,7 @@ const Impromptu = () => {
         prompt: { text: cp.text, framework: cp.framework, points: cp.points, example: cp.example },
         enabled: !disabledIds.has(cp.id),
         edited: false,
+        ai: cp.id.startsWith("ai-impromptu-"),
       });
     });
     return out;
@@ -510,6 +557,11 @@ const [revealed, setRevealed] = useState(false);
 
   const [pausedAt, setPausedAt] = useState<number | null>(null);
   const [pauseDuration, setPauseDuration] = useState(0);
+
+  useEffect(() => {
+    setTimerActive(running || pausedAt !== null);
+    return () => setTimerActive(false);
+  }, [running, pausedAt]);
 
   // Timer logic - independent of recording
   useEffect(() => {
@@ -577,6 +629,13 @@ const [revealed, setRevealed] = useState(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recordEnabled, running, pausedAt]);
 
+  // Notify global recording state for microphone border
+  useEffect(() => {
+    const isActuallyRecording = recordEnabled && running && !pausedAt;
+    setRecordingActive(isActuallyRecording);
+    return () => setRecordingActive(false);
+  }, [recordEnabled, running, pausedAt]);
+
   // Keep displayed seconds in sync if duration changes while idle
   useEffect(() => {
     if (!running && seconds !== 0) setSeconds(duration);
@@ -586,48 +645,22 @@ const [revealed, setRevealed] = useState(false);
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
   const pct = duration > 0 ? (seconds / duration) * 100 : 0;
+  const isAIPrompt = useMemo(() => {
+    return entries.find((e) => e.prompt.text === prompt.text)?.ai ?? false;
+  }, [entries, prompt.text]);
   const suggestedFramework = FRAMEWORKS.find((f) => f.name === prompt.framework);
 
   return (
-    <>
-      {/* Timer Header - appears when timer is running or paused */}
-      {(running || pausedAt) && (
-        <TimerHeader
-          running={running}
-          seconds={seconds}
-          duration={duration}
-          title={`${difficulty} prompt`}
-          recordingActive={recordEnabled}
-          onPlay={() => {
-            if (seconds === 0) setSeconds(duration);
-            setRunning(true);
-            if (pausedAt) setPausedAt(null);
-            hasStartedRef.current = true;
-          }}
-          onPause={() => {
-            setRunning(false);
-            setPausedAt(Date.now());
-          }}
-          onReset={() => {
-            recorderStopRef.current?.();
-            setSeconds(duration);
-            setRunning(false);
-            setPausedAt(null);
-            wasRunningRef.current = false;
-            hasStartedRef.current = false;
-          }}
-        />
-      )}
-      <div className={(running || pausedAt) ? "pt-32 max-w-full overflow-x-hidden" : "max-w-full overflow-x-hidden"}>
-      <TrackShell
-        eyebrow="Impromptu · 60-second drills"
-        title={
-          <>
-            One prompt. Sixty seconds. <em className="text-primary not-italic">No notes.</em>
-          </>
-        }
-        intro="The fastest way to build speaking confidence is to speak when you don't feel ready. Pick a difficulty, hit start, and talk until the timer ends. Stuck? Reveal hints — but try without them first."
-      >
+    <TrackShell
+      eyebrow="Impromptu · 60-second drills"
+      title={
+        <>
+          One prompt. Sixty seconds. <em className="text-primary not-italic">No notes.</em>
+        </>
+      }
+      intro="The fastest way to build speaking confidence is to speak when you don't feel ready. Pick a difficulty, hit start, and talk until the timer ends. Stuck? Reveal hints — but try without them first."
+      hideHeader={running || pausedAt !== null}
+    >
       <div className="grid lg:grid-cols-[1fr_380px] gap-10">
         <div className="space-y-6">
           <div className="flex flex-wrap gap-2">
@@ -649,13 +682,95 @@ const [revealed, setRevealed] = useState(false);
             ))}
           </div>
 
+          {/* AI Prompt Generator */}
+          <div className="p-5 rounded-2xl bg-gradient-to-br from-primary/10 to-accent/10 border border-primary/20">
+            <div className="flex items-center gap-2 mb-4">
+              <Sparkles className="h-5 w-5 text-primary" />
+              <h3 className="font-display text-lg font-semibold">AI Prompt Generator</h3>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground mb-1.5 block">Category</label>
+                <Select value={aiCategory} onValueChange={setAiCategory}>
+                  <SelectTrigger className="bg-background/50">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="General">General</SelectItem>
+                    <SelectItem value="Technology">Technology</SelectItem>
+                    <SelectItem value="Business">Business</SelectItem>
+                    <SelectItem value="Personal Growth">Personal Growth</SelectItem>
+                    <SelectItem value="Creative">Creative</SelectItem>
+                    <SelectItem value="Controversial">Controversial</SelectItem>
+                    <SelectItem value="Philosophy">Philosophy</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1.5 block">Difficulty</label>
+                <Select value={aiDifficulty} onValueChange={(v) => setAiDifficulty(v as Difficulty)}>
+                  <SelectTrigger className="bg-background/50">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Easy">Easy</SelectItem>
+                    <SelectItem value="Medium">Medium</SelectItem>
+                    <SelectItem value="Hard">Hard</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1.5 block">Count</label>
+                <Select value={aiCount.toString()} onValueChange={(v) => setAiCount(parseInt(v))}>
+                  <SelectTrigger className="bg-background/50">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">1 prompt</SelectItem>
+                    <SelectItem value="3">3 prompts</SelectItem>
+                    <SelectItem value="5">5 prompts</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-end">
+                <Button
+                  onClick={generateAIPrompts}
+                  disabled={isGenerating}
+                  className="w-full bg-primary hover:bg-primary/90"
+                >
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4" />
+                      Generate
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground mt-3">
+              Generate unique speaking prompts with built-in frameworks
+            </p>
+          </div>
+
           <div className="relative bg-card-gradient border border-border rounded-3xl p-8 md:p-12 shadow-soft overflow-hidden">
             <div
               className="absolute top-0 left-0 h-1 bg-warm transition-all duration-1000 ease-linear"
               style={{ width: `${pct}%` }}
             />
             <div className="flex items-center justify-between mb-8">
-              <span className="text-xs uppercase tracking-widest text-muted-foreground">{difficulty} prompt</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs uppercase tracking-widest text-muted-foreground">{difficulty} prompt</span>
+                {isAIPrompt && (
+                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+                    <Sparkles className="h-3 w-3" /> AI
+                  </span>
+                )}
+              </div>
               <span className="font-mono tabular-nums text-5xl md:text-6xl font-bold">
                 {mins}:{String(secs).padStart(2, "0")}
               </span>
@@ -665,7 +780,7 @@ const [revealed, setRevealed] = useState(false);
             </p>
 
             <div className="flex flex-wrap items-center gap-2 mb-5">
-              <span className="text-xs uppercase tracking-widest text-muted-foreground mr-1">Timer</span>
+              <span className="text-sm font-semibold uppercase tracking-wider text-foreground mr-1">Timer</span>
               {[30, 60, 90, 120].map((d) => (
                 <button
                   key={d}
@@ -763,9 +878,9 @@ const [revealed, setRevealed] = useState(false);
                   )}
                 </div>
               </div>
-              <Switch 
-                checked={recordEnabled} 
-                onCheckedChange={setRecordEnabled} 
+              <Switch
+                checked={recordEnabled}
+                onCheckedChange={setRecordEnabled}
                 aria-label="Toggle recording"
                 disabled={!user}
               />
@@ -852,7 +967,7 @@ const [revealed, setRevealed] = useState(false);
               <div className="flex items-center justify-between mb-5 flex-wrap gap-2">
                 <div className="flex items-center gap-2">
                   <span className="text-xs uppercase tracking-widest text-primary font-semibold">
-                    Example speech
+                    Example
                   </span>
                 </div>
                 {suggestedFramework && (
@@ -936,9 +1051,16 @@ const [revealed, setRevealed] = useState(false);
         </aside>
         </div>
       </div>
+      <FloatingTimer
+        isRunning={running}
+        seconds={seconds}
+        duration={duration}
+        isPaused={pausedAt !== null}
+        onPause={() => { setRunning(false); setPausedAt(Date.now()); }}
+        onResume={() => { setRunning(true); setPausedAt(null); }}
+        onReset={() => { recorderStopRef.current?.(); setSeconds(duration); setRunning(false); setPausedAt(null); wasRunningRef.current = false; hasStartedRef.current = false; }}
+      />
     </TrackShell>
-      </div>
-    </>
   );
 };
 

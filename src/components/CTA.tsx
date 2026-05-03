@@ -1,13 +1,16 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Mic } from "lucide-react";
+import { useInView } from "@/hooks/useInView";
 
 export const CTA = () => {
+  const { ref, isInView } = useInView({ threshold: 0.1 });
+
   return (
-    <section className="border-t border-border">
+    <section className="border-t border-border" ref={ref}>
       <div className="container py-24 md:py-40 text-center relative overflow-hidden">
         <div className="absolute inset-0 bg-spotlight opacity-50 pointer-events-none" />
-        <div className="relative max-w-3xl mx-auto">
+        <div className={`relative max-w-3xl mx-auto ${isInView ? "animate-scale-in" : "opacity-0"}`}>
           <h2 className="font-display text-5xl md:text-7xl font-semibold leading-[1] text-balance mb-8">
             Your next room is waiting. <em className="text-primary not-italic">Be ready.</em>
           </h2>

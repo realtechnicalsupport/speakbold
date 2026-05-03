@@ -1,5 +1,5 @@
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
-import { Mic, LogOut, User } from "lucide-react";
+import { Mic, LogOut, User, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
@@ -9,6 +9,7 @@ const NAV = [
   { to: "/tracks/impromptu", label: "Impromptu" },
   { to: "/tracks/interviews", label: "Interviews" },
   { to: "/tracks/body-language", label: "Body Language" },
+  { to: "/events", label: "Events" },
 ];
 
 export const SiteHeader = ({ transparent = false }: { transparent?: boolean }) => {
@@ -30,10 +31,10 @@ export const SiteHeader = ({ transparent = false }: { transparent?: boolean }) =
     >
       <div className="container flex items-center justify-between py-5">
         <Link to="/" className="flex items-center gap-2 font-display text-xl font-semibold">
-          <span className="grid place-items-center h-9 w-9 rounded-full bg-warm text-primary-foreground">
-            <Mic className="h-4 w-4" />
+          <span className="flex items-center justify-center h-9 w-9 rounded-full bg-warm text-primary-foreground">
+            <Mic className="h-[18px] w-[18px]" />
           </span>
-          <span className="font-display text-xl font-semibold leading-none">
+          <span className="hidden lg:block font-display text-xl font-semibold leading-none">
             Speak<em className="not-italic text-primary">Bold</em>
           </span>
         </Link>
@@ -56,12 +57,12 @@ export const SiteHeader = ({ transparent = false }: { transparent?: boolean }) =
               <Button variant="ghost" size="sm" asChild>
                 <Link to="/profile">
                   <User className="h-4 w-4" />
-                  {user.email?.split("@")[0] || "Profile"}
+                  <span className="hidden lg:inline">{user.email?.split("@")[0] || "Profile"}</span>
                 </Link>
               </Button>
               <Button variant="outline" size="sm" onClick={handleSignOut}>
                 <LogOut className="h-4 w-4" />
-                Sign out
+                <span className="hidden lg:inline">Sign out</span>
               </Button>
             </>
           ) : (
