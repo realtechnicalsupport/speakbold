@@ -19,6 +19,7 @@ import Callback from "./pages/auth/callback";
 import Events from "./pages/Events.tsx";
 import CreateEvent from "./pages/CreateEvent.tsx";
 import EventDetail from "./pages/EventDetail.tsx";
+import Leaderboard from "./pages/Leaderboard.tsx";
 import { useEventReminders } from "./hooks/useEventReminders";
 import { AuthProvider } from "./context/AuthContext";
 import { useTimerActive } from "./lib/timerState";
@@ -55,6 +56,7 @@ const App = () => {
                 <Route path="/login" element={<Login />} />
                 <Route path="/auth/callback" element={<Callback />} />
                 <Route path="/pitch" element={<PitchDeck />} />
+                <Route path="/leaderboard" element={<Leaderboard />} />
                 <Route path="/events" element={<Events />} />
                 <Route path="/events/new" element={<CreateEvent />} />
                 <Route path="/events/:id" element={<EventDetail />} />

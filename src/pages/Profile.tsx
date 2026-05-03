@@ -6,8 +6,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import { useSyncedStreak, useRecordings } from "@/hooks/useRecordings";
+import { useUserXP } from "@/hooks/useUserXP";
 import { cn } from "@/lib/utils";
 import { DailyChallenges } from "@/components/DailyChallenges";
+import { XPCard } from "@/components/XPCard";
 
 type Challenge = {
   id: string;
@@ -34,6 +36,7 @@ const Profile = () => {
   const { user, loading } = useAuth();
   const { count: streak, practicedToday } = useSyncedStreak();
   const { items } = useRecordings();
+  const { userXP } = useUserXP();
   const [bestStreak, setBestStreak] = useState<number>(0);
 
   // Track best streak locally
@@ -153,6 +156,13 @@ const Profile = () => {
           </div>
         </div>
       </section>
+
+      {/* XP Card */}
+      {userXP && (
+        <section className="container py-8">
+          <XPCard totalXP={userXP.total_xp} displayName={displayName} />
+        </section>
+      )}
 
       {/* Tabs */}
       <section className="container py-12 md:py-16">
