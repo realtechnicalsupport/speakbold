@@ -68,6 +68,8 @@
   .shadow-glow { box-shadow: var(--shadow-glow); }
   .shadow-soft { box-shadow: var(--shadow-soft); }
   .tabular-nums { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+  .font-display { font-family: "Fraunces", serif; }
+  .tracking-widest { letter-spacing: 0.1em; }
   .will-change-transform { will-change: transform, opacity; }
   .backface-hidden { backface-visibility: hidden; }
 }

@@ -1,4 +1,4 @@
-import { RANK_SYSTEM, getRankFromXP, type Rank } from "@/lib/xp-system";
+import { rankFor, ALL_RANKS } from "@/lib/rank";
 
 interface RankBadgeProps {
   xp: number;
@@ -13,14 +13,13 @@ const sizeMap = {
 };
 
 export function RankBadge({ xp, size = "md", showLabel = true }: RankBadgeProps) {
-  const rank = getRankFromXP(xp);
-  const rankData = RANK_SYSTEM[rank];
+  const rank = rankFor(xp);
   const sizeClass = sizeMap[size];
 
   return (
-    <div className={`flex items-center gap-2 rounded-full bg-gradient-to-r ${rankData.color} text-white font-semibold ${sizeClass.container}`}>
-      <span className={sizeClass.icon}>{rankData.icon}</span>
-      {showLabel && <span>{rank}</span>}
+    <div className={`flex items-center gap-2 rounded-full bg-gradient-to-r from-gray-400 to-gray-600 text-white font-semibold ${sizeClass.container}`}>
+      <span className={sizeClass.icon}>{rank.emblem}</span>
+      {showLabel && <span>{rank.name}</span>}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { SiteHeader } from "@/components/SiteHeader";
 import { MobileNav } from "@/components/MobileNav";
@@ -6,9 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { CalendarModal } from "@/components/ui/calendar-modal";
+import { ClockModal } from "@/components/ui/clock-modal";
 import { useAuth } from "@/context/AuthContext";
 import { useEvents } from "@/hooks/useEvents";
-import { ArrowLeft, CalendarPlus, Clock } from "lucide-react";
+import { ArrowLeft, CalendarPlus } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
 const EVENT_TYPES = [
@@ -30,13 +32,15 @@ const CreateEvent = () => {
   const [eventTime, setEventTime] = useState("09:00");
   const [eventType, setEventType] = useState<'interview' | 'presentation' | 'conference' | 'wedding' | 'other'>('presentation');
   const [location, setLocation] = useState("");
-  const [minutesPerDay, setMinutesPerDay] = useState(5);
   const [loading, setLoading] = useState(false);
 
-  if (!user) {
-    navigate("/login", { replace: true });
-    return null;
-  }
+  useEffect(() => {
+    if (!user) {
+      navigate("/login", { replace: true });
+    }
+  }, [user, navigate]);
+
+  if (!user) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,7 +55,6 @@ const CreateEvent = () => {
         event_date: dateTime,
         event_type: eventType,
         location: location || undefined,
-        minutes_per_day: minutesPerDay,
       });
 
       if (result) {
@@ -59,7 +62,7 @@ const CreateEvent = () => {
           title: "Event created",
           description: "Your event has been scheduled successfully.",
         });
-        navigate(`/events/${result.id}`);
+        navigate(`/events/${result.id}?generatePlan=true`);
       }
     } catch (error) {
       toast({
@@ -130,24 +133,18 @@ const CreateEvent = () => {
           {/* Date and Time */}
           <div className="grid sm:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="date">Date</Label>
-              <Input
-                id="date"
-                type="date"
-                value={eventDate}
-                onChange={(e) => setEventDate(e.target.value)}
-                required
-                min={new Date().toISOString().split('T')[0]}
+              <Label>Date</Label>
+              <CalendarModal 
+                value={eventDate} 
+                onChange={setEventDate}
+                minDate={new Date()}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="time">Time</Label>
-              <Input
-                id="time"
-                type="time"
-                value={eventTime}
-                onChange={(e) => setEventTime(e.target.value)}
-                required
+              <Label>Time</Label>
+              <ClockModal 
+                value={eventTime} 
+                onChange={setEventTime}
               />
             </div>
           </div>
@@ -161,33 +158,6 @@ const CreateEvent = () => {
               value={location}
               onChange={(e) => setLocation(e.target.value)}
             />
-          </div>
-
-          {/* Daily Practice Time */}
-          <div className="space-y-3">
-            <Label>Daily Practice Time</Label>
-            <div className="flex items-center gap-3">
-              <Clock className="h-5 w-5 text-muted-foreground" />
-              <div className="flex items-center gap-4 flex-1">
-                {[3, 5, 10, 15].map((mins) => (
-                  <button
-                    key={mins}
-                    type="button"
-                    onClick={() => setMinutesPerDay(mins)}
-                    className={`flex-1 py-3 px-4 rounded-xl border transition-all text-center ${
-                      minutesPerDay === mins
-                        ? "border-primary bg-primary/10 text-primary font-medium"
-                        : "border-border hover:border-foreground/30"
-                    }`}
-                  >
-                    {mins} min
-                  </button>
-                ))}
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              We'll create a daily plan to maximize your {minutesPerDay} minutes.
-            </p>
           </div>
 
           {/* Description */}

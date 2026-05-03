@@ -217,7 +217,18 @@ Topics should be thought-provoking and suitable for 60-90 second impromptu speec
     if (!jsonMatch) {
       throw new Error("Invalid response format");
     }
-    const topics = JSON.parse(jsonMatch[0]);
+    let topics;
+    try {
+      topics = JSON.parse(jsonMatch[0]);
+    } catch (parseError) {
+      console.error("JSON parse failed, attempting to fix:", parseError);
+      const fixedJson = jsonMatch[0]
+        .replace(/,\s*}/g, "}")
+        .replace(/,\s*]/g, "]")
+        .replace(/([{,]\s*)(\w+):/g, '$1"$2":')
+        .replace(/: ([^{[\n]+),/g, ': "$1",');
+      topics = JSON.parse(fixedJson);
+    }
     return topics.map((t: { topic: string; category: string; framework: string; frameworkSteps: string[]; example: { label: string; text: string }[] }, index: number) => {
       const framework = frameworks[index % frameworks.length];
       return {

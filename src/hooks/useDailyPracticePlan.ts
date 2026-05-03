@@ -210,7 +210,7 @@ export const useDailyPracticePlan = (eventId: string | undefined) => {
         const days = Math.ceil((eventDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 
         setDaysLeft(Math.max(0, days));
-        setMinutesPerDay(data.minutes_per_day || 5);
+        setMinutesPerDay(5); // Default 5 minutes per day
         setEventType(data.event_type);
       } catch (err) {
         console.error("Error loading event:", err);

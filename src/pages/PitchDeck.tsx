@@ -55,7 +55,7 @@ const SLIDES = [
   {
     title: "Market Validation",
     points: [
-      "Built with Lovable (rapid prototyping)",
+        "Built with Vite + React (rapid prototyping)",
       "Free tier available immediately",
       "Mobile-first design for daily habits",
       "Open source: github.com/realtechnicalsupport/speakbold",

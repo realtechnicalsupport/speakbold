@@ -671,10 +671,10 @@ const [revealed, setRevealed] = useState(false);
                   setDifficulty(d);
                   shuffle(d);
                 }}
-                className={`px-4 py-2 rounded-full text-sm border transition-colors ${
+                className={`flex-1 py-4 px-6 rounded-xl text-lg font-medium border-2 transition-all ${
                   difficulty === d
-                    ? "bg-foreground text-background border-foreground"
-                    : "border-border text-muted-foreground hover:text-foreground"
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "border-border text-muted-foreground hover:border-primary/50"
                 }`}
               >
                 {d}
@@ -757,7 +757,29 @@ const [revealed, setRevealed] = useState(false);
             </p>
           </div>
 
-          <div className="relative bg-card-gradient border border-border rounded-3xl p-8 md:p-12 shadow-soft overflow-hidden">
+          <div className="relative bg-card-gradient border border-border rounded-3xl p-8 md:p-12 shadow-soft overflow-visible">
+            {revealed && (
+              <div className="hidden md:block absolute left-full top-0 ml-6 w-72 border border-primary/30 rounded-xl p-4 bg-primary/5 shadow-lg">
+                <div className="flex items-center gap-2 mb-3">
+                  <Lightbulb className="h-4 w-4 text-primary" />
+                  <span className="text-xs uppercase tracking-widest text-primary font-semibold">Hints</span>
+                </div>
+                <ol className="space-y-2">
+                  {prompt.points.map((p, i) => (
+                    <li key={i} className="flex gap-2 text-sm leading-relaxed">
+                      <span className="font-mono text-primary shrink-0">{i + 1}.</span>
+                      <span className="text-foreground/90">{p}</span>
+                    </li>
+                  ))}
+                </ol>
+                {suggestedFramework && (
+                  <div className="mt-3 pt-3 border-t border-primary/20">
+                    <p className="text-xs text-muted-foreground mb-1">Framework: <span className="text-primary font-semibold">{suggestedFramework.name}</span></p>
+                    <p className="text-xs text-muted-foreground">{suggestedFramework.expanded}</p>
+                  </div>
+                )}
+              </div>
+            )}
             <div
               className="absolute top-0 left-0 h-1 bg-warm transition-all duration-1000 ease-linear"
               style={{ width: `${pct}%` }}

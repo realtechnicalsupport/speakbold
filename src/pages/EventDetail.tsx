@@ -7,7 +7,10 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/context/AuthContext";
 import { useEvents } from "@/hooks/useEvents";
 import { useDailyPracticePlan } from "@/hooks/useDailyPracticePlan";
-import { ArrowLeft, Clock, MapPin, Pencil, Trash2, Play, ArchiveRestore, CheckCircle2, Circle, CalendarDays, ChevronRight } from "lucide-react";
+import { usePracticePlan } from "@/hooks/usePracticePlan";
+import { AIPlanGenerator, PlanAnswers } from "@/components/AIPlanGenerator";
+import { PracticeModal } from "@/components/PracticeModal";
+import { ArrowLeft, Clock, MapPin, Pencil, Trash2, Play, ArchiveRestore, CheckCircle2, Circle, CalendarDays, ChevronRight, Sparkles, Target } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 
@@ -34,12 +37,60 @@ const EventDetail = () => {
   const { events, updateEvent, deleteEvent, archiveEvent } = useEvents();
   const [event, setEvent] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<"plan" | "overview">("plan");
-  const [completedDays, setCompletedDays] = useState<Set<string>>(() => {
-    const saved = localStorage.getItem("speakbold:completed-days");
-    return saved ? new Set(JSON.parse(saved)) : new Set();
-  });
+  const [completedDays, setCompletedDays] = useState<Set<string>>(new Set());
+  
+  // Load completed days for this specific event
+  useEffect(() => {
+    if (id) {
+      const saved = localStorage.getItem(`speakbold:completed-${id}`);
+      if (saved) {
+        setCompletedDays(new Set(JSON.parse(saved)));
+      }
+    }
+  }, [id]);
+  const [urlParams] = useState(new URLSearchParams(window.location.search));
+  const [showAIGenerator, setShowAIGenerator] = useState(urlParams.get("generatePlan") === "true");
+  const [customPlan, setCustomPlan] = useState<any[] | null>(null);
+  const [practiceActivity, setPracticeActivity] = useState<any>(null);
 
-  const { plan, loading: planLoading, minutesPerDay, daysLeft } = useDailyPracticePlan(id);
+  const { plan: defaultPlan, loading: planLoading, minutesPerDay, daysLeft, eventType } = useDailyPracticePlan(id);
+  const { plan: aiPlan, loading: aiPlanLoading, generatePlan, loadPlan } = usePracticePlan(id);
+  
+  // Use AI plan if available, otherwise fall back to default plan
+  const plan = customPlan || aiPlan || defaultPlan;
+  
+  // Find today's practice
+  const todayDate = new Date().toISOString().split('T')[0];
+  const todayPlan = plan?.days?.find(d => d.date === todayDate);
+
+  // Load AI plan on mount
+  useEffect(() => {
+    console.log("AI Plan - id:", id, "user:", user?.id);
+    if (id && user) {
+      console.log("Calling loadPlan...");
+      loadPlan();
+    }
+  }, [id, user, loadPlan]);
+
+  const handleAIGenerate = async (answers: PlanAnswers) => {
+    // Calculate days until event
+    const eventDate = event ? new Date(event.event_date) : new Date();
+    const now = new Date();
+    const daysUntil = event ? Math.max(1, Math.ceil((eventDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))) : 7;
+
+    // Use AI to generate custom prompts if user provided description
+    const customDesc = answers.useCustomAI ? answers.customDescription : undefined;
+    await generatePlan(event?.event_type || 'other', answers.focusAreas, daysUntil, customDesc);
+    
+    setActiveTab("plan");
+    setShowAIGenerator(false);
+    toast({
+      title: "AI Plan Generated!",
+      description: customDesc 
+        ? "Your custom AI plan is ready with prompts specific to your scenario."
+        : `Your ${daysUntil}-day plan is ready with ${answers.timePerDay} min/day focus.`,
+    });
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -97,11 +148,14 @@ const EventDetail = () => {
       newCompleted.add(date);
     }
     setCompletedDays(newCompleted);
-    localStorage.setItem("speakbold:completed-days", JSON.stringify([...newCompleted]));
+    if (id) {
+      localStorage.setItem(`speakbold:completed-${id}`, JSON.stringify([...newCompleted]));
+    }
   };
 
-  const completedCount = plan.filter((day) => completedDays.has(day.date)).length;
-  const progressPercent = plan.length > 0 ? Math.round((completedCount / plan.length) * 100) : 0;
+  const planDays = aiPlan?.days || defaultPlan || [];
+  const completedCount = Array.isArray(planDays) ? planDays.filter((day: any) => completedDays.has(day.date)).length : 0;
+  const progressPercent = Array.isArray(planDays) && planDays.length > 0 ? Math.round((completedCount / planDays.length) * 100) : 0;
 
   return (
     <main className="min-h-screen bg-background pb-20 lg:pb-0">
@@ -175,7 +229,7 @@ const EventDetail = () => {
                   <CalendarDays className="h-5 w-5 text-primary" />
                   <span className="font-medium">{daysUntil === 0 ? "Today!" : `${daysUntil} day${daysUntil === 1 ? '' : 's'} away`}</span>
                 </div>
-                <span className="text-sm text-muted-foreground">{completedCount}/{plan.length} days completed</span>
+                <span className="text-sm text-muted-foreground">{completedCount}/{planDays.length} days completed</span>
               </div>
               <div className="h-2 bg-muted rounded-full overflow-hidden">
                 <div
@@ -183,47 +237,64 @@ const EventDetail = () => {
                   style={{ width: `${progressPercent}%` }}
                 />
               </div>
-              <p className="text-xs text-muted-foreground mt-2">
+<p className="text-xs text-muted-foreground mt-2">
                 {minutesPerDay} min/day • {progressPercent}% complete
               </p>
             </div>
 
-            {/* Tabs */}
-            <div className="grid grid-cols-2 gap-2 p-1 bg-muted/50 rounded-2xl mb-6 max-w-xs">
-              <button
-                onClick={() => setActiveTab("plan")}
-                className={cn(
-                  "py-2 px-4 rounded-xl text-sm font-medium transition-all",
-                  activeTab === "plan"
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                Daily Plan
-              </button>
-              <button
-                onClick={() => setActiveTab("overview")}
-                className={cn(
-                  "py-2 px-4 rounded-xl text-sm font-medium transition-all",
-                  activeTab === "overview"
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                Overview
-              </button>
-            </div>
+            {/* Today's Practice - Show actual prompt content */}
+            {todayPlan && todayPlan.activities[0] ? (
+              <div className="bg-card-gradient border border-primary/20 rounded-2xl p-4 mb-6">
+                <div className="flex items-center gap-2 mb-3">
+                  <Target className="h-5 w-5 text-primary" />
+                  <span className="font-semibold">Today's Practice</span>
+                  {completedDays.has(todayPlan.date) && (
+                    <CheckCircle2 className="h-4 w-4 text-green-500 ml-auto" />
+                  )}
+                </div>
+                <div className="bg-muted/50 rounded-xl p-3 mb-3">
+                  <p className="text-sm font-medium">{todayPlan.activities[0].title}</p>
+                  <p className="text-sm text-muted-foreground mt-1">{todayPlan.activities[0].content}</p>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span>{todayPlan.activities[0].track}</span>
+                    <span>•</span>
+                    <span>{todayPlan.activities[0].duration} min</span>
+                  </div>
+                  <div className="flex gap-2">
+                    {!completedDays.has(todayPlan.date) && (
+                      <Button size="sm" variant="outline" onClick={() => toggleDayComplete(todayPlan.date)}>
+                        Mark Complete
+                      </Button>
+                    )}
+                    <Button size="sm" onClick={() => setPracticeActivity(todayPlan.activities[0])}>
+                      <Play className="h-3 w-3 mr-1" />
+                      Practice
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-card-gradient border border-dashed border-border rounded-2xl p-6 mb-6 text-center">
+                <Sparkles className="h-8 w-8 mx-auto mb-3 text-primary" />
+                <p className="font-medium mb-3">Get your AI practice plan</p>
+                <Button onClick={() => setShowAIGenerator(true)}>
+                  Generate My Plan
+                </Button>
+              </div>
+)}
 
             {activeTab === "plan" ? (
               planLoading ? (
                 <div className="text-center py-12 text-muted-foreground">Loading plan...</div>
-              ) : plan.length === 0 ? (
+              ) : planDays.length === 0 ? (
                 <div className="text-center py-12 border border-dashed rounded-3xl">
                   <p className="text-muted-foreground">Event is today or in the past.</p>
                 </div>
-              ) : (
+              ) : !aiPlan ? (
                 <div className="space-y-4">
-                  {plan.map((day) => {
+                  {(planDays as any[]).map((day) => {
                     const isCompleted = completedDays.has(day.date);
                     const isToday = day.date === new Date().toISOString().split("T")[0];
                     
@@ -287,6 +358,10 @@ const EventDetail = () => {
                     );
                   })}
                 </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <p>Your AI plan is ready! Check "Today's Practice" above to start.</p>
+                </div>
               )
             ) : (
               <div className="space-y-6">
@@ -318,6 +393,24 @@ const EventDetail = () => {
           </div>
         )}
       </section>
+
+      <AIPlanGenerator
+        isOpen={showAIGenerator}
+        onClose={() => setShowAIGenerator(false)}
+        onGenerate={handleAIGenerate}
+        daysUntilEvent={daysUntil}
+        eventType={event?.event_type || "other"}
+      />
+
+      {practiceActivity && (
+        <PracticeModal
+          activity={practiceActivity}
+          eventId={id || ""}
+          onClose={() => setPracticeActivity(null)}
+          onComplete={() => toggleDayComplete(todayPlan?.date || "")}
+        />
+      )}
+
       <MobileNav />
     </main>
   );

@@ -12,7 +12,6 @@ export interface Event {
   event_type: EventType;
   location: string | null;
   archived: boolean;
-  minutes_per_day: number;
   created_at: string;
   updated_at: string;
 }
@@ -51,7 +50,6 @@ export const useEvents = () => {
     event_date: Date;
     event_type: EventType;
     location?: string;
-    minutes_per_day?: number;
   }) => {
     if (!user) return null;
 
@@ -64,7 +62,6 @@ export const useEvents = () => {
         event_date: event.event_date.toISOString(),
         event_type: event.event_type,
         location: event.location || null,
-        minutes_per_day: event.minutes_per_day || 5,
       })
       .select()
       .single();

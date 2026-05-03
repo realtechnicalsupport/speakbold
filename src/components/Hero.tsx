@@ -65,8 +65,8 @@ export const Hero = () => {
           <div className="flex flex-wrap gap-4 animate-fade-up delay-400">
             {user ? (
               <Button variant="hero" size="xl" asChild>
-                <Link to="/tracks/impromptu">
-                  Go to Impromptu
+                <Link to="/tracks/public-speaking">
+                  Start Speaking
                   <ArrowRight className="h-5 w-5" />
                 </Link>
               </Button>

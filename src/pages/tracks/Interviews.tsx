@@ -878,17 +878,23 @@ const Interviews = () => {
                     ) : recordEnabled ? (
                       <Mic className="h-5 w-5 text-primary mt-0.5" />
                     ) : (
-                      <MicOff className="h-5 w-5 text-muted-foreground mt-0.5" />
+                      <Mic className="h-5 w-5 text-red-500 mt-0.5" />
                     )}
                     <div>
-                      <p className="text-sm font-semibold text-foreground">Record this answer</p>
+                      <p className="text-sm font-semibold text-foreground">
+                        {recordEnabled ? "Record this answer" : "Practice Mode"}
+                      </p>
                       {!user ? (
                         <p className="text-xs text-muted-foreground max-w-sm">
-                          <Link to="/login" className="text-primary hover:underline">Sign in</Link> to save recordings to your account.
+                          <Link to="/login" className="text-primary hover:underline">Sign in</Link> to save recordings and earn XP.
+                        </p>
+                      ) : recordEnabled ? (
+                        <p className="text-xs text-muted-foreground max-w-sm">
+                          Recording auto-starts with timer. You'll earn XP when complete.
                         </p>
                       ) : (
-                        <p className="text-xs text-muted-foreground max-w-sm">
-                          Auto-starts and stops with the timer. Saved to your account.
+                        <p className="text-xs text-red-500 max-w-sm">
+                          Your practice counts toward your streak. Enable recording to earn XP.
                         </p>
                       )}
                     </div>
@@ -975,7 +981,7 @@ const Interviews = () => {
                     Key points to hit
                   </p>
                   <ul className="space-y-2">
-                    {current.keyPoints.map((point, i) => (
+                    {(current.keyPoints || []).map((point, i) => (
                       <li key={i} className="flex items-start gap-2 text-sm">
                         <span className="h-5 w-5 rounded-full bg-primary/10 text-primary text-xs flex items-center justify-center shrink-0 mt-0.5">
                           {i + 1}

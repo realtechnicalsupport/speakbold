@@ -4,32 +4,107 @@ import { Shuffle, Clock } from "lucide-react";
 
 const PROMPTS = [
   "If you could instantly master any skill, what would it be and why?",
-  "Convince me that breakfast is the most important meal of the day.",
+  "Convince me that breakfast is the most important meal.",
   "Describe a time you failed — and what it taught you.",
   "What is one belief you held five years ago that you no longer hold?",
-  "If you ran the world for a day, what is the first law you'd pass?",
-  "Tell us about an ordinary object you couldn't live without.",
   "Argue for or against: working from home is better than the office.",
-  "Describe yourself in three words — then defend each one.",
-  "What does courage mean to you in everyday life?",
-  "Sell me the city you grew up in as a vacation destination.",
-  "Talk for 60 seconds about the color blue.",
-  "What advice would you give your 16-year-old self?",
-  "Pitch a brand new holiday — what is it and how do we celebrate?",
+  "Tell us about an ordinary object you couldn't live without.",
+  "What is the most useful skill schools fail to teach?",
+  "Explain quantum entanglement to a curious 10-year-old.",
+  "Argue that failure is more valuable than success.",
+  "Make the case for or against social media in three points.",
+  "What would you say in a 60-second eulogy for your past self?",
   "Describe the best meal you've ever eaten without naming the food.",
-  "What is one small habit that has changed your life?",
 ];
 
 export const ImpromptuPrompt = () => {
-  const [prompt, setPrompt] = useState(PROMPTS[0]);
+  const [prompt, setPrompt] = useState<string | null>(null);
   const [seconds, setSeconds] = useState<number | null>(null);
 
+  // Load completed prompts from localStorage
+  const getCompleted = (): Set<string> => {
+    const saved = localStorage.getItem("speakbold:impromptu-prompts-completed");
+    return saved ? new Set(JSON.parse(saved)) : new Set();
+  };
+
+  const markCompleted = (p: string) => {
+    const completed = getCompleted();
+    completed.add(p);
+    localStorage.setItem("speakbold:impromptu-prompts-completed", JSON.stringify([...completed]));
+  };
+
   const shuffle = () => {
-    let next = prompt;
-    while (next === prompt) next = PROMPTS[Math.floor(Math.random() * PROMPTS.length)];
+    const completed = getCompleted();
+    const available = PROMPTS.filter(p => !completed.has(p));
+    
+    let next: string;
+    if (available.length === 0) {
+      // All prompts used - clear and start over or use AI to generate new ones
+      localStorage.removeItem("speakbold:impromptu-prompts-completed");
+      next = PROMPTS[Math.floor(Math.random() * PROMPTS.length)];
+    } else {
+      do {
+        next = available[Math.floor(Math.random() * available.length)];
+      } while (next === prompt && available.length > 1);
+    }
+    
     setPrompt(next);
     setSeconds(60);
   };
+
+  // Auto-pick on first render
+  useEffect(() => {
+    if (!prompt) shuffle();
+  }, []);
+
+  // When timer hits 0, mark as completed
+  useEffect(() => {
+    if (seconds === 0 && prompt) {
+      markCompleted(prompt);
+    }
+  }, [seconds, prompt]);
+
+  return (
+    <section id="practice" className="container py-24 md:py-32">
+      <div className="mx-auto max-w-4xl">
+        <div className="flex items-center gap-3 text-primary text-xs font-semibold tracking-[0.2em] uppercase mb-6">
+          <span className="h-px w-10 bg-primary" />
+          The Daily Impromptu
+        </div>
+        <h2 className="font-display text-4xl md:text-6xl font-semibold leading-[1.05] mb-10 text-balance">
+          One prompt. <em className="text-primary not-italic">Sixty seconds.</em> No notes.
+        </h2>
+
+        <div className="relative bg-card-gradient border border-border rounded-3xl p-8 md:p-14 shadow-soft overflow-hidden">
+          <div className="absolute -top-24 -right-24 h-72 w-72 rounded-full bg-primary/10 blur-3xl" />
+          
+          <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center gap-2">
+              <span className="font-mono tabular-nums text-5xl md:text-6xl font-bold">
+                {seconds === null ? "1:00" : `0:${String(seconds).padStart(2, "0")}`}
+              </span>
+            </div>
+            <span className="text-xs uppercase tracking-widest text-muted-foreground">Prompt</span>
+          </div>
+
+          <p className="font-display text-3xl md:text-5xl leading-tight text-pretty mb-8 min-h-[8rem]">
+            "{prompt}"
+          </p>
+
+          <div className="flex flex-wrap gap-3">
+            <Button variant="hero" size="lg" onClick={shuffle}>
+              <Shuffle className="h-4 w-4" />
+              New prompt
+            </Button>
+            <Button variant="outline" size="lg" onClick={() => { setSeconds(60); }}>
+              Restart timer
+            </Button>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+};
 
   useEffect(() => {
     if (seconds === null) return;

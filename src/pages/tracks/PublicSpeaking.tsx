@@ -748,16 +748,20 @@ const PublicSpeaking = () => {
                 ) : recordEnabled ? (
                   <Mic className="h-5 w-5 text-primary mt-0.5" />
                 ) : (
-                  <MicOff className="h-5 w-5 text-muted-foreground mt-0.5" />
+                  <Mic className="h-5 w-5 text-red-500 mt-0.5" />
                 )}
                 <div>
-                  <p className="text-sm font-semibold text-foreground">Record drill</p>
+                  <p className="text-sm font-semibold text-foreground">
+                    {recordEnabled ? "Record drill" : "Practice Mode"}
+                  </p>
                   {!user ? (
                     <p className="text-xs text-muted-foreground">
-                      <Link to="/login" className="text-primary hover:underline">Sign in</Link> to save
+                      <Link to="/login" className="text-primary hover:underline">Sign in</Link> to save recordings and earn XP.
                     </p>
+                  ) : recordEnabled ? (
+                    <p className="text-xs text-muted-foreground">Recording auto-starts with timer. You'll earn XP when complete.</p>
                   ) : (
-                    <p className="text-xs text-muted-foreground">Auto-syncs with timer</p>
+                    <p className="text-xs text-red-500">Your practice counts toward your streak. Enable recording to earn XP.</p>
                   )}
                 </div>
               </div>

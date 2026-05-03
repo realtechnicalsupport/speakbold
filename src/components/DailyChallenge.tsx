@@ -5,6 +5,60 @@ import { Play, Pause, RotateCcw, Flame, CheckCircle2 } from "lucide-react";
 import { useStreak } from "@/hooks/useStreak";
 import { RecorderPanel } from "@/components/RecorderPanel";
 import { useInView } from "@/hooks/useInView";
+import { useAuth } from "@/context/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+
+// Expose supabase to window for debugging
+if (typeof window !== 'undefined') (window as any).__SUPABASE_CLIENT__ = supabase;
+
+// Test function you can call from console: window.testDailyXP()
+if (typeof window !== 'undefined') {
+  (window as any).testDailyXP = async (amount: number = 15) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { console.log("Not logged in!"); return; }
+    
+    console.log("[testDailyXP] Testing with", amount, "XP for", user.id);
+    
+    // Try user_xp
+    const { data: xpData, error: xpError } = await supabase
+      .from("user_xp")
+      .select("total_xp")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    
+    console.log("[testDailyXP] Current XP:", xpData, "Error:", xpError);
+    
+    if (xpError) {
+      console.error("[testDailyXP] Cannot read user_xp:", xpError);
+      return;
+    }
+    
+    if (!xpData) {
+      // Insert
+      const { error } = await supabase
+        .from("user_xp")
+        .insert({ user_id: user.id, total_xp: amount });
+      console.log("[testDailyXP] Inserted new XP. Error:", error);
+    } else {
+      // Update
+      const newTotal = (xpData.total_xp || 0) + amount;
+      const { error } = await supabase
+        .from("user_xp")
+        .update({ total_xp: newTotal })
+        .eq("user_id", user.id);
+      console.log("[testDailyXP] Updated XP to", newTotal, "Error:", error);
+    }
+    
+    // Verify
+    const { data: verify } = await supabase
+      .from("user_xp")
+      .select("total_xp")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    console.log("[testDailyXP] Verification - new total:", verify?.total_xp);
+  };
+}
 
 const DAILY_PROMPTS = [
   "The best advice you've ever ignored.",
@@ -31,7 +85,60 @@ const dayOfYear = () => {
 
 const DURATION = 60;
 
+const awardDailyXP = async (userId: string, userEmail?: string) => {
+  const xpReward = 15;
+  console.log("[DailyChallenge] Awarding", xpReward, "XP to userId:", userId);
+  console.log("[DailyChallenge] Using user_xp table");
+  
+  const { data: xpData, error: xpError } = await supabase
+    .from("user_xp")
+    .select("total_xp")
+    .eq("user_id", userId)
+    .maybeSingle();
+  
+  console.log("[DailyChallenge] xpData:", xpData, "xpError:", xpError);
+  
+  if (xpError) {
+    console.error("[DailyChallenge] user_xp fetch error:", xpError);
+    toast.error("Failed to fetch XP: " + xpError.message);
+    return;
+  }
+
+  if (!xpData) {
+    console.log("[DailyChallenge] Creating new user_xp record for userId:", userId);
+    const displayName = userEmail?.split('@')[0] || 'Anonymous';
+    const { error: insertError } = await supabase
+      .from("user_xp")
+      .insert({ user_id: userId, total_xp: xpReward, display_name: displayName });
+    if (insertError) {
+      console.error("[DailyChallenge] user_xp insert error:", insertError);
+      toast.error("Failed to insert XP: " + insertError.message);
+    } else {
+      console.log("[DailyChallenge] XP inserted to user_xp:", xpReward);
+      toast.success(`🎉 +${xpReward} XP awarded!`);
+      window.dispatchEvent(new Event("xp-updated"));
+    }
+  } else {
+    const newTotal = (xpData.total_xp || 0) + xpReward;
+    const displayName = userEmail?.split('@')[0] || 'Anonymous';
+    console.log("[DailyChallenge] Updating user_xp from", xpData.total_xp, "to", newTotal);
+    const { error: updateError } = await supabase
+      .from("user_xp")
+      .update({ total_xp: newTotal, display_name: displayName })
+      .eq("user_id", userId);
+    if (updateError) {
+      console.error("[DailyChallenge] user_xp update error:", updateError);
+      toast.error("Failed to update XP: " + updateError.message);
+    } else {
+      console.log("[DailyChallenge] XP updated in user_xp:", newTotal);
+      toast.success(`✨ +${xpReward} XP earned!`);
+      window.dispatchEvent(new Event("xp-updated"));
+    }
+  }
+};
+
 export const DailyChallenge = () => {
+  const { user } = useAuth();
   const prompt = useMemo(() => DAILY_PROMPTS[dayOfYear() % DAILY_PROMPTS.length], []);
   const [left, setLeft] = useState(DURATION);
   const [running, setRunning] = useState(false);
@@ -52,7 +159,8 @@ export const DailyChallenge = () => {
     } else if (!running && recorderRef.current && left < DURATION && !finished) {
       recorderRef.current.pause();
     } else if (finished && recorderRef.current) {
-      recorderRef.current.stop();
+      // Don't auto-stop - let user manually stop
+      // recorderRef.current.stop();
     }
   }, [running, finished, left]);
 
@@ -64,7 +172,6 @@ export const DailyChallenge = () => {
           window.clearInterval(ref.current!);
           setRunning(false);
           setFinished(true);
-          markPracticed();
           return 0;
         }
         return l - 1;
@@ -73,7 +180,21 @@ export const DailyChallenge = () => {
     return () => {
       if (ref.current) window.clearInterval(ref.current);
     };
-  }, [running, markPracticed]);
+  }, [running]);
+
+  // Award XP when timer finishes (separate effect)
+  useEffect(() => {
+    console.log("[DailyChallenge] useEffect triggered, finished:", finished, "user:", user?.id);
+    if (!finished) return;
+    markPracticed();
+    // Award XP if user is logged in
+    if (user) {
+      console.log("[DailyChallenge] Timer ended, user logged in, awarding XP...");
+      awardDailyXP(user.id, user.email);
+    } else {
+      console.log("[DailyChallenge] Timer ended, user NOT logged in, skipping XP");
+    }
+  }, [finished, user]);
 
   const reset = () => {
     if (ref.current) window.clearInterval(ref.current);
@@ -119,7 +240,7 @@ export const DailyChallenge = () => {
 
             <div className="flex flex-wrap gap-3">
               {!running && left === DURATION && !finished && (
-                <Button variant="hero" size="lg" onClick={() => setRunning(true)}>
+                <Button variant="hero" size="lg" onClick={() => { console.log("[DailyChallenge] START clicked"); setRunning(true); }}>
                   <Play className="h-4 w-4" /> Start speaking
                 </Button>
               )}

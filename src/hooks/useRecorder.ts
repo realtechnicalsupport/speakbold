@@ -46,8 +46,21 @@ export const useRecorder = () => {
       setRecording(null);
     }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Check for saved microphone preference
+      const savedDeviceId = localStorage.getItem('speakbold-mic-device');
+      const constraints = savedDeviceId
+        ? { audio: { deviceId: { exact: savedDeviceId } } }
+        : { audio: true };
+      
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       streamRef.current = stream;
+      
+      // Save microphone choice
+      const audioTrack = stream.getAudioTracks()[0];
+      if (audioTrack?.getSettings().deviceId) {
+        localStorage.setItem('speakbold-mic-device', audioTrack.getSettings().deviceId!);
+      }
+      
       const mr = new MediaRecorder(stream);
       mediaRecorderRef.current = mr;
       chunksRef.current = [];
@@ -103,9 +116,14 @@ export const useRecorder = () => {
   }, [recording]);
 
   useEffect(() => {
+    // Don't auto-stop - let user manually stop
     return () => {
-      stop();
-      if (recording?.url) URL.revokeObjectURL(recording.url);
+      // Cleanup only on unmount if recording is still active
+      if (state === "recording" || state === "paused") {
+        // Warn user or save recording?
+        // For now, just cleanup
+        if (recording?.url) URL.revokeObjectURL(recording.url);
+      }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

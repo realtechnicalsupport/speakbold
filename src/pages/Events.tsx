@@ -120,10 +120,13 @@ const Events = () => {
     return () => clearTimeout(t);
   }, []);
 
-  if (!user) {
-    navigate("/login", { replace: true });
-    return null;
-  }
+  useEffect(() => {
+    if (!user) {
+      navigate("/login", { replace: true });
+    }
+  }, [user, navigate]);
+
+  if (!user) return null;
 
   const handleArchive = async (id: string) => {
     await archiveEvent(id);

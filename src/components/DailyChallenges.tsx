@@ -15,6 +15,10 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/context/AuthContext";
+import { useMyXp } from "@/hooks/useLeaderboard";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
 
 type DailyChallenge = {
   id: string;
@@ -56,32 +60,27 @@ const DAILY_CHALLENGES: DailyChallenge[] = [
   },
 ];
 
-const STORAGE_KEY = "speakbold.dailyChallenges.v1";
-
-type CompletedChallenge = {
-  id: string;
-  completedAt: string;
-};
-
-type DailyChallengesState = {
-  date: string;
-  completed: CompletedChallenge[];
-  totalXp: number;
-};
-
 const todayKey = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
-const readState = (): DailyChallengesState => {
+const getStorageKey = (userId?: string | null) => {
+  if (!userId) return null;
+  return `speakbold.dailyChallenges.v1.${userId}`;
+};
+
+const readState = (userId?: string | null): DailyChallengesState => {
+  const key = getStorageKey(userId);
+  if (!key) return { date: todayKey(), completed: [], totalXp: 0 };
+  
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(key);
     if (!raw) return { date: todayKey(), completed: [], totalXp: 0 };
     const parsed = JSON.parse(raw) as DailyChallengesState;
     // Reset if it's a new day
     if (parsed.date !== todayKey()) {
-      return { date: todayKey(), completed: [], totalXp: parsed.totalXp ?? 0 };
+      return { date: todayKey(), completed: [], totalXp: 0 };
     }
     return parsed;
   } catch {
@@ -89,32 +88,89 @@ const readState = (): DailyChallengesState => {
   }
 };
 
-const writeState = (state: DailyChallengesState) => {
+const writeState = (state: DailyChallengesState, userId?: string | null) => {
+  const key = getStorageKey(userId);
+  if (!key) return;
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    localStorage.setItem(key, JSON.stringify(state));
   } catch {
     /* noop */
   }
 };
 
 export const DailyChallenges = () => {
-  const [state, setState] = useState<DailyChallengesState>({ date: todayKey(), completed: [], totalXp: 0 });
+  const { user } = useAuth();
+  const { xp: realXp, loading: xpLoading } = useMyXp();
+  
+  const awardChallengeXP = async (xpAmount: number) => {
+    if (!user) {
+      console.log("[DailyChallenges] No user, skipping XP award");
+      return;
+    }
+    
+    console.log("[DailyChallenges] Awarding", xpAmount, "XP to user:", user.id);
+    console.log("[DailyChallenges] Using user_xp table");
+    
+    const { data: xpData, error: xpError } = await supabase
+      .from("user_xp")
+      .select("total_xp")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    
+    if (xpError) {
+      console.error("[DailyChallenges] user_xp fetch error:", xpError);
+      toast.error("Failed to fetch XP");
+      return;
+    }
+    
+    if (!xpData) {
+      const displayName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Anonymous';
+      const { error: insertError } = await supabase
+        .from("user_xp")
+        .insert({ user_id: user.id, total_xp: xpAmount, display_name: displayName });
+if (insertError) {
+        console.error("[DailyChallenges] user_xp insert error:", insertError);
+        toast.error("Failed to award XP: " + insertError.message);
+      } else {
+        console.log("[DailyChallenges] XP inserted to user_xp:", xpAmount);
+        toast.success(`🎉 +${xpAmount} XP awarded!`);
+        window.dispatchEvent(new Event("xp-updated"));
+      }
+    } else {
+      const newTotal = (xpData.total_xp || 0) + xpAmount;
+      const displayName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Anonymous';
+      const { error: updateError } = await supabase
+        .from("user_xp")
+        .update({ total_xp: newTotal, display_name: displayName })
+        .eq("user_id", user.id);
+      if (updateError) {
+        console.error("[DailyChallenges] user_xp update error:", updateError);
+        toast.error("Failed to update XP: " + updateError.message);
+      } else {
+        console.log("[DailyChallenges] XP updated in user_xp:", newTotal);
+        window.dispatchEvent(new Event("xp-updated"));
+        toast.success(`✨ +${xpAmount} XP earned!`);
+      }
+    }
+  };
+  const [state, setState] = useState<DailyChallengesState>({ date: todayKey(), completed: [] });
   const [activeChallenge, setActiveChallenge] = useState<DailyChallenge | null>(null);
   const [timeLeft, setTimeLeft] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   const [showReward, setShowReward] = useState(false);
   const timerRef = useRef<number | null>(null);
-
-  // Load state on mount
+  
+  // Load state on mount / when user changes
   useEffect(() => {
-    setState(readState());
-  }, []);
-
+    setState(readState(user?.id));
+  }, [user?.id]);
+  
   // Timer logic
   useEffect(() => {
+    console.log("[DailyChallenges] Timer effect running, isRunning:", isRunning, "activeChallenge:", activeChallenge?.id);
     if (!isRunning || !activeChallenge) return;
-
+    
     timerRef.current = window.setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
@@ -127,29 +183,32 @@ export const DailyChallenges = () => {
         return prev - 1;
       });
     }, 1000);
-
+    
     return () => {
       if (timerRef.current) window.clearInterval(timerRef.current);
     };
   }, [isRunning, activeChallenge]);
-
+  
   const handleComplete = useCallback(() => {
     if (!activeChallenge) return;
+    
+    console.log("[DailyChallenges] handleComplete called, awarding XP:", activeChallenge.xp);
+    awardChallengeXP(activeChallenge.xp);
     
     setState((prev) => {
       const alreadyCompleted = prev.completed.some((c) => c.id === activeChallenge.id);
       if (alreadyCompleted) return prev;
-
+      
       const next: DailyChallengesState = {
         ...prev,
         completed: [...prev.completed, { id: activeChallenge.id, completedAt: new Date().toISOString() }],
-        totalXp: prev.totalXp + activeChallenge.xp,
+        // totalXp is now from Supabase, not localStorage
       };
-      writeState(next);
+      writeState(next, user?.id);
       setShowReward(true);
       return next;
     });
-  }, [activeChallenge]);
+  }, [activeChallenge, user?.id]);
 
   const startChallenge = (challenge: DailyChallenge) => {
     setActiveChallenge(challenge);
@@ -160,6 +219,7 @@ export const DailyChallenges = () => {
   };
 
   const toggleTimer = () => {
+    console.log("[DailyChallenges] toggleTimer clicked, isRunning:", true);
     setIsRunning((prev) => !prev);
   };
 
@@ -222,7 +282,7 @@ export const DailyChallenges = () => {
         </div>
         <div className="flex items-center gap-4">
           <div className="text-right">
-            <p className="text-2xl font-display font-semibold tabular-nums">{state.totalXp}</p>
+            <p className="text-2xl font-display font-semibold tabular-nums">{realXp ?? 0}</p>
             <p className="text-xs uppercase tracking-widest text-muted-foreground">Total XP</p>
           </div>
           <div className="h-12 w-12 rounded-2xl bg-warm grid place-items-center">

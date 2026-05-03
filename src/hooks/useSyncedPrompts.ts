@@ -18,6 +18,16 @@ const readLocal = <T,>(key: string, fallback: T): T => {
   }
 };
 
+// Safe Supabase query that won't throw on 404
+const safeQuery = async (query: any) => {
+  try {
+    const result = await query;
+    return result;
+  } catch (e: any) {
+    return { data: null, error: e };
+  }
+};
+
 export const useSyncedPrompts = () => {
   const { user } = useAuth();
   const [customPrompts, setCustomPromptsState] = useState<CustomPrompt[]>(() =>
@@ -51,15 +61,21 @@ export const useSyncedPrompts = () => {
     }
     let cancelled = false;
     (async () => {
-      const [cp, ov, dp] = await Promise.all([
-        supabase.from("custom_prompts").select("*").eq("user_id", user.id),
-        supabase.from("prompt_overrides").select("*").eq("user_id", user.id),
-        supabase.from("disabled_prompts").select("prompt_id").eq("user_id", user.id),
-      ]);
+      const cpResult = await safeQuery(
+        supabase.from("custom_prompts").select("*").eq("user_id", user.id)
+      );
+      const ovResult = await safeQuery(
+        supabase.from("prompt_overrides").select("*").eq("user_id", user.id)
+      );
+      const dpResult = await safeQuery(
+        supabase.from("disabled_prompts").select("prompt_id").eq("user_id", user.id)
+      );
+
       if (cancelled) return;
-      if (cp.data) {
+
+      if (cpResult.data) {
         setCustomPromptsState(
-          cp.data.map((r: any) => ({
+          cpResult.data.map((r: any) => ({
             id: r.client_id,
             difficulty: r.difficulty,
             text: r.text,
@@ -69,15 +85,15 @@ export const useSyncedPrompts = () => {
           }))
         );
       }
-      if (ov.data) {
+      if (ovResult.data) {
         const map: Record<string, BuiltinOverride> = {};
-        ov.data.forEach((r: any) => {
+        ovResult.data.forEach((r: any) => {
           map[r.builtin_id] = { difficulty: r.difficulty, prompt: r.prompt };
         });
         setOverridesState(map);
       }
-      if (dp.data) {
-        setDisabledIdsState(new Set(dp.data.map((r: any) => r.prompt_id)));
+      if (dpResult.data) {
+        setDisabledIdsState(new Set(dpResult.data.map((r: any) => r.prompt_id)));
       }
       setHydrated(true);
     })();
@@ -94,17 +110,19 @@ export const useSyncedPrompts = () => {
         return exists ? prev.map((x) => (x.id === p.id ? p : x)) : [...prev, p];
       });
       if (!user) return;
-      await supabase.from("custom_prompts").upsert(
-        {
-          user_id: user.id,
-          client_id: p.id,
-          difficulty: p.difficulty,
-          text: p.text,
-          framework: p.framework,
-          points: p.points,
-          example: p.example,
-        },
-        { onConflict: "user_id,client_id" }
+      await safeQuery(
+        supabase.from("custom_prompts").upsert(
+          {
+            user_id: user.id,
+            client_id: p.id,
+            difficulty: p.difficulty,
+            text: p.text,
+            framework: p.framework,
+            points: p.points,
+            example: p.example,
+          },
+          { onConflict: "user_id,client_id" }
+        )
       );
     },
     [user]
@@ -119,8 +137,12 @@ export const useSyncedPrompts = () => {
         return n;
       });
       if (!user) return;
-      await supabase.from("custom_prompts").delete().eq("user_id", user.id).eq("client_id", id);
-      await supabase.from("disabled_prompts").delete().eq("user_id", user.id).eq("prompt_id", id);
+      await safeQuery(
+        supabase.from("custom_prompts").delete().eq("user_id", user.id).eq("client_id", id)
+      );
+      await safeQuery(
+        supabase.from("disabled_prompts").delete().eq("user_id", user.id).eq("prompt_id", id)
+      );
     },
     [user]
   );
@@ -129,18 +151,20 @@ export const useSyncedPrompts = () => {
     async (ps: CustomPrompt[]) => {
       setCustomPromptsState(ps);
       if (!user) return;
-      await supabase.from("custom_prompts").delete().eq("user_id", user.id);
+      await safeQuery(supabase.from("custom_prompts").delete().eq("user_id", user.id));
       if (ps.length) {
-        await supabase.from("custom_prompts").insert(
-          ps.map((p) => ({
-            user_id: user.id,
-            client_id: p.id,
-            difficulty: p.difficulty,
-            text: p.text,
-            framework: p.framework,
-            points: p.points,
-            example: p.example,
-          }))
+        await safeQuery(
+          supabase.from("custom_prompts").insert(
+            ps.map((p) => ({
+              user_id: user.id,
+              client_id: p.id,
+              difficulty: p.difficulty,
+              text: p.text,
+              framework: p.framework,
+              points: p.points,
+              example: p.example,
+            }))
+          )
         );
       }
     },
@@ -151,14 +175,16 @@ export const useSyncedPrompts = () => {
     async (id: string, ov: BuiltinOverride) => {
       setOverridesState((prev) => ({ ...prev, [id]: ov }));
       if (!user) return;
-      await supabase.from("prompt_overrides").upsert(
-        {
-          user_id: user.id,
-          builtin_id: id,
-          difficulty: ov.difficulty,
-          prompt: ov.prompt as any,
-        },
-        { onConflict: "user_id,builtin_id" }
+      await safeQuery(
+        supabase.from("prompt_overrides").upsert(
+          {
+            user_id: user.id,
+            builtin_id: id,
+            difficulty: ov.difficulty,
+            prompt: ov.prompt as any,
+          },
+          { onConflict: "user_id,builtin_id" }
+        )
       );
     },
     [user]
@@ -171,7 +197,9 @@ export const useSyncedPrompts = () => {
         return rest;
       });
       if (!user) return;
-      await supabase.from("prompt_overrides").delete().eq("user_id", user.id).eq("builtin_id", id);
+      await safeQuery(
+        supabase.from("prompt_overrides").delete().eq("user_id", user.id).eq("builtin_id", id)
+      );
     },
     [user]
   );
@@ -186,11 +214,15 @@ export const useSyncedPrompts = () => {
       });
       if (!user) return;
       if (disabled) {
-        await supabase
-          .from("disabled_prompts")
-          .upsert({ user_id: user.id, prompt_id: id }, { onConflict: "user_id,prompt_id" });
+        await safeQuery(
+          supabase
+            .from("disabled_prompts")
+            .upsert({ user_id: user.id, prompt_id: id }, { onConflict: "user_id,prompt_id" })
+        );
       } else {
-        await supabase.from("disabled_prompts").delete().eq("user_id", user.id).eq("prompt_id", id);
+        await safeQuery(
+          supabase.from("disabled_prompts").delete().eq("user_id", user.id).eq("prompt_id", id)
+        );
       }
     },
     [user]
@@ -200,8 +232,8 @@ export const useSyncedPrompts = () => {
     setOverridesState({});
     setDisabledIdsState(new Set());
     if (!user) return;
-    await supabase.from("prompt_overrides").delete().eq("user_id", user.id);
-    await supabase.from("disabled_prompts").delete().eq("user_id", user.id);
+    await safeQuery(supabase.from("prompt_overrides").delete().eq("user_id", user.id));
+    await safeQuery(supabase.from("disabled_prompts").delete().eq("user_id", user.id));
   }, [user]);
 
   return {

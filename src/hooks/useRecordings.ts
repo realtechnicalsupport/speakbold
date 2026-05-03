@@ -80,33 +80,46 @@ export const useRecordings = () => {
         return null;
       }
 
-      // Award XP based on difficulty
+      // Award XP based on difficulty - try profiles table first, fallback to user_xp
       const xpReward = XP_REWARDS[meta.difficulty as keyof typeof XP_REWARDS] || 20;
-      try {
-        // Get or create user XP record
-        let { data: xpData } = await supabase
+try {
+        // Always use user_xp table
+        console.log("[recordings] Using user_xp for XP");
+        
+        const { data: xpData, error: xpError } = await supabase
           .from("user_xp")
-          .select("*")
+          .select("total_xp")
           .eq("user_id", user.id)
-          .single();
-
-        if (!xpData) {
-          // Create new XP record if it doesn't exist
-          const { data: newXpData } = await supabase
+          .maybeSingle();
+        
+        if (xpError) {
+          console.error("[recordings] user_xp fetch error:", xpError);
+        } else if (!xpData) {
+          const displayName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Anonymous';
+          const { error: insertError } = await supabase
             .from("user_xp")
-            .insert({ user_id: user.id, total_xp: xpReward })
-            .select()
-            .single();
-          xpData = newXpData;
-          toast.success(`🎉 +${xpReward} XP awarded!`);
+            .insert({ user_id: user.id, total_xp: xpReward, display_name: displayName });
+          
+          if (insertError) {
+            console.error("[recordings] user_xp insert error:", insertError);
+          } else {
+            toast.success(`🎉 +${xpReward} XP awarded!`);
+            window.dispatchEvent(new Event("xp-updated"));
+          }
         } else {
-          // Update existing XP record
           const newTotal = (xpData.total_xp || 0) + xpReward;
-          await supabase
+          const displayName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Anonymous';
+          const { error: updateError } = await supabase
             .from("user_xp")
-            .update({ total_xp: newTotal, updated_at: new Date().toISOString() })
+            .update({ total_xp: newTotal, updated_at: new Date().toISOString(), display_name: displayName })
             .eq("user_id", user.id);
-          toast.success(`✨ +${xpReward} XP earned!`);
+          
+          if (updateError) {
+            console.error("[recordings] user_xp update error:", updateError);
+          } else {
+            toast.success(`✨ +${xpReward} XP earned!`);
+            window.dispatchEvent(new Event("xp-updated"));
+          }
         }
       } catch (xpError) {
         console.error("[recordings] XP reward failed", xpError);
@@ -145,7 +158,12 @@ export const useSyncedStreak = () => {
   const [lastDay, setLastDay] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      // Reset state when user logs out
+      setCount(0);
+      setLastDay(null);
+      return;
+    }
     (async () => {
       const { data } = await supabase
         .from("streaks")
@@ -153,8 +171,8 @@ export const useSyncedStreak = () => {
         .eq("user_id", user.id)
         .maybeSingle();
       if (data) {
-        // auto-break if gap > 1 day
-        if (data.last_day && daysBetween(data.last_day, todayKey()) > 1) {
+        // auto-break if gap >1 day
+        if (data.last_day && daysBetween(data.last_day, todayKey()) >1) {
           setCount(0);
           setLastDay(data.last_day);
           await supabase

@@ -1,12 +1,28 @@
-import { Flame, Trophy, TrendingUp } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Trophy, ArrowRight } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { rankFor } from "@/lib/rank";
+import { useLeaderboard } from "@/hooks/useLeaderboard";
+import { useAuth } from "@/context/AuthContext";
 import { useInView } from "@/hooks/useInView";
-
-const DAYS = ["M", "T", "W", "T", "F", "S", "S"];
-const COMPLETED = [true, true, true, false, true, true, false];
 
 export const Progress = () => {
   const { ref, isInView } = useInView({ threshold: 0.1 });
+  const { rows, loading } = useLeaderboard(5);
+  const { user } = useAuth();
+
+  const topFive = rows.slice(0, 5);
+
+  const getMedalEmoji = (position: number) => {
+    switch (position) {
+      case 1: return "🏆";
+      case 2: return "🥈";
+      case 3: return "🥉";
+      default: return null;
+    }
+  };
 
   return (
     <section id="progress" className="container py-24 md:py-32 border-t border-border" ref={ref}>
@@ -14,66 +30,78 @@ export const Progress = () => {
         <div className={isInView ? "animate-fade-right" : "opacity-0"}>
           <div className="flex items-center gap-3 text-primary text-xs font-semibold tracking-[0.2em] uppercase mb-6">
             <span className="h-px w-10 bg-primary" />
-            Your practice
+            Leaderboard
           </div>
           <h2 className="font-display text-4xl md:text-6xl font-semibold leading-[1.05] text-balance mb-8">
-            Confidence isn't a trait. <em className="text-primary not-italic">It's a streak.</em>
+            See how you <em className="text-primary not-italic">rank</em> against others.
           </h2>
           <p className="text-muted-foreground text-lg leading-relaxed text-pretty mb-10 max-w-lg">
-            Five minutes a day, tracked. Watch your filler words drop, your pace settle,
-            and the moment you actually look forward to speaking up.
+            Practice daily, earn XP, and climb the leaderboard. Join thousands of speakers competing for the top spot.
           </p>
-          <Button variant="hero" size="lg">Begin your streak</Button>
+          <Link to="/leaderboard" className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:bg-primary/90 transition-colors">
+            View Full Leaderboard
+            <ArrowRight className="h-4 w-4" />
+          </Link>
         </div>
 
-        <div className={`bg-card-gradient border border-border rounded-3xl p-8 md:p-10 shadow-soft ${isInView ? "animate-scale-in" : "opacity-0"}`} style={{ animationDelay: "200ms" }}>
-          <div className="flex items-center justify-between mb-10">
-            <div>
-              <p className="text-xs uppercase tracking-widest text-muted-foreground mb-2">This week</p>
-              <p className="font-display text-3xl font-semibold">5 of 7 days</p>
+        <Card className={`bg-card-gradient border border-border rounded-3xl shadow-soft overflow-hidden ${isInView ? "animate-scale-in" : "opacity-0"}`} style={{ animationDelay: "200ms" }}>
+          <CardHeader className="bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-t-lg pb-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Trophy className="w-5 h-5" />
+                <CardTitle>Top Speakers</CardTitle>
+              </div>
             </div>
-            <div className="grid place-items-center h-14 w-14 rounded-full bg-warm animate-pulse-glow">
-              <Flame className="h-6 w-6 text-primary-foreground" />
-            </div>
-          </div>
+          </CardHeader>
+          <CardContent className="p-4 space-y-3">
+            {loading ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="flex items-center justify-between p-2">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <Skeleton className="w-6 h-6 rounded" />
+                    <Skeleton className="w-24 h-4" />
+                  </div>
+                  <Skeleton className="w-16 h-4" />
+                </div>
+              ))
+            ) : topFive.length === 0 ? (
+              <p className="text-center text-sm text-gray-500 py-4">No users yet</p>
+            ) : (
+              topFive.map((entry, index) => {
+                const rankData = rankFor(entry.xp);
+                const isCurrentUser = entry.id === user?.id;
+                const medal = getMedalEmoji(index + 1);
+                const position = index + 1;
 
-          <div className="grid grid-cols-7 gap-2 mb-10">
-            {DAYS.map((d, i) => (
-              <div key={i} className="text-center">
-                <div
-                  className={`h-16 rounded-xl mb-2 transition-all ${isInView ? "animate-count-up" : ""} ${
-                    COMPLETED[i]
-                      ? "bg-warm shadow-glow"
-                      : "bg-muted border border-border"
-                  }`}
-                  style={{ animationDelay: `${i * 80 + 300}ms` }}
-                />
-                <span className="text-xs text-muted-foreground">{d}</span>
-              </div>
-            ))}
-          </div>
-
-          <div className={`grid grid-cols-2 gap-4 pt-8 border-t border-border ${isInView ? "animate-fade-up" : "opacity-0"}`} style={{ animationDelay: "800ms" }}>
-            <div className="flex items-center gap-3">
-              <div className="grid place-items-center h-10 w-10 rounded-xl bg-muted">
-                <Trophy className="h-4 w-4 text-accent" />
-              </div>
-              <div>
-                <p className="font-display text-xl font-semibold leading-none">23</p>
-                <p className="text-xs text-muted-foreground mt-1">sessions</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="grid place-items-center h-10 w-10 rounded-xl bg-muted">
-                <TrendingUp className="h-4 w-4 text-primary" />
-              </div>
-              <div>
-                <p className="font-display text-xl font-semibold leading-none">-42%</p>
-                <p className="text-xs text-muted-foreground mt-1">filler words</p>
-              </div>
-            </div>
-          </div>
-        </div>
+                return (
+                  <div
+                    key={entry.id}
+                    className={`flex items-center justify-between p-3 rounded-lg transition-colors border-2 border-transparent ${
+                      isCurrentUser ? "border-primary bg-primary/10" : "hover:bg-muted"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className="flex-shrink-0 w-5 text-center font-semibold">
+                        {medal || `#${position}`}
+                      </div>
+                      <div className="text-xl flex-shrink-0">{rankData.emblem}</div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-foreground text-sm truncate">
+                          {entry.display_name}
+                          {isCurrentUser && <Badge className="ml-2 bg-primary text-primary-foreground text-xs">You</Badge>}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex-shrink-0 text-right">
+                      <p className="font-bold text-foreground">{entry.xp.toLocaleString()}</p>
+                      <p className="text-xs text-muted-foreground">XP</p>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </CardContent>
+        </Card>
       </div>
     </section>
   );

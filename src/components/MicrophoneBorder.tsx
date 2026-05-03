@@ -7,58 +7,69 @@ export function MicrophoneBorder() {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const rafRef = useRef<number>(0);
+  const rafRef = useRef(0);
   const smoothRef = useRef(0);
 
   useEffect(() => {
     if (!isRecording || !elRef.current) return;
     const el = elRef.current;
     let cancelled = false;
-
+    
     (async () => {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const savedDeviceId = localStorage.getItem('speakbold-mic-device');
+        const constraints = savedDeviceId
+          ? { audio: { deviceId: { exact: savedDeviceId } } }
+          : { audio: true };
+        
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
         if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
         streamRef.current = stream;
-
+        
+        // Save microphone choice
+        const audioTrack = stream.getAudioTracks()[0];
+        if (audioTrack?.getSettings().deviceId) {
+          localStorage.setItem('speakbold-mic-device', audioTrack.getSettings().deviceId!);
+        }
+        
         const ctx = new AudioContext();
         audioCtxRef.current = ctx;
-
+        
         const analyser = ctx.createAnalyser();
         analyser.fftSize = 256;
         analyser.smoothingTimeConstant = 0.3;
         analyserRef.current = analyser;
-
+        
         ctx.createMediaStreamSource(stream).connect(analyser);
-
+        
         const data = new Uint8Array(analyser.frequencyBinCount);
-
+        
         const loop = () => {
           if (cancelled) return;
           analyser.getByteFrequencyData(data);
           let sum = 0;
           for (let i = 0; i < data.length; i++) sum += data[i];
           const avg = Math.min(1, (sum / data.length / 255) * 2.5);
-
+          
           smoothRef.current = smoothRef.current * 0.4 + avg * 0.6;
           const v = smoothRef.current;
-
+          
           const size = 5 + v * 65;
           const op = 0.1 + v * 0.55;
-
+          
           el.style.boxShadow =
             `inset 0 0 ${size}px ${size / 3}px hsla(14 88% 62% / ${op}), ` +
             `inset 0 0 ${size * 1.8}px ${size / 1.5}px hsla(14 88% 62% / ${op * 0.2})`;
-
+          
           rafRef.current = requestAnimationFrame(loop);
         };
-
+        
         rafRef.current = requestAnimationFrame(loop);
       } catch {
         // denied
       }
     })();
-
+    
     return () => {
       cancelled = true;
       cancelAnimationFrame(rafRef.current);

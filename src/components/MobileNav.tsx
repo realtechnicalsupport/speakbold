@@ -3,40 +3,45 @@ import { Mic, MessageSquare, Briefcase, Activity, Home, Calendar, Trophy } from 
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
-  { to: "/", icon: Home, label: "Home" },
-  { to: "/tracks/public-speaking", icon: Mic, label: "Speaking" },
-  { to: "/tracks/impromptu", icon: MessageSquare, label: "Impromptu" },
-  { to: "/tracks/interviews", icon: Briefcase, label: "Interviews" },
-  { to: "/tracks/body-language", icon: Activity, label: "Body" },
-  { to: "/leaderboard", icon: Trophy, label: "Leaderboard" },
-  { to: "/events", icon: Calendar, label: "Events" },
+  { to: "/", icon: Home },
+  { to: "/tracks/public-speaking", icon: Mic },
+  { to: "/tracks/impromptu", icon: MessageSquare },
+  { to: "/tracks/interviews", icon: Briefcase },
+  { to: "/tracks/body-language", icon: Activity },
+  { to: "/leaderboard", icon: Trophy },
+  { to: "/events", icon: Calendar },
 ];
 
 export const MobileNav = () => {
   const { pathname } = useLocation();
 
   return (
-    <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-background/95 backdrop-blur-md border-t border-border safe-area-inset-bottom">
-      <div className="flex items-center justify-around h-16 px-2">
+    <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-background/90 backdrop-blur-lg border-t border-border/60 safe-area-inset-bottom">
+      <div className="flex items-center justify-around h-16 px-1">
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
-          const isActive = item.to === "/" 
-            ? pathname === "/" 
+          const isActive = item.to === "/"
+            ? pathname === "/"
             : pathname.startsWith(item.to);
-          
+
           return (
             <NavLink
               key={item.to}
               to={item.to}
               className={cn(
-                "flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-lg transition-colors min-w-[56px]",
-                isActive 
-                  ? "text-primary" 
-                  : "text-muted-foreground hover:text-foreground"
+                "relative flex items-center justify-center w-12 h-12 rounded-2xl transition-all duration-200",
+                isActive
+                  ? "text-primary"
+                  : "text-muted-foreground/60 hover:text-muted-foreground"
               )}
             >
-              <Icon className={cn("h-5 w-5", isActive && "text-primary")} />
-              <span className="text-[10px] font-medium leading-none">{item.label}</span>
+              {isActive && (
+                <div className="absolute inset-0 bg-primary/10 rounded-2xl" />
+              )}
+              <Icon className={cn(
+                "h-6 w-6 relative z-10 transition-transform duration-200",
+                isActive && "scale-110"
+              )} />
             </NavLink>
           );
         })}

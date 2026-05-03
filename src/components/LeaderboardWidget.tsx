@@ -2,22 +2,22 @@ import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { RANK_SYSTEM, type Rank } from "@/lib/xp-system";
+import { rankFor, ALL_RANKS } from "@/lib/rank";
 import { useLeaderboard } from "@/hooks/useLeaderboard";
 import { useAuth } from "@/context/AuthContext";
 import { Trophy, ArrowRight } from "lucide-react";
 
 export function LeaderboardWidget() {
-  const { leaderboard, isLoading } = useLeaderboard();
+  const { rows, loading } = useLeaderboard(5);
   const { user } = useAuth();
 
-  const topFive = leaderboard.slice(0, 5);
-  const userPosition = leaderboard.find((entry) => entry.user_id === user?.id);
+  const topFive = rows.slice(0, 5);
+  const userPosition = rows.find((entry) => entry.id === user?.id);
 
   const getMedalEmoji = (position: number) => {
     switch (position) {
       case 1:
-        return "🥇";
+        return "🏆";
       case 2:
         return "🥈";
       case 3:
@@ -44,7 +44,7 @@ export function LeaderboardWidget() {
         </div>
       </CardHeader>
       <CardContent className="p-4 space-y-3">
-        {isLoading ? (
+        {loading ? (
           Array.from({ length: 5 }).map((_, i) => (
             <div key={i} className="flex items-center justify-between p-2">
               <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -57,10 +57,11 @@ export function LeaderboardWidget() {
         ) : topFive.length === 0 ? (
           <p className="text-center text-sm text-gray-500 py-4">No users yet</p>
         ) : (
-          topFive.map((entry) => {
-            const rankData = RANK_SYSTEM[entry.rank as Rank];
-            const isCurrentUser = entry.user_id === user?.id;
-            const medal = getMedalEmoji(entry.position);
+          topFive.map((entry, index) => {
+            const rankData = rankFor(entry.xp);
+            const isCurrentUser = entry.id === user?.id;
+            const medal = getMedalEmoji(index + 1);
+            const position = index + 1;
 
             return (
               <div
@@ -71,9 +72,9 @@ export function LeaderboardWidget() {
               >
                 <div className="flex items-center gap-3 flex-1 min-w-0">
                   <div className="flex-shrink-0 w-5 text-center font-semibold">
-                    {medal || `#${entry.position}`}
+                    {medal || `#${position}`}
                   </div>
-                  <div className="text-xl flex-shrink-0">{rankData.icon}</div>
+                  <div className="text-xl flex-shrink-0">{rankData.emblem}</div>
                   <div className="min-w-0 flex-1">
                     <p className="font-semibold text-gray-900 text-sm truncate">
                       {entry.display_name}
@@ -82,7 +83,7 @@ export function LeaderboardWidget() {
                   </div>
                 </div>
                 <div className="flex-shrink-0 text-right">
-                  <p className="font-bold text-gray-900">{entry.total_xp.toLocaleString()}</p>
+                  <p className="font-bold text-gray-900">{entry.xp.toLocaleString()}</p>
                   <p className="text-xs text-gray-500">XP</p>
                 </div>
               </div>

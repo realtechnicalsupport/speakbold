@@ -1,5 +1,5 @@
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
-import { Mic, LogOut, User, Calendar } from "lucide-react";
+import { Mic, LogOut, User, Calendar, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
@@ -52,6 +52,12 @@ export const SiteHeader = ({ transparent = false }: { transparent?: boolean }) =
           ))}
         </nav>
         <div className="flex items-center gap-3">
+          <Button variant="ghost" size="sm" asChild>
+            <Link to="/leaderboard" className="gap-2">
+              <Trophy className="h-4 w-4" />
+              <span className="hidden lg:inline">Leaderboard</span>
+            </Link>
+          </Button>
           {user ? (
             <>
               <Button variant="ghost" size="sm" asChild>
