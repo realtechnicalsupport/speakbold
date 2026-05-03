@@ -169,16 +169,16 @@ const Profile = () => {
         <Tabs defaultValue="daily" className="w-full">
           <TabsList className="grid w-full max-w-2xl grid-cols-4 mb-10">
             <TabsTrigger value="daily">
-              <Zap className="h-4 w-4 mr-2" /> Daily
+              <Zap className="h-4 w-4 md:mr-2" /> <span className="hidden md:inline">Daily</span>
             </TabsTrigger>
             <TabsTrigger value="streaks">
-              <Flame className="h-4 w-4 mr-2" /> Streaks
+              <Flame className="h-4 w-4 md:mr-2" /> <span className="hidden md:inline">Streaks</span>
             </TabsTrigger>
             <TabsTrigger value="recordings">
-              <Mic className="h-4 w-4 mr-2" /> Recordings
+              <Mic className="h-4 w-4 md:mr-2" /> <span className="hidden md:inline">Recordings</span>
             </TabsTrigger>
             <TabsTrigger value="challenges">
-              <Trophy className="h-4 w-4 mr-2" /> Achievements
+              <Trophy className="h-4 w-4 md:mr-2" /> <span className="hidden md:inline">Achievements</span>
             </TabsTrigger>
           </TabsList>
 

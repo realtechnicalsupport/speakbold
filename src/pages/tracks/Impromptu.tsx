@@ -661,8 +661,8 @@ const [revealed, setRevealed] = useState(false);
       intro="The fastest way to build speaking confidence is to speak when you don't feel ready. Pick a difficulty, hit start, and talk until the timer ends. Stuck? Reveal hints — but try without them first."
       hideHeader={running || pausedAt !== null}
     >
-      <div className="grid lg:grid-cols-[1fr_380px] gap-10">
-        <div className="space-y-6">
+      <div className="grid lg:grid-cols-[1fr_320px] gap-8 max-w-[1600px] mx-auto">
+        <div className="space-y-6 min-w-0">
           <div className="flex flex-wrap gap-2">
             {(Object.keys(PROMPTS) as Difficulty[]).map((d) => (
               <button
@@ -1055,7 +1055,7 @@ const [revealed, setRevealed] = useState(false);
             onOpen={(open) => setAuthorPanelOpen(open)}
           />
 
-          <aside className="space-y-4 lg:sticky lg:top-24 self-start">
+          <aside className="space-y-4 lg:sticky lg:top-24 self-start w-full max-lg:hidden">
           <p className="text-xs uppercase tracking-widest text-muted-foreground">All frameworks</p>
           {FRAMEWORKS.map((f) => (
             <div key={f.name} className="border border-border rounded-2xl p-5">

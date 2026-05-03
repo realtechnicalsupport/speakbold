@@ -34,7 +34,10 @@ export function CalendarModal({ value, onChange, minDate }: CalendarModalProps) 
 
   const selectDate = (day: number) => {
     const newDate = new Date(viewYear, viewMonth, day);
-    onChange(newDate.toISOString().split('T')[0]);
+    const year = newDate.getFullYear();
+    const month = String(newDate.getMonth() + 1).padStart(2, '0');
+    const dayStr = String(newDate.getDate()).padStart(2, '0');
+    onChange(`${year}-${month}-${dayStr}`);
     setIsOpen(false);
   };
 
