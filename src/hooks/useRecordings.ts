@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
+import { XP_REWARDS } from "@/lib/xp-system";
+import { toast } from "sonner";
 
 export type CloudRecording = {
   id: string;
@@ -77,6 +79,40 @@ export const useRecordings = () => {
         alert("Database insert failed: " + error.message);
         return null;
       }
+
+      // Award XP based on difficulty
+      const xpReward = XP_REWARDS[meta.difficulty as keyof typeof XP_REWARDS] || 20;
+      try {
+        // Get or create user XP record
+        let { data: xpData } = await supabase
+          .from("user_xp")
+          .select("*")
+          .eq("user_id", user.id)
+          .single();
+
+        if (!xpData) {
+          // Create new XP record if it doesn't exist
+          const { data: newXpData } = await supabase
+            .from("user_xp")
+            .insert({ user_id: user.id, total_xp: xpReward })
+            .select()
+            .single();
+          xpData = newXpData;
+          toast.success(`🎉 +${xpReward} XP awarded!`);
+        } else {
+          // Update existing XP record
+          const newTotal = (xpData.total_xp || 0) + xpReward;
+          await supabase
+            .from("user_xp")
+            .update({ total_xp: newTotal, updated_at: new Date().toISOString() })
+            .eq("user_id", user.id);
+          toast.success(`✨ +${xpReward} XP earned!`);
+        }
+      } catch (xpError) {
+        console.error("[recordings] XP reward failed", xpError);
+        // Don't fail the recording save if XP fails
+      }
+
       await refresh();
       return data;
     },
