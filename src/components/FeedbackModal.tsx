@@ -22,65 +22,65 @@ export function FeedbackModal({ feedback, onClose }: FeedbackModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-background border border-border rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+      <div className="relative bg-background border border-border rounded-2xl shadow-2xl w-full max-w-md max-h-[85vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-border">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-              <Sparkles className="h-5 w-5 text-primary" />
+        <div className="flex items-center justify-between p-4 border-b border-border">
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+              <Sparkles className="h-4 w-4 text-primary" />
             </div>
             <div>
-              <h2 className="text-xl font-display font-semibold">AI Feedback</h2>
+              <h2 className="text-lg font-display font-semibold">AI Feedback</h2>
               <p className="text-xs text-muted-foreground">Analysis complete</p>
             </div>
           </div>
           <Button variant="ghost" size="icon" onClick={onClose}>
-            <X className="h-5 w-5" />
+            <X className="h-4 w-4" />
           </Button>
         </div>
 
         {/* Overall Score */}
-        <div className="p-6 border-b border-border">
+        <div className="p-4 border-b border-border">
           <div className="text-center">
-            <p className="text-sm text-muted-foreground mb-2">Overall Score</p>
-            <div className={cn("text-6xl font-display font-bold", getScoreColor(feedback.overallScore))}>
+            <p className="text-xs text-muted-foreground mb-1">Overall Score</p>
+            <div className={cn("text-5xl font-display font-bold", getScoreColor(feedback.overallScore))}>
               {feedback.overallScore}
-              <span className="text-2xl text-muted-foreground">/10</span>
+              <span className="text-xl text-muted-foreground">/10</span>
             </div>
-            <p className="text-sm text-muted-foreground mt-2">{feedback.summary}</p>
+            <p className="text-xs text-muted-foreground mt-1">{feedback.summary}</p>
           </div>
         </div>
 
         {/* Individual Scores */}
-        <div className="p-6 border-b border-border">
-          <div className="grid grid-cols-3 gap-4">
-            <div className={cn("rounded-xl p-4 border text-center", getScoreBg(feedback.clarityScore))}>
-              <p className="text-xs text-muted-foreground mb-1">Clarity</p>
-              <p className={cn("text-2xl font-bold", getScoreColor(feedback.clarityScore))}>{feedback.clarityScore}</p>
+        <div className="p-4 border-b border-border">
+          <div className="grid grid-cols-3 gap-2">
+            <div className={cn("rounded-lg p-2 border text-center", getScoreBg(feedback.clarityScore))}>
+              <p className="text-xs text-muted-foreground">Clarity</p>
+              <p className={cn("text-lg font-bold", getScoreColor(feedback.clarityScore))}>{feedback.clarityScore}</p>
             </div>
-            <div className={cn("rounded-xl p-4 border text-center", getScoreBg(feedback.paceScore))}>
-              <p className="text-xs text-muted-foreground mb-1">Pace</p>
-              <p className={cn("text-2xl font-bold", getScoreColor(feedback.paceScore))}>{feedback.paceScore}</p>
+            <div className={cn("rounded-lg p-2 border text-center", getScoreBg(feedback.paceScore))}>
+              <p className="text-xs text-muted-foreground">Pace</p>
+              <p className={cn("text-lg font-bold", getScoreColor(feedback.paceScore))}>{feedback.paceScore}</p>
             </div>
-            <div className={cn("rounded-xl p-4 border text-center", getScoreBg(feedback.structureScore))}>
-              <p className="text-xs text-muted-foreground mb-1">Structure</p>
-              <p className={cn("text-2xl font-bold", getScoreColor(feedback.structureScore))}>{feedback.structureScore}</p>
+            <div className={cn("rounded-lg p-2 border text-center", getScoreBg(feedback.structureScore))}>
+              <p className="text-xs text-muted-foreground">Structure</p>
+              <p className={cn("text-lg font-bold", getScoreColor(feedback.structureScore))}>{feedback.structureScore}</p>
             </div>
           </div>
         </div>
 
         {/* Strengths */}
         {feedback.strengths.length > 0 && (
-          <div className="p-6 border-b border-border">
-            <div className="flex items-center gap-2 mb-3">
-              <ThumbsUp className="h-4 w-4 text-green-500" />
-              <h3 className="font-semibold text-sm">What you did well</h3>
+          <div className="p-4 border-b border-border">
+            <div className="flex items-center gap-2 mb-2">
+              <ThumbsUp className="h-3 w-3 text-green-500" />
+              <h3 className="font-semibold text-xs">What you did well</h3>
             </div>
-            <ul className="space-y-2">
+            <ul className="space-y-1">
               {feedback.strengths.map((s, i) => (
-                <li key={i} className="text-sm text-muted-foreground flex gap-2">
+                <li key={i} className="text-xs text-muted-foreground flex gap-1">
                   <span className="text-green-500">✓</span>
                   {s}
                 </li>
@@ -91,14 +91,14 @@ export function FeedbackModal({ feedback, onClose }: FeedbackModalProps) {
 
         {/* Improvements */}
         {feedback.improvements.length > 0 && (
-          <div className="p-6 border-b border-border">
-            <div className="flex items-center gap-2 mb-3">
-              <ThumbsDown className="h-4 w-4 text-yellow-500" />
-              <h3 className="font-semibold text-sm">Areas to improve</h3>
+          <div className="p-4 border-b border-border">
+            <div className="flex items-center gap-2 mb-2">
+              <ThumbsDown className="h-3 w-3 text-yellow-500" />
+              <h3 className="font-semibold text-xs">Areas to improve</h3>
             </div>
-            <ul className="space-y-2">
+            <ul className="space-y-1">
               {feedback.improvements.map((s, i) => (
-                <li key={i} className="text-sm text-muted-foreground flex gap-2">
+                <li key={i} className="text-xs text-muted-foreground flex gap-1">
                   <span className="text-yellow-500">•</span>
                   {s}
                 </li>
@@ -109,15 +109,15 @@ export function FeedbackModal({ feedback, onClose }: FeedbackModalProps) {
 
         {/* Tips */}
         {feedback.tips.length > 0 && (
-          <div className="p-6">
-            <div className="flex items-center gap-2 mb-3">
-              <Lightbulb className="h-4 w-4 text-primary" />
-              <h3 className="font-semibold text-sm">Quick tips</h3>
+          <div className="p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Lightbulb className="h-3 w-3 text-primary" />
+              <h3 className="font-semibold text-xs">Quick tips</h3>
             </div>
-            <ul className="space-y-2">
+            <ul className="space-y-1">
               {feedback.tips.map((s, i) => (
-                <li key={i} className="text-sm text-muted-foreground flex gap-2">
-                  <Zap className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                <li key={i} className="text-xs text-muted-foreground flex gap-1">
+                  <Zap className="h-3 w-3 text-primary shrink-0 mt-0.5" />
                   {s}
                 </li>
               ))}
@@ -126,8 +126,8 @@ export function FeedbackModal({ feedback, onClose }: FeedbackModalProps) {
         )}
 
         {/* Footer */}
-        <div className="p-4 border-t border-border bg-muted/20 rounded-b-3xl">
-          <Button onClick={onClose} className="w-full">
+        <div className="p-3 border-t border-border bg-muted/20 rounded-b-2xl">
+          <Button onClick={onClose} className="w-full text-sm">
             Got it
           </Button>
         </div>
