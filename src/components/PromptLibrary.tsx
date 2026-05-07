@@ -18,6 +18,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { useRecordingActive } from "@/lib/recordingState";
 import type { CustomPrompt, Difficulty, Example, Prompt } from "./PromptAuthor";
 import {
   Dialog,
@@ -50,16 +51,18 @@ type Props = {
 const DIFFICULTIES: Difficulty[] = ["Easy", "Medium", "Hard"];
 
 export const PromptLibrary = ({
-  frameworks,
   entries,
   onToggle,
-  onEdit,
+  onSelect,
+  onSelectRandom,
+  onOverrideBuiltin,
   onResetBuiltin,
   onDeleteCustom,
   onResetAll,
   onOpenAuthor,
 }: Props) => {
   const [open, setOpen] = useState(false);
+  const isRecording = useRecordingActive();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "enabled" | "disabled" | "edited" | "custom">("all");
   const [query, setQuery] = useState("");
@@ -99,7 +102,7 @@ export const PromptLibrary = ({
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => onOpenAuthor?.()}>
+          <Button variant="outline" size="sm" onClick={() => onOpenAuthor?.()} disabled={isRecording}>
             <Plus className="h-4 w-4" />
             Add prompt
           </Button>
@@ -189,7 +192,7 @@ export const PromptLibrary = ({
                     <li
                       key={entry.id}
                       className={`border rounded-lg p-3 flex items-start gap-3 ${
-                        entry.enabled ? "border-border" : "border-border/50 bg-muted/20 opacity-70"
+                        entry.enabled ? "border-border" : "border-border/60 bg-muted/20 opacity-70"
                       }`}
                     >
                       <Switch
@@ -202,26 +205,26 @@ export const PromptLibrary = ({
                           {entry.prompt.text}
                         </p>
                         <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                          <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+                          <span className="text-xs font-mono uppercase tracking-wider text-muted-foreground">
                             {entry.prompt.framework}
                           </span>
                           {entry.source === "custom" && (
-                            <span className="text-[10px] font-mono uppercase tracking-wider text-primary">
+                            <span className="text-xs font-mono uppercase tracking-wider text-primary">
                               Custom
                             </span>
                           )}
                           {entry.ai && (
-                            <span className="text-[10px] font-mono uppercase tracking-wider text-primary inline-flex items-center gap-0.5">
+                            <span className="text-xs font-mono uppercase tracking-wider text-primary inline-flex items-center gap-0.5">
                               <Sparkles className="h-3 w-3" /> AI
                             </span>
                           )}
                           {entry.edited && entry.source === "builtin" && (
-                            <span className="text-[10px] font-mono uppercase tracking-wider text-warm">
+                            <span className="text-xs font-mono uppercase tracking-wider text-warm">
                               Edited
                             </span>
                           )}
                           {!entry.enabled && (
-                            <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground inline-flex items-center gap-1">
+                            <span className="text-xs font-mono uppercase tracking-wider text-muted-foreground inline-flex items-center gap-1">
                               <EyeOff className="h-3 w-3" /> Hidden
                             </span>
                           )}

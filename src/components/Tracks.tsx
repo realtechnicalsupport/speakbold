@@ -1,6 +1,8 @@
 import { Link } from "react-router-dom";
 import { Mic, Zap, Briefcase, Activity, ArrowUpRight } from "lucide-react";
-import { useInView } from "@/hooks/useInView";
+import { motion } from "framer-motion";
+import { useRef } from "react";
+import { useInView as useFramerInView } from "framer-motion";
 
 const TRACKS = [
   {
@@ -38,56 +40,89 @@ const TRACKS = [
 ];
 
 export const Tracks = () => {
-  const { ref, isInView } = useInView({ threshold: 0.05 });
+  const ref = useRef(null);
+  const isInView = useFramerInView(ref, { once: true, margin: "-100px" });
+
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.15,
+        delayChildren: 0.1,
+      }
+    }
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 30 },
+    visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 60, damping: 15 } }
+  };
 
   return (
-    <section id="tracks" className="container py-24 md:py-32 border-t border-border" ref={ref}>
-      <div className={`flex flex-col md:flex-row md:items-end md:justify-between gap-6 mb-16 ${isInView ? "animate-fade-up" : "opacity-0"}`}>
-        <div className="max-w-2xl">
-          <div className="flex items-center gap-3 text-primary text-xs font-semibold tracking-[0.2em] uppercase mb-6">
-            <span className="h-px w-10 bg-primary" />
-            Four tracks
-          </div>
-          <h2 className="font-display text-4xl md:text-6xl font-semibold leading-[1.05] text-balance">
-            Pick the moment <em className="text-primary not-italic">you'll own</em> next.
-          </h2>
+    <section id="tracks" className="container py-32 md:py-60 border-t border-border/60" ref={ref}>
+      <motion.div 
+        variants={containerVariants}
+        initial="hidden"
+        animate={isInView ? "visible" : "hidden"}
+        className="flex flex-col md:flex-row md:items-end justify-between gap-12 mb-32"
+      >
+        <div className="max-w-3xl">
+          <motion.div variants={itemVariants} className="text-sm font-bold uppercase tracking-[0.4em] mb-12 opacity-40">
+            SPECIALIZED CURRICULUM
+          </motion.div>
+          <motion.h2 variants={itemVariants} className="speak-serif text-3xl md:text-8xl leading-[0.9] text-foreground">
+            Select your <br />
+            <span className="text-primary italic">mastery</span> next.
+          </motion.h2>
         </div>
-        <p className="text-muted-foreground max-w-sm text-pretty">
-          Each track is its own page with real lessons, drills, prompts, and a built-in recorder.
-          Free. No sign-up. Five minutes a day is enough.
-        </p>
-      </div>
+        <motion.p variants={itemVariants} className="text-lg font-medium max-w-sm tracking-tight opacity-60 leading-relaxed">
+          Each track is a deep dive into the mechanics of presence. 
+          Drills, real-time feedback, and the protocols used by global leaders.
+        </motion.p>
+      </motion.div>
 
-      <div className="grid gap-5 md:grid-cols-2">
+      <motion.div 
+        variants={containerVariants}
+        initial="hidden"
+        animate={isInView ? "visible" : "hidden"}
+        className="grid md:grid-cols-2 gap-8"
+      >
         {TRACKS.map((t, i) => (
-          <Link
-            to={t.href}
-            key={t.name}
-            className={`group relative bg-card-gradient border border-border rounded-3xl p-8 md:p-10 hover:border-primary/40 transition-all duration-500 cursor-pointer overflow-hidden block ${isInView ? "animate-fade-up" : "opacity-0"}`}
-            style={{ animationDelay: `${i * 120 + 100}ms` }}
+          <motion.div 
+            key={t.name} 
+            variants={itemVariants}
+            className="group"
           >
-            <div className={`absolute -top-20 -right-20 h-64 w-64 rounded-full bg-gradient-radial ${t.accent} blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-700`} />
-
-            <div className="relative flex items-start justify-between mb-10">
-              <div className="grid place-items-center h-14 w-14 rounded-2xl bg-muted border border-border group-hover:bg-warm group-hover:border-transparent transition-all duration-500">
-                <t.icon className="h-6 w-6 text-foreground group-hover:text-primary-foreground transition-colors" />
+            <Link
+              to={t.href}
+              className="p-8 md:p-20 flex flex-col h-full border border-border/60 rounded-[3rem] hover:border-primary/40 hover:bg-primary/5 transition-all duration-500 group"
+            >
+              <div className="flex items-start justify-between mb-20">
+                <div className="flex items-center justify-center h-14 w-14 rounded-full bg-muted group-hover:bg-primary/10 transition-colors">
+                  <t.icon className="h-6 w-6 text-foreground group-hover:text-primary transition-colors" strokeWidth={1.5} />
+                </div>
+                <div className="text-sm font-bold uppercase tracking-widest opacity-40">
+                  {t.duration}
+                </div>
               </div>
-              <ArrowUpRight className="h-5 w-5 text-muted-foreground group-hover:text-primary group-hover:-translate-y-1 group-hover:translate-x-1 transition-all" />
-            </div>
 
-            <div className="relative">
-              <p className="text-xs uppercase tracking-widest text-muted-foreground mb-3">{t.duration}</p>
-              <h3 className="font-display text-3xl md:text-4xl font-semibold mb-4 leading-tight">
-                {t.name}
-              </h3>
-              <p className="text-muted-foreground text-pretty leading-relaxed mb-6">{t.desc}</p>
-              <span className="inline-flex items-center gap-2 text-sm font-semibold text-primary">
-                Open track →
-              </span>
-            </div>
-          </Link>
+              <div className="mt-auto">
+                <h3 className="speak-serif text-2xl md:text-5xl text-foreground mb-6">
+                  {t.name}
+                </h3>
+                <p className="text-lg font-medium tracking-tight opacity-40 mb-12 max-w-md">
+                  {t.desc}
+                </p>
+                <div className="button-pill inline-flex items-center gap-4 group-hover:bg-primary group-hover:text-white group-hover:border-primary transition-all duration-500">
+                  <span className="text-sm font-bold uppercase tracking-widest">ACCESS TRACK</span>
+                  <ArrowUpRight className="h-4 w-4" strokeWidth={2} />
+                </div>
+              </div>
+            </Link>
+          </motion.div>
         ))}
-      </div>
+      </motion.div>
     </section>
   );
 };

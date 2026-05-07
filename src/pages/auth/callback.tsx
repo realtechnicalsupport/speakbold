@@ -29,7 +29,7 @@ const Callback = () => {
             title: "Successfully signed in with Google", 
             description: "Welcome back!" 
           });
-          navigate("/tracks/impromptu", { replace: true });
+          navigate("/pathway", { replace: true });
         } else {
           // No session, redirect to login
           navigate("/login", { replace: true });

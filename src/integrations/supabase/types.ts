@@ -335,3 +335,19 @@ export const Constants = {
     Enums: {},
   },
 } as const
+
+// Recording Feedback type for AI analysis
+export type RecordingFeedback = {
+  id: string
+  recording_id: string
+  user_id: string
+  transcript: string | null
+  summary: string
+  strengths: string[]
+  improvements: string[]
+  next_drill: string | null
+  scores: Record<string, number>
+  xp: number
+  model: string | null
+  created_at: string
+}

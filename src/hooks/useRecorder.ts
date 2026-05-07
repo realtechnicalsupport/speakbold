@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { setRecordingActive } from "@/lib/recordingState";
 
 export type RecordingState = "idle" | "recording" | "paused" | "stopped" | "denied";
 
@@ -37,6 +38,7 @@ export const useRecorder = () => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
     cleanupTimer();
+    setRecordingActive(false);
   }, []);
 
   const start = useCallback(async () => {
@@ -79,6 +81,7 @@ export const useRecorder = () => {
       setElapsedMs(0);
       mr.start();
       setState("recording");
+      setRecordingActive(true);
       tickRef.current = window.setInterval(() => {
         setElapsedMs(Date.now() - startedAtRef.current - pauseDurationRef.current);
       }, 100);
@@ -95,6 +98,8 @@ export const useRecorder = () => {
       mediaRecorderRef.current.pause();
       pausedAtRef.current = Date.now();
       setState("paused");
+      // Keep border active while paused
+      setRecordingActive(true);
     }
   }, []);
 
@@ -103,6 +108,7 @@ export const useRecorder = () => {
       mediaRecorderRef.current.resume();
       pauseDurationRef.current += Date.now() - pausedAtRef.current;
       setState("recording");
+      setRecordingActive(true);
     }
   }, []);
 
@@ -113,6 +119,7 @@ export const useRecorder = () => {
     setElapsedMs(0);
     setError(null);
     pauseDurationRef.current = 0;
+    setRecordingActive(false);
   }, [recording]);
 
   useEffect(() => {
@@ -123,6 +130,7 @@ export const useRecorder = () => {
         // Warn user or save recording?
         // For now, just cleanup
         if (recording?.url) URL.revokeObjectURL(recording.url);
+        setRecordingActive(false);
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps

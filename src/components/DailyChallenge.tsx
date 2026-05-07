@@ -1,64 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Play, Pause, RotateCcw, Flame, CheckCircle2 } from "lucide-react";
+import { Play, Pause, RotateCcw, Flame, CheckCircle2, Sparkles, ShieldCheck, Target, Microscope, Zap, Clock } from "lucide-react";
 import { useStreak } from "@/hooks/useStreak";
 import { RecorderPanel } from "@/components/RecorderPanel";
-import { useInView } from "@/hooks/useInView";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-
-// Expose supabase to window for debugging
-if (typeof window !== 'undefined') (window as any).__SUPABASE_CLIENT__ = supabase;
-
-// Test function you can call from console: window.testDailyXP()
-if (typeof window !== 'undefined') {
-  (window as any).testDailyXP = async (amount: number = 15) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { console.log("Not logged in!"); return; }
-    
-    console.log("[testDailyXP] Testing with", amount, "XP for", user.id);
-    
-    // Try user_xp
-    const { data: xpData, error: xpError } = await supabase
-      .from("user_xp")
-      .select("total_xp")
-      .eq("user_id", user.id)
-      .maybeSingle();
-    
-    console.log("[testDailyXP] Current XP:", xpData, "Error:", xpError);
-    
-    if (xpError) {
-      console.error("[testDailyXP] Cannot read user_xp:", xpError);
-      return;
-    }
-    
-    if (!xpData) {
-      // Insert
-      const { error } = await supabase
-        .from("user_xp")
-        .insert({ user_id: user.id, total_xp: amount });
-      console.log("[testDailyXP] Inserted new XP. Error:", error);
-    } else {
-      // Update
-      const newTotal = (xpData.total_xp || 0) + amount;
-      const { error } = await supabase
-        .from("user_xp")
-        .update({ total_xp: newTotal })
-        .eq("user_id", user.id);
-      console.log("[testDailyXP] Updated XP to", newTotal, "Error:", error);
-    }
-    
-    // Verify
-    const { data: verify } = await supabase
-      .from("user_xp")
-      .select("total_xp")
-      .eq("user_id", user.id)
-      .maybeSingle();
-    console.log("[testDailyXP] Verification - new total:", verify?.total_xp);
-  };
-}
+import { motion, useInView as useFramerInView } from "framer-motion";
+import { cn } from "@/lib/utils";
 
 const DAILY_PROMPTS = [
   "The best advice you've ever ignored.",
@@ -87,54 +36,16 @@ const DURATION = 60;
 
 const awardDailyXP = async (userId: string, userEmail?: string) => {
   const xpReward = 15;
-  console.log("[DailyChallenge] Awarding", xpReward, "XP to userId:", userId);
-  console.log("[DailyChallenge] Using user_xp table");
+  const { data: xpData } = await supabase.from("user_xp").select("total_xp").eq("user_id", userId).maybeSingle();
+  const displayName = userEmail?.split('@')[0] || 'Anonymous';
   
-  const { data: xpData, error: xpError } = await supabase
-    .from("user_xp")
-    .select("total_xp")
-    .eq("user_id", userId)
-    .maybeSingle();
-  
-  console.log("[DailyChallenge] xpData:", xpData, "xpError:", xpError);
-  
-  if (xpError) {
-    console.error("[DailyChallenge] user_xp fetch error:", xpError);
-    toast.error("Failed to fetch XP: " + xpError.message);
-    return;
-  }
-
   if (!xpData) {
-    console.log("[DailyChallenge] Creating new user_xp record for userId:", userId);
-    const displayName = userEmail?.split('@')[0] || 'Anonymous';
-    const { error: insertError } = await supabase
-      .from("user_xp")
-      .insert({ user_id: userId, total_xp: xpReward, display_name: displayName });
-    if (insertError) {
-      console.error("[DailyChallenge] user_xp insert error:", insertError);
-      toast.error("Failed to insert XP: " + insertError.message);
-    } else {
-      console.log("[DailyChallenge] XP inserted to user_xp:", xpReward);
-      toast.success(`🎉 +${xpReward} XP awarded!`);
-      window.dispatchEvent(new Event("xp-updated"));
-    }
+    await supabase.from("user_xp").insert({ user_id: userId, total_xp: xpReward, display_name: displayName });
   } else {
-    const newTotal = (xpData.total_xp || 0) + xpReward;
-    const displayName = userEmail?.split('@')[0] || 'Anonymous';
-    console.log("[DailyChallenge] Updating user_xp from", xpData.total_xp, "to", newTotal);
-    const { error: updateError } = await supabase
-      .from("user_xp")
-      .update({ total_xp: newTotal, display_name: displayName })
-      .eq("user_id", userId);
-    if (updateError) {
-      console.error("[DailyChallenge] user_xp update error:", updateError);
-      toast.error("Failed to update XP: " + updateError.message);
-    } else {
-      console.log("[DailyChallenge] XP updated in user_xp:", newTotal);
-      toast.success(`✨ +${xpReward} XP earned!`);
-      window.dispatchEvent(new Event("xp-updated"));
-    }
+    await supabase.from("user_xp").update({ total_xp: (xpData.total_xp || 0) + xpReward, display_name: displayName }).eq("user_id", userId);
   }
+  toast.success(`+${xpReward} XP earned!`);
+  window.dispatchEvent(new Event("xp-updated"));
 };
 
 export const DailyChallenge = () => {
@@ -145,22 +56,17 @@ export const DailyChallenge = () => {
   const [finished, setFinished] = useState(false);
   const ref = useRef<number | null>(null);
   const { count, practicedToday, markPracticed } = useStreak();
-  const { ref: sectionRef, isInView } = useInView({ threshold: 0.05 });
+  const sectionRef = useRef(null);
+  const isInView = useFramerInView(sectionRef, { once: true, margin: "-100px" });
   
   const recorderRef = useRef<{ start: () => void; pause: () => void; resume: () => void; stop: () => void } | null>(null);
   
   useEffect(() => {
     if (running && recorderRef.current) {
-      if (left === DURATION) {
-        recorderRef.current.start();
-      } else {
-        recorderRef.current.resume();
-      }
+      if (left === DURATION) recorderRef.current.start();
+      else recorderRef.current.resume();
     } else if (!running && recorderRef.current && left < DURATION && !finished) {
       recorderRef.current.pause();
-    } else if (finished && recorderRef.current) {
-      // Don't auto-stop - let user manually stop
-      // recorderRef.current.stop();
     }
   }, [running, finished, left]);
 
@@ -177,23 +83,13 @@ export const DailyChallenge = () => {
         return l - 1;
       });
     }, 1000);
-    return () => {
-      if (ref.current) window.clearInterval(ref.current);
-    };
+    return () => { if (ref.current) window.clearInterval(ref.current); };
   }, [running]);
 
-  // Award XP when timer finishes (separate effect)
   useEffect(() => {
-    console.log("[DailyChallenge] useEffect triggered, finished:", finished, "user:", user?.id);
     if (!finished) return;
     markPracticed();
-    // Award XP if user is logged in
-    if (user) {
-      console.log("[DailyChallenge] Timer ended, user logged in, awarding XP...");
-      awardDailyXP(user.id, user.email);
-    } else {
-      console.log("[DailyChallenge] Timer ended, user NOT logged in, skipping XP");
-    }
+    if (user) awardDailyXP(user.id, user.email);
   }, [finished, user]);
 
   const reset = () => {
@@ -206,116 +102,148 @@ export const DailyChallenge = () => {
   const pct = ((DURATION - left) / DURATION) * 100;
 
   return (
-    <section className="container py-20 md:py-28 border-t border-border" ref={sectionRef}>
-      <div className="grid md:grid-cols-5 gap-6">
-        <div className={`md:col-span-3 relative bg-card-gradient border border-border rounded-3xl p-8 md:p-12 overflow-hidden ${isInView ? "animate-fade-right" : "opacity-0"}`}>
-          <div className="absolute -top-24 -right-24 h-72 w-72 rounded-full bg-primary/10 blur-3xl" />
+    <section className="container py-40 md:py-60 border-t border-border/60 relative overflow-hidden" ref={sectionRef}>
+      {/* Background Motion */}
+      <div className="absolute top-[20%] left-[-10%] w-[500px] h-[500px] bg-primary/5 rounded-full blur-[130px] animate-float opacity-30 pointer-events-none" />
+      <div className="absolute bottom-[20%] right-[-10%] w-[600px] h-[600px] bg-accent/5 rounded-full blur-[150px] animate-float opacity-20 pointer-events-none" style={{ animationDelay: "-5s" }} />
 
-          <div className="relative">
-            <div className="flex items-center gap-3 text-primary text-xs font-semibold tracking-[0.25em] uppercase mb-6">
-              <span className="h-px w-10 bg-primary" />
-              Today's 60-second challenge
+      <div className="max-w-6xl mx-auto text-center space-y-32 relative z-10">
+        <motion.div 
+          initial={{ opacity: 0, y: 30 }}
+          animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
+          transition={{ duration: 1 }}
+          className="space-y-16"
+        >
+          <div className="flex flex-col items-center gap-6">
+            <div className="flex items-center gap-4 text-xs font-black uppercase tracking-[0.6em] text-primary">
+              <ShieldCheck className="h-4 w-4" />
+              60-SECOND DAILY DRILL
             </div>
-
-            <h2 className="font-display text-3xl md:text-5xl font-semibold leading-[1.1] mb-8 text-balance">
+            <h2 className="speak-serif text-2xl md:text-6xl leading-[0.9] tracking-tighter italic">
               "{prompt}"
             </h2>
+          </div>
 
-            <div className="h-2 w-full rounded-full bg-muted overflow-hidden mb-4">
-              <div
-                className="h-full bg-warm transition-all duration-1000 ease-linear"
-                style={{ width: `${pct}%` }}
-              />
+          <div className="max-w-3xl mx-auto space-y-16">
+            <div className="space-y-4">
+               <div className="flex items-end justify-between text-[11px] font-black uppercase tracking-[0.4em] opacity-20">
+                  <span className="flex items-center gap-2"><Target className="h-3 w-3" /> CAPTURE PROGRESS</span>
+                  <span>{Math.round(pct)}% COMPLETE</span>
+               </div>
+               <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden border border-border/60 relative">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${pct}%` }}
+                    transition={{ duration: 1, ease: "linear" }}
+                    className="h-full bg-primary shadow-glow shadow-primary/40"
+                  />
+               </div>
             </div>
-            <div className="flex items-baseline justify-between mb-8">
-              <span className="font-display text-5xl md:text-6xl font-semibold tabular-nums">
-                0:{String(left).padStart(2, "0")}
-              </span>
-              {finished && (
-                <span className="inline-flex items-center gap-2 text-sm font-semibold text-primary animate-fade-up">
-                  <CheckCircle2 className="h-4 w-4" /> Counted toward your streak
-                </span>
-              )}
+            
+            <div className="flex flex-col items-center gap-4">
+<div className="speak-serif text-[48px] sm:text-[80px] md:text-[160px] font-bold tracking-tighter tabular-nums leading-[0.7] text-foreground italic">
+                  {String(left).padStart(2, "0")}
+                </div>
+               <div className="flex items-center gap-4 text-xs font-black uppercase tracking-[0.6em] opacity-20">
+                  <Clock className="h-4 w-4" /> SECONDS REMAINING
+               </div>
             </div>
 
-            <div className="flex flex-wrap gap-3">
+            <div className="flex justify-center items-center gap-10">
               {!running && left === DURATION && !finished && (
-                <Button variant="hero" size="lg" onClick={() => { console.log("[DailyChallenge] START clicked"); setRunning(true); }}>
-                  <Play className="h-4 w-4" /> Start speaking
-                </Button>
+                <button onClick={() => setRunning(true)} className="button-pill px-16 py-6 bg-primary text-white shadow-glow group hover:scale-105 transition-all duration-700">
+                  <span className="text-xs font-black uppercase tracking-[0.3em]">INITIALIZE DRILL</span>
+                  <Play className="h-5 w-5 ml-4 group-hover:scale-110 transition-transform" fill="currentColor" />
+                </button>
               )}
               {running && (
-                <Button variant="spotlight" size="lg" onClick={() => setRunning(false)}>
-                  <Pause className="h-4 w-4" /> Pause
-                </Button>
+                <button onClick={() => setRunning(false)} className="button-pill bg-white text-primary border-white px-16 py-6 shadow-xl scale-110">
+                  <Pause className="h-5 w-5 mr-4" fill="currentColor" />
+                  <span className="text-xs font-black uppercase tracking-[0.3em]">SYSTEM PAUSE</span>
+                </button>
               )}
               {!running && left < DURATION && !finished && (
-                <Button variant="hero" size="lg" onClick={() => setRunning(true)}>
-                  <Play className="h-4 w-4" /> Resume
-                </Button>
+                <button onClick={() => setRunning(true)} className="button-pill px-16 py-6 bg-primary text-white shadow-glow">
+                  <Play className="h-5 w-5 mr-4" fill="currentColor" />
+                  <span className="text-xs font-black uppercase tracking-[0.3em]">RESUME FLOW</span>
+                </button>
               )}
               {(left < DURATION || finished) && (
-                <Button variant="outline" size="lg" onClick={reset}>
-                  <RotateCcw className="h-4 w-4" /> Reset
-                </Button>
+                <button onClick={reset} className="h-16 w-16 rounded-full border border-border/60 flex items-center justify-center opacity-20 hover:opacity-100 transition-all hover:border-primary/40 group">
+                  <RotateCcw className="h-5 w-5 group-hover:rotate-[-45deg] transition-transform" />
+                </button>
               )}
-              <Button variant="ghost" size="lg" asChild>
-                <Link to="/tracks/impromptu">Full impromptu track →</Link>
-              </Button>
             </div>
           </div>
-        </div>
+        </motion.div>
 
-        <div className={`md:col-span-2 bg-card-gradient border border-border rounded-3xl p-8 md:p-10 flex flex-col ${isInView ? "animate-fade-left" : "opacity-0"}`} style={{ animationDelay: "150ms" }}>
-          <div className="flex items-center gap-3 text-primary text-xs font-semibold tracking-[0.25em] uppercase mb-6">
-            <span className="h-px w-10 bg-primary" />
-            Your streak
-          </div>
-
-          <div className="flex items-end gap-4 mb-2">
-            <Flame className={`h-12 w-12 ${count > 0 ? "text-primary animate-float" : "text-muted-foreground"}`} />
-            <div>
-              <div className="font-display text-6xl font-semibold leading-none">{count}</div>
-              <div className="text-sm text-muted-foreground mt-2">
-                {count === 1 ? "day" : "days"} in a row
+        <motion.div 
+          initial={{ opacity: 0, y: 30 }}
+          animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
+          transition={{ duration: 1, delay: 0.3 }}
+          className="pt-32 border-t border-border/60 grid md:grid-cols-3 gap-24 items-center"
+        >
+          <div className="space-y-6">
+            <p className="text-xs font-black uppercase tracking-[0.5em] opacity-30">DRILL MOMENTUM</p>
+            <div className="flex items-center justify-center gap-6">
+              <div className="relative">
+                 <Flame className={cn("h-12 w-12 transition-all duration-1000", count > 0 ? "text-primary drop-shadow-glow" : "opacity-10")} />
+                 {count > 0 && <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 2 }} className="absolute inset-0 bg-primary/20 blur-xl rounded-full" />}
               </div>
+              <span className="speak-serif text-7xl font-bold italic tabular-nums">{count}</span>
             </div>
+            <p className="text-[11px] font-black uppercase tracking-[0.4em] opacity-20">CONSECUTIVE DAYS ACTIVE</p>
           </div>
 
-          <p className="text-muted-foreground text-pretty leading-relaxed mt-6 mb-auto">
-            {practicedToday
-              ? "You've practiced today. Come back tomorrow to keep the flame alive."
-              : count === 0
-                ? "Finish today's 60-second challenge to start a streak. No account needed — it lives on your device."
-                : "One more minute today keeps your streak going."}
-          </p>
-
-          <div className="grid grid-cols-7 gap-1.5 mt-8">
-            {Array.from({ length: 7 }).map((_, i) => {
-              const filled = i < Math.min(count, 7);
-              return (
-                <div
-                  key={i}
-                  className={`h-8 rounded-md ${filled ? "bg-warm" : "bg-muted"} transition-colors`}
-                  aria-hidden
-                />
-              );
-            })}
+          <div className="md:col-span-2 space-y-8">
+            <div className="flex items-center justify-between">
+               <p className="text-xs font-black uppercase tracking-[0.5em] opacity-30 flex items-center gap-3">
+                 <Microscope className="h-4 w-4" />
+                 OPERATIONAL HISTORY
+               </p>
+               <span className="text-[11px] font-black uppercase tracking-[0.4em] text-primary">14-DAY ANALYTIC VIEW</span>
+            </div>
+            <div className="flex gap-3 h-16">
+              {Array.from({ length: 14 }).map((_, i) => {
+                const filled = i < count;
+                return (
+                  <motion.div
+                    key={i}
+                    initial={{ scaleY: 0 }}
+                    animate={{ scaleY: 1 }}
+                    transition={{ delay: i * 0.05 + 0.5 }}
+                    className={cn(
+                      "flex-1 rounded-[0.5rem] transition-all duration-1000 origin-bottom",
+                      filled ? "bg-primary shadow-glow shadow-primary/20" : "bg-muted/30"
+                    )}
+                  />
+                );
+              })}
+            </div>
+            <p className="text-xs font-black uppercase tracking-widest opacity-20 text-center">
+              {practicedToday ? "DAILY QUOTA MET" : "SYSTEM AWAITING TODAY'S INPUT"}
+            </p>
           </div>
-          <p className="text-xs text-muted-foreground mt-3">Last 7 days</p>
-        </div>
+        </motion.div>
 
-        <div className={`md:col-span-5 ${isInView ? "animate-fade-up" : "opacity-0"}`} style={{ animationDelay: "300ms" }}>
-          <RecorderPanel
-            ref={recorderRef}
-            label="Your response"
-            hint="Recording syncs with the timer. Hit Start speaking above, speak for 60 seconds, then play it back to hear yourself."
-            recorderStartRef={() => {}}
-            recorderPauseRef={() => {}}
-            recorderResumeRef={() => {}}
-            recorderStopRef={() => {}}
-          />
-        </div>
+        <motion.div 
+          initial={{ opacity: 0, y: 30 }}
+          animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
+          transition={{ duration: 1, delay: 0.6 }}
+          className="pt-32"
+        >
+          <div className="max-w-4xl mx-auto">
+            <RecorderPanel
+              ref={recorderRef}
+              label="SENSORY CAPTURE"
+              hint="Session is encrypted and stored locally for audit purposes."
+              recorderStartRef={() => {}}
+              recorderPauseRef={() => {}}
+              recorderResumeRef={() => {}}
+              recorderStopRef={() => {}}
+            />
+          </div>
+        </motion.div>
       </div>
     </section>
   );

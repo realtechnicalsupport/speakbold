@@ -1,15 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
-import { Flame, Trophy, Mic, Calendar, Sparkles, Target, Lock, Check, ArrowRight, Zap } from "lucide-react";
+import { Flame, Trophy, Mic, Calendar, Sparkles, Target, Lock, Check, ArrowRight, Zap, Play, ShieldCheck, Microscope, FileText } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import { useSyncedStreak, useRecordings } from "@/hooks/useRecordings";
 import { useMyXp } from "@/hooks/useLeaderboard";
 import { cn } from "@/lib/utils";
 import { DailyChallenges } from "@/components/DailyChallenges";
-import { XPCard } from "@/components/XPCard";
 
 type Challenge = {
   id: string;
@@ -39,7 +37,6 @@ const Profile = () => {
   const { xp: userXP } = useMyXp();
   const [bestStreak, setBestStreak] = useState<number>(0);
 
-  // Track best streak locally
   useEffect(() => {
     const key = "speakbold.bestStreak";
     const stored = Number(localStorage.getItem(key) ?? "0");
@@ -63,7 +60,6 @@ const Profile = () => {
   if (loading) return null;
   if (!user) return <Navigate to="/login" replace />;
 
-  // Last 7 days streak grid
   const last7 = Array.from({ length: 7 }).map((_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - (6 - i));
@@ -75,197 +71,184 @@ const Profile = () => {
   const completed = CHALLENGES.filter((c) => valueFor(c.metric) >= c.goal).length;
 
   return (
-    <main className="min-h-screen bg-background">
+    <main className="min-h-[100dvh] bg-background relative overflow-x-hidden">
       <SiteHeader />
 
-      {/* Decorated banner */}
-      <section className="relative overflow-hidden border-b border-border">
-        <div className="absolute inset-0 bg-spotlight opacity-70" />
-        <div
-          className="absolute inset-0 opacity-[0.06]"
-          style={{
-            backgroundImage:
-              "radial-gradient(circle at 1px 1px, hsl(var(--foreground)) 1px, transparent 0)",
-            backgroundSize: "22px 22px",
-          }}
-        />
-        <div className="absolute -top-32 -left-20 h-80 w-80 rounded-full bg-primary/20 blur-[120px]" />
-        <div className="absolute -bottom-32 right-0 h-80 w-80 rounded-full bg-accent/15 blur-[120px]" />
+      {/* Background Motion */}
+      <div className="absolute top-[10%] right-[-5%] w-[300px] md:w-[600px] h-[300px] md:h-[600px] bg-primary/5 rounded-full blur-[150px] animate-float opacity-30 pointer-events-none will-change-transform" />
+      <div className="absolute bottom-[20%] left-[-10%] w-[250px] md:w-[500px] h-[250px] md:h-[500px] bg-accent/5 rounded-full blur-[130px] animate-float opacity-20 pointer-events-none will-change-transform" style={{ animationDelay: "-4s" }} />
 
-        <div className="container relative py-16 md:py-24">
-          <div className="flex flex-col md:flex-row md:items-end gap-8">
-            {/* Avatar */}
-            <div className="relative">
-              <div className="h-28 w-28 md:h-36 md:w-36 rounded-3xl bg-warm grid place-items-center font-display text-4xl md:text-5xl font-semibold text-primary-foreground shadow-glow">
-                {initials}
+      <div id="profile-stats" className="container relative z-10 pt-16 md:pt-32 pb-12 md:pb-20">
+
+        {/* ── Hero Banner ── */}
+        <div className="flex flex-col md:flex-row md:items-end gap-6 md:gap-16 mb-10 md:mb-20">
+          {/* Avatar */}
+          <div className="relative shrink-0">
+            <div className="h-24 w-24 md:h-40 md:w-40 rounded-[2rem] md:rounded-[3.5rem] bg-muted/10 border border-border/60 flex items-center justify-center relative overflow-hidden group shadow-soft">
+              <div className="grain pointer-events-none" />
+              <span className="speak-serif text-4xl md:text-7xl text-primary relative z-10 italic">{initials}</span>
+              <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+            </div>
+            {practicedToday && (
+              <div className="absolute -bottom-2 -right-2 h-10 w-10 md:h-14 md:w-14 rounded-full bg-background border-2 border-primary flex items-center justify-center shadow-glow shadow-primary/20">
+                <Check className="h-4 w-4 md:h-6 md:w-6 text-primary" strokeWidth={3} />
               </div>
-              {practicedToday && (
-                <span className="absolute -bottom-2 -right-2 h-9 w-9 rounded-full bg-background border-2 border-primary grid place-items-center">
-                  <Check className="h-4 w-4 text-primary" />
-                </span>
+            )}
+          </div>
+
+          {/* Identity */}
+          <div className="flex-1 min-w-0 space-y-4 md:space-y-6">
+            <div className="flex items-center gap-3 text-xs font-black uppercase tracking-[0.5em] text-primary">
+              <ShieldCheck className="h-4 w-4" />
+              ACTIVE MEMBER
+            </div>
+            <h1 className="speak-serif text-3xl md:text-6xl lg:text-8xl leading-[0.9] tracking-tighter">
+              Hello, <span className="text-primary italic">{displayName}</span>.
+            </h1>
+            <p className="text-sm md:text-lg font-medium tracking-tight opacity-40 max-w-xl leading-relaxed">
+              {practicedToday
+                ? "Daily session complete. Your stats are looking good!"
+                : "Ready for your next drill?"}
+            </p>
+            <div className="flex flex-wrap items-center gap-4 pt-2">
+              <Link to="/tracks/impromptu" className="button-pill px-6 py-3 md:px-10 md:py-4 bg-primary text-white shadow-glow group inline-flex items-center gap-2">
+                <span className="text-xs md:text-xs font-black uppercase tracking-[0.2em]">START PRACTICE</span>
+                <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+              </Link>
+              <Link to="/report" className="button-pill px-6 py-3 md:px-10 md:py-4 border border-border/60 hover:border-primary/40 transition-all group inline-flex items-center gap-2">
+                <FileText className="h-4 w-4 opacity-40 group-hover:opacity-100" />
+                <span className="text-xs md:text-xs font-black uppercase tracking-[0.2em]">VIEW PROGRESS REPORT</span>
+              </Link>
+              {userXP !== undefined && (
+                <div className="flex flex-col">
+                  <span className="text-[11px] md:text-xs font-black uppercase tracking-[0.3em] opacity-40">TOTAL XP</span>
+                  <span className="speak-serif text-xl md:text-3xl italic text-primary">{userXP} XP</span>
+                </div>
               )}
             </div>
-
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-3 text-primary text-xs font-semibold tracking-[0.25em] uppercase mb-3">
-                <span className="h-px w-10 bg-primary" />
-                Your stage
-              </div>
-              <h1 className="font-display text-4xl md:text-6xl font-semibold leading-tight text-balance">
-                Hello, <em className="not-italic text-primary">{displayName}</em>.
-              </h1>
-              <p className="text-muted-foreground mt-3 max-w-xl">
-                {practicedToday
-                  ? "You've already shown up today. The room is warming."
-                  : "Five honest minutes today keeps the streak — and the muscle — alive."}
-              </p>
-            </div>
-
-            <div className="flex md:flex-col gap-3 md:items-end">
-              <Button variant="hero" size="lg" asChild>
-                <Link to="/tracks/impromptu">
-                  Practice now <ArrowRight className="h-4 w-4" />
-                </Link>
-              </Button>
-            </div>
-          </div>
-
-          {/* Quick stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-5 mt-12">
-            {[
-              { label: "Current streak", value: streak, suffix: "days", icon: Flame, accent: true },
-              { label: "Best streak", value: bestStreak, suffix: "days", icon: Trophy },
-              { label: "Recordings", value: stats.recordings, suffix: "saved", icon: Mic },
-              { label: "Practice time", value: stats.minutes, suffix: "min", icon: Calendar },
-            ].map((s) => (
-              <div
-                key={s.label}
-                className={cn(
-                  "relative bg-card-gradient border border-border rounded-2xl p-5",
-                  s.accent && "border-primary/40",
-                )}
-              >
-                <s.icon className={cn("h-5 w-5 mb-3", s.accent ? "text-primary" : "text-muted-foreground")} />
-                <div className="font-display text-3xl md:text-4xl font-semibold tabular-nums">
-                  {s.value}
-                  <span className="ml-2 text-sm text-muted-foreground font-sans font-normal">{s.suffix}</span>
-                </div>
-                <p className="text-xs uppercase tracking-widest text-muted-foreground mt-1">{s.label}</p>
-              </div>
-            ))}
           </div>
         </div>
-      </section>
 
-      {/* XP Card */}
-      {userXP !== undefined && (
-        <section className="container py-8">
-          <XPCard totalXP={userXP} displayName={displayName} />
-        </section>
-      )}
+        {/* ── Stats Grid ── */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-5 mb-10 md:mb-20">
+          {[
+            { label: "Current Streak", value: streak, suffix: "DAYS", icon: Flame, color: "text-orange-500" },
+            { label: "Best Streak", value: bestStreak, suffix: "DAYS", icon: Trophy, color: "text-amber-500" },
+            { label: "Total Recordings", value: stats.recordings, suffix: "DONE", icon: Mic, color: "text-primary" },
+            { label: "Practice Time", value: stats.minutes, suffix: "MINS", icon: Calendar, color: "text-blue-500" },
+          ].map((s) => (
+            <div
+              key={s.label}
+              className="bg-muted/5 border border-border/60 rounded-2xl md:rounded-[2.5rem] p-4 md:p-8 space-y-3 md:space-y-6 group hover:border-primary/30 transition-all duration-500 relative overflow-hidden"
+            >
+              <div className="grain pointer-events-none" />
+              <s.icon className={cn("h-4 w-4 md:h-5 md:w-5 opacity-20 group-hover:opacity-100 transition-all duration-500", s.color)} />
+              <div className="space-y-1">
+                <div className="speak-serif text-2xl md:text-4xl font-bold tabular-nums tracking-tighter italic">
+                  {s.value}
+                  <span className="ml-1 md:ml-2 text-[11px] md:text-xs font-black opacity-30 uppercase tracking-[0.3em] not-italic">{s.suffix}</span>
+                </div>
+                <p className="text-[11px] md:text-xs font-black uppercase tracking-[0.3em] opacity-30">{s.label}</p>
+              </div>
+            </div>
+          ))}
+        </div>
 
-      {/* Tabs */}
-      <section className="container py-12 md:py-16">
+        {/* ── Tabs ── */}
         <Tabs defaultValue="daily" className="w-full">
-          <TabsList className="grid w-full max-w-2xl grid-cols-4 mb-10">
-            <TabsTrigger value="daily">
-              <Zap className="h-4 w-4 md:mr-2" /> <span className="hidden md:inline">Daily</span>
-            </TabsTrigger>
-            <TabsTrigger value="streaks">
-              <Flame className="h-4 w-4 md:mr-2" /> <span className="hidden md:inline">Streaks</span>
-            </TabsTrigger>
-            <TabsTrigger value="recordings">
-              <Mic className="h-4 w-4 md:mr-2" /> <span className="hidden md:inline">Recordings</span>
-            </TabsTrigger>
-            <TabsTrigger value="challenges">
-              <Trophy className="h-4 w-4 md:mr-2" /> <span className="hidden md:inline">Achievements</span>
-            </TabsTrigger>
-          </TabsList>
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8 md:mb-14 border-b border-border/60 pb-6">
+            <div className="overflow-x-auto scrollbar-hide pb-1 -mx-4 px-4 lg:mx-0 lg:px-0">
+              <TabsList className="bg-muted/5 p-1.5 rounded-full h-auto flex flex-nowrap gap-1 border border-border/60 w-max min-w-full">
+                {["daily", "streak", "recordings", "achievements"].map(v => (
+                  <TabsTrigger
+                    key={v}
+                    value={v}
+                    className="rounded-full px-4 md:px-8 py-2.5 md:py-3 data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-glow transition-all text-[11px] md:text-xs font-black uppercase tracking-[0.2em] md:tracking-[0.3em] opacity-40 data-[state=active]:opacity-100 whitespace-nowrap"
+                  >
+                    {v}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </div>
+            <div className="hidden md:flex items-center gap-4 text-xs font-black uppercase tracking-[0.5em] opacity-20">
+              <Microscope className="h-4 w-4" />
+              DETAILED STATS
+            </div>
+          </div>
 
-          {/* DAILY CHALLENGES TAB */}
-          <TabsContent value="daily" className="space-y-8">
+          {/* ─ DAILY TAB ─ */}
+          <TabsContent value="daily" className="focus-visible:ring-0 focus-visible:outline-none animate-in fade-in duration-300">
             <DailyChallenges />
           </TabsContent>
 
-          {/* STREAKS TAB */}
-          <TabsContent value="streaks" className="space-y-10">
-            <div className="grid lg:grid-cols-3 gap-6">
-              {/* Big flame card */}
-              <div className="relative lg:col-span-1 bg-card-gradient border border-border rounded-3xl p-8 overflow-hidden">
-                <div className="absolute -top-10 -right-10 h-48 w-48 rounded-full bg-primary/20 blur-3xl" />
-                <Flame className="h-10 w-10 text-primary relative" />
-                <div className="font-display text-7xl font-semibold mt-4 tabular-nums relative">{streak}</div>
-                <p className="text-sm uppercase tracking-widest text-muted-foreground mt-1 relative">
-                  day{streak === 1 ? "" : "s"} on fire
-                </p>
-                <p className="text-sm text-muted-foreground mt-6 relative leading-relaxed">
+          {/* ─ STREAK TAB ─ */}
+          <TabsContent value="streak" className="space-y-8 focus-visible:ring-0 focus-visible:outline-none animate-in fade-in duration-300">
+            <div className="grid lg:grid-cols-[1fr_2fr] gap-6 md:gap-10">
+              {/* Streak counter */}
+              <div className="bg-muted/5 border border-border/60 rounded-[2.5rem] p-6 md:p-12 space-y-6 md:space-y-10 relative overflow-hidden">
+                <div className="grain pointer-events-none" />
+                <div className="space-y-3">
+                  <p className="text-xs font-black uppercase tracking-[0.5em] opacity-40">STREAK</p>
+                  <div className="flex items-baseline gap-4">
+                    <span className="speak-serif text-5xl md:text-[7rem] font-bold tracking-tighter text-primary leading-none italic">{streak}</span>
+                    <span className="text-base md:text-xl font-black uppercase tracking-[0.4em] opacity-20 italic">Days</span>
+                  </div>
+                </div>
+                <p className="text-sm font-medium tracking-tight opacity-40 leading-relaxed italic border-l border-primary/20 pl-6">
                   {streak === 0
-                    ? "Your streak resets when a day passes without practice. Today's the day to relight it."
-                    : practicedToday
-                    ? "You're locked in for today. Come back tomorrow to keep it burning."
-                    : "Don't let it go out — finish a quick drill before midnight."}
+                    ? "Your streak has ended. Record today to start again!"
+                    : "Keep it up! You're building a great habit."}
                 </p>
               </div>
 
-              {/* Last 7 days */}
-              <div className="lg:col-span-2 bg-card-gradient border border-border rounded-3xl p-8">
-                <p className="text-xs uppercase tracking-widest text-primary font-semibold mb-6">
-                  The last 7 days
-                </p>
-                <div className="flex items-end justify-between gap-2 md:gap-4 h-40">
-                  {last7.map((d, i) => (
-                    <div key={d.key} className="flex flex-col items-center gap-2 flex-1">
-                      <div className="flex-1 w-full flex items-end">
-                        <div
-                          className={cn(
-                            "w-full rounded-t-lg transition-all",
-                            d.hit ? "bg-warm h-full" : "bg-muted h-3",
-                          )}
-                          style={{ minHeight: d.hit ? "60%" : "12px" }}
-                        />
-                      </div>
-                      <span
+              {/* 7-day chart */}
+              <div className="bg-muted/5 border border-border/60 rounded-[2.5rem] p-6 md:p-12 space-y-6 md:space-y-10 relative overflow-hidden">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <p className="text-xs font-black uppercase tracking-[0.5em] opacity-40">PAST 7 DAYS</p>
+                  <div className="flex items-center gap-2">
+                    <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                    <span className="text-xs font-black uppercase tracking-[0.3em] text-primary">7-DAY ACTIVITY</span>
+                  </div>
+                </div>
+
+                <div className="flex items-end justify-between gap-2 md:gap-4 h-32 md:h-52">
+                  {last7.map((d) => (
+                    <div key={d.key} className="flex flex-col items-center gap-3 flex-1 h-full justify-end group">
+                      <div
                         className={cn(
-                          "text-xs font-mono",
-                          d.hit ? "text-foreground" : "text-muted-foreground",
-                          i === 6 && "text-primary font-semibold",
+                          "w-full rounded-lg transition-all duration-500",
+                          d.hit ? "bg-primary shadow-glow shadow-primary/20" : "bg-muted"
                         )}
-                      >
+                        style={{ height: d.hit ? "100%" : "8px" }}
+                      />
+                      <span className={cn(
+                        "text-[11px] md:text-xs font-black uppercase tracking-[0.3em] transition-colors duration-500",
+                        d.hit ? "text-primary" : "opacity-20 group-hover:opacity-40"
+                      )}>
                         {d.label}
                       </span>
                     </div>
                   ))}
                 </div>
-                <div className="flex items-center justify-between mt-6 text-sm text-muted-foreground">
-                  <span>{last7.filter((d) => d.hit).length} of 7 days hit</span>
-                  <span>{stats.days} total practice days</span>
-                </div>
               </div>
-            </div>
-
-            {/* Streak rules */}
-            <div className="border border-dashed border-border rounded-2xl p-6 bg-muted/20">
-              <p className="text-xs uppercase tracking-widest text-muted-foreground mb-3">
-                How streaks work
-              </p>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li>· One drill, one prompt, one recording — anything that finishes counts.</li>
-                <li>· You get one full day of grace; miss two and the count resets.</li>
-                <li>· Streaks sync across every device you sign into.</li>
-              </ul>
             </div>
           </TabsContent>
 
-          {/* RECORDINGS TAB */}
-          <TabsContent value="recordings" className="space-y-6">
+          {/* ─ RECORDINGS TAB ─ */}
+          <TabsContent value="recordings" className="focus-visible:ring-0 focus-visible:outline-none animate-in fade-in duration-300">
             {items.length === 0 ? (
-              <div className="text-center py-16">
-                <Mic className="h-16 w-16 text-muted-foreground/30 mx-auto mb-4" />
-                <p className="text-muted-foreground text-lg mb-2">No recordings yet</p>
-                <p className="text-muted-foreground/70 text-sm">Complete a practice session to see your recordings here.</p>
+              <div className="py-16 md:py-32 text-center space-y-6 border border-dashed border-border/60 rounded-[2.5rem] relative overflow-hidden">
+                <Mic className="h-16 w-16 md:h-24 md:w-24 opacity-5 mx-auto" />
+                <div className="space-y-3">
+                  <p className="speak-serif text-2xl md:text-3xl italic opacity-20">Your vault is empty.</p>
+                  <p className="text-xs font-black uppercase tracking-[0.5em] opacity-40">START YOUR FIRST SESSION</p>
+                </div>
+                <Link to="/tracks/impromptu" className="button-pill px-8 py-3 md:px-14 md:py-4 inline-flex">
+                  <span className="text-xs font-black uppercase tracking-[0.2em]">START PRACTICE</span>
+                </Link>
               </div>
             ) : (
-              <div className="grid md:grid-cols-2 gap-4 max-sm:w-full">
+              <div className="grid md:grid-cols-2 gap-4 md:gap-6">
                 {items.map((r) => {
                   const date = new Date(r.created_at);
                   const mins = Math.floor((r.duration_ms ?? 0) / 60000);
@@ -273,25 +256,28 @@ const Profile = () => {
                   return (
                     <div
                       key={r.id}
-                      className="bg-card-gradient border border-border rounded-2xl p-5 overflow-hidden"
+                      className="bg-muted/5 border border-border/60 rounded-2xl md:rounded-[2.5rem] p-5 md:p-8 hover:border-primary/40 transition-all group relative overflow-hidden"
                     >
-                      <div className="flex items-start justify-between gap-3 mb-3">
-                        <div className="min-w-0 flex-1">
-                          <p className="font-medium text-foreground truncate">
-                            {r.prompt_text ?? "Untitled recording"}
+                      <div className="grain pointer-events-none" />
+                      <div className="flex items-start justify-between gap-4 mb-4 md:mb-6">
+                        <div className="space-y-2 flex-1 min-w-0">
+                          <p className="speak-serif text-lg md:text-2xl italic truncate group-hover:text-primary transition-colors">
+                            {r.prompt_text ?? "FREE PRACTICE"}
                           </p>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })} · {mins}:{String(secs).padStart(2, "0")}
-                          </p>
+                          <div className="flex flex-wrap items-center gap-3 text-[11px] md:text-xs font-black uppercase tracking-[0.3em] opacity-30 group-hover:opacity-50 transition-opacity">
+                            <span>{date.toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
+                            <span className="h-1 w-1 rounded-full bg-primary" />
+                            <span>{mins}:{String(secs).padStart(2, "0")} DURATION</span>
+                          </div>
                         </div>
-                        <div className="shrink-0">
-                          <span className="text-[10px] uppercase tracking-widest text-muted-foreground px-2 py-1 bg-muted rounded">
-                            {r.difficulty ?? "—"}
-                          </span>
+                        <div className="shrink-0 h-10 w-10 md:h-14 md:w-14 rounded-full border border-border/60 flex items-center justify-center opacity-40 group-hover:opacity-100 group-hover:bg-primary/10 group-hover:border-primary transition-all duration-500">
+                          <Play className="h-4 w-4 md:h-5 md:w-5" fill="currentColor" />
                         </div>
                       </div>
                       {r.signedUrl && (
-                        <audio controls className="w-full h-6 mt-2 max-sm:max-w-full" src={r.signedUrl} />
+                        <div className="bg-muted/10 rounded-full p-2 border border-border/60 group-hover:border-primary/20 transition-all duration-500">
+                          <audio controls className="w-full h-8 md:h-10" src={r.signedUrl} />
+                        </div>
                       )}
                     </div>
                   );
@@ -300,24 +286,18 @@ const Profile = () => {
             )}
           </TabsContent>
 
-          {/* CHALLENGES TAB */}
-          <TabsContent value="challenges" className="space-y-8">
-            <div className="flex items-end justify-between gap-4 flex-wrap">
-              <div>
-                <h2 className="font-display text-3xl md:text-4xl font-semibold">
-                  <em className="text-primary not-italic">{completed}</em>
-                  <span className="text-muted-foreground"> / {CHALLENGES.length}</span> complete
+          {/* ─ ACHIEVEMENTS TAB ─ */}
+          <TabsContent value="achievements" className="space-y-10 md:space-y-16 focus-visible:ring-0 focus-visible:outline-none animate-in fade-in duration-300">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 md:gap-8">
+              <div className="space-y-3 md:space-y-4">
+                <p className="text-xs font-black uppercase tracking-[0.6em] text-primary">ACHIEVEMENTS</p>
+                <h2 className="speak-serif text-3xl md:text-6xl leading-none tracking-tighter">
+                  {completed} <span className="opacity-20">/ {CHALLENGES.length}</span> <span className="text-primary italic">Earned</span>.
                 </h2>
-                <p className="text-muted-foreground text-sm mt-1">
-                  Small wins that prove you're actually doing the work.
-                </p>
-              </div>
-              <div className="hidden md:flex items-center gap-2 text-xs uppercase tracking-widest text-muted-foreground">
-                <Sparkles className="h-4 w-4 text-accent" /> Earn badges as you go
               </div>
             </div>
 
-            <div className="grid md:grid-cols-2 gap-5">
+            <div className="grid md:grid-cols-2 gap-4 md:gap-6">
               {CHALLENGES.map((c) => {
                 const value = valueFor(c.metric);
                 const pct = Math.min(100, Math.round((value / c.goal) * 100));
@@ -327,49 +307,39 @@ const Profile = () => {
                   <div
                     key={c.id}
                     className={cn(
-                      "relative bg-card-gradient border rounded-3xl p-6 overflow-hidden transition-all",
-                      done ? "border-primary/50 shadow-glow" : "border-border hover:border-primary/30",
+                      "relative bg-muted/5 border rounded-2xl md:rounded-[2.5rem] p-5 md:p-8 flex items-start gap-4 md:gap-8 transition-all duration-500 group overflow-hidden",
+                      done ? "border-primary/30 bg-primary/[0.03]" : "border-border/60 grayscale opacity-50"
                     )}
                   >
-                    {done && (
-                      <div className="absolute top-4 right-4 flex items-center gap-1 text-xs font-semibold text-primary uppercase tracking-widest">
-                        <Check className="h-3 w-3" /> Done
-                      </div>
-                    )}
-                    <div
-                      className={cn(
-                        "h-12 w-12 rounded-2xl grid place-items-center mb-4",
-                        done ? "bg-warm" : "bg-muted border border-border",
-                      )}
-                    >
-                      {done ? (
-                        <Icon className="h-5 w-5 text-primary-foreground" />
-                      ) : value === 0 ? (
-                        <Lock className="h-4 w-4 text-muted-foreground" />
-                      ) : (
-                        <Icon className="h-5 w-5 text-foreground" />
-                      )}
+                    <div className="grain pointer-events-none" />
+                    <div className={cn(
+                      "h-12 w-12 md:h-16 md:w-16 rounded-xl md:rounded-2xl flex items-center justify-center shrink-0 transition-all duration-500",
+                      done ? "bg-primary text-white shadow-glow shadow-primary/20" : "bg-muted"
+                    )}>
+                      {done ? <Icon className="h-6 w-6 md:h-8 md:w-8" /> : <Lock className="h-5 w-5 md:h-6 md:w-6 opacity-10" />}
                     </div>
-                    <h3 className="font-display text-xl font-semibold leading-tight">{c.title}</h3>
-                    <p className="text-sm text-muted-foreground mt-1 mb-5">{c.detail}</p>
 
-                    {/* Progress */}
-                    <div className="flex items-center justify-between text-xs font-mono mb-2">
-                      <span className={cn(done ? "text-primary" : "text-muted-foreground")}>
-                        {Math.min(value, c.goal)} / {c.goal}
-                      </span>
-                      <span className="text-muted-foreground uppercase tracking-widest">
-                        {c.reward}
-                      </span>
-                    </div>
-                    <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
-                      <div
-                        className={cn(
-                          "h-full rounded-full transition-all duration-700",
-                          done ? "bg-warm" : "bg-primary/70",
-                        )}
-                        style={{ width: `${pct}%` }}
-                      />
+                    <div className="flex-1 min-w-0 space-y-4 md:space-y-6">
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <h3 className="speak-serif text-lg md:text-2xl italic group-hover:text-primary transition-colors">{c.title}</h3>
+                          {done && <Check className="h-5 w-5 text-primary shrink-0" strokeWidth={3} />}
+                        </div>
+                        <p className="text-xs md:text-sm font-medium opacity-40 leading-relaxed tracking-tight">{c.detail}</p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-[11px] md:text-xs font-black uppercase tracking-[0.3em]">
+                          <span className={done ? "text-primary" : "opacity-30"}>{Math.min(value, c.goal)} / {c.goal} ACHIEVED</span>
+                          <span className="opacity-20 hidden md:inline">{c.reward}</span>
+                        </div>
+                        <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden border border-border/60">
+                          <div
+                            className={cn("h-full rounded-full transition-all duration-700", done ? "bg-primary" : "bg-foreground/10")}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </div>
                     </div>
                   </div>
                 );
@@ -377,7 +347,7 @@ const Profile = () => {
             </div>
           </TabsContent>
         </Tabs>
-      </section>
+      </div>
     </main>
   );
 };

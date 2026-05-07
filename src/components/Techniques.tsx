@@ -1,4 +1,5 @@
-import { useInView } from "@/hooks/useInView";
+import { motion, useInView } from "framer-motion";
+import { useRef } from "react";
 
 const TECHNIQUES = [
   {
@@ -34,38 +35,71 @@ const TECHNIQUES = [
 ];
 
 export const Techniques = () => {
-  const { ref, isInView } = useInView({ threshold: 0.05 });
+  const ref = useRef(null);
+  const isInView = useInView(ref, { once: true, margin: "-100px" });
+
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1,
+        delayChildren: 0.2,
+      }
+    }
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 30 },
+    visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 50, damping: 15 } }
+  };
 
   return (
-    <section id="techniques" className="border-t border-border bg-muted/30" ref={ref}>
-      <div className="container py-24 md:py-32">
-        <div className={`max-w-2xl mb-16 ${isInView ? "animate-fade-up" : "opacity-0"}`}>
-          <div className="flex items-center gap-3 text-primary text-xs font-semibold tracking-[0.2em] uppercase mb-6">
-            <span className="h-px w-10 bg-primary" />
-            Six things great speakers do
+    <section id="techniques" className="border-t border-border/60 bg-secondary text-secondary-foreground" ref={ref}>
+      <div className="container py-32 md:py-60">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+          transition={{ duration: 0.8 }}
+          className="max-w-4xl mb-32"
+        >
+          <div className="text-xs font-bold uppercase tracking-[0.4em] mb-12 opacity-40">
+            PRINCIPLES OF AUTHORITY
           </div>
-          <h2 className="font-display text-4xl md:text-6xl font-semibold leading-[1.05] text-balance">
-            Small techniques. <em className="text-primary not-italic">Outsized presence.</em>
+          <h2 className="speak-serif text-5xl md:text-8xl leading-[0.9]">
+            Small techniques. <br />
+            <span className="text-primary italic">Outsized</span> presence.
           </h2>
-        </div>
+        </motion.div>
 
-        <div className="grid gap-x-12 gap-y-10 md:grid-cols-2 lg:grid-cols-3">
+        <motion.div 
+          variants={containerVariants}
+          initial="hidden"
+          animate={isInView ? "visible" : "hidden"}
+          className="grid md:grid-cols-2 gap-x-20 gap-y-32"
+        >
           {TECHNIQUES.map((t, i) => (
-            <div
+            <motion.div
               key={t.n}
-              className={`group ${isInView ? "animate-fade-up" : "opacity-0"}`}
-              style={{ animationDelay: `${i * 100 + 100}ms` }}
+              variants={itemVariants}
+              className="group"
             >
-              <div className="flex items-baseline gap-4 mb-4">
-                <span className="font-display text-5xl text-primary/40 font-semibold group-hover:text-primary transition-colors duration-500">
+              <div className="flex items-start gap-10">
+                <span className="speak-serif text-3xl md:text-5xl text-primary opacity-40 shrink-0">
                   {t.n}
                 </span>
-                <h3 className="font-display text-xl font-semibold leading-tight">{t.title}</h3>
+                <div className="space-y-6">
+                  <h3 className="speak-serif text-3xl md:text-4xl group-hover:text-primary transition-colors duration-500">
+                    {t.title}
+                  </h3>
+                  <p className="text-lg font-medium tracking-tight opacity-40 leading-relaxed group-hover:opacity-60 transition-opacity">
+                    {t.body}
+                  </p>
+                </div>
               </div>
-              <p className="text-muted-foreground leading-relaxed text-pretty pl-[4.5rem]">{t.body}</p>
-            </div>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       </div>
     </section>
   );

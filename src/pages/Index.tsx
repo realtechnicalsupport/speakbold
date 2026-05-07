@@ -1,24 +1,16 @@
 import { Hero } from "@/components/Hero";
-import { DailyChallenge } from "@/components/DailyChallenge";
-import { PickYourGoal } from "@/components/PickYourGoal";
-import { Tracks } from "@/components/Tracks";
-import { Techniques } from "@/components/Techniques";
 import { Progress } from "@/components/Progress";
 import { CTA } from "@/components/CTA";
-import { PreFlightBanner } from "@/components/PreFlightBanner";
+import { ImpactBanner } from "@/components/ImpactBanner";
+import { WhyItMatters } from "@/components/WhyItMatters";
 
 const Index = () => {
   return (
     <main className="min-h-screen bg-background">
       <h1 className="sr-only">SpeakBold — Build speaking confidence for public speaking, interviews, and impromptu moments</h1>
       <Hero />
-      <DailyChallenge />
-      <PickYourGoal />
-      <Tracks />
-      <section className="container py-8">
-        <PreFlightBanner />
-      </section>
-      <Techniques />
+      <ImpactBanner />
+      <WhyItMatters />
       <Progress />
       <CTA />
     </main>

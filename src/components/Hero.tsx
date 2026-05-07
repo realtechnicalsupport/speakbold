@@ -1,93 +1,169 @@
 import { Link } from "react-router-dom";
-import heroImage from "@/assets/hero-speaker.jpg";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Mic, User } from "lucide-react";
+import { ArrowRight, Mic, Globe, Clock, Sparkles } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { motion } from "framer-motion";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+
+interface GlobalStats {
+  drills: number;
+  sessions: number;
+  minutes: number;
+}
 
 export const Hero = () => {
   const { user } = useAuth();
+  const [stats, setStats] = useState<GlobalStats>({ drills: 0, sessions: 0, minutes: 0 });
+
+  useEffect(() => {
+    const fetchGlobalStats = async () => {
+      try {
+        const { data: metrics, error } = await supabase.rpc("get_global_metrics");
+
+        if (error) throw error;
+
+        if (metrics && metrics.length > 0) {
+          const m = metrics[0];
+          setStats({
+            drills: Number(m.total_drills),
+            sessions: Number(m.total_feedback),
+            minutes: Number(m.total_minutes),
+          });
+        }
+      } catch (err) {
+        console.error("Failed to fetch hero stats:", err);
+      }
+    };
+    fetchGlobalStats();
+  }, []);
   
   return (
-    <section className="relative min-h-[92vh] flex items-end overflow-hidden">
-      <img
-        src={heroImage}
-        alt="Confident speaker on stage under warm spotlight"
-        width={1920}
-        height={1080}
-        className="absolute inset-0 h-full w-full object-cover object-[75%_center] md:object-[80%_center] animate-fade-in duration-slow"
-      />
-      <div className="absolute inset-0 bg-gradient-to-r from-background via-background/80 to-background/30" />
-      <div className="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-transparent" />
-      <div className="absolute inset-0 bg-spotlight opacity-60" />
+    <section className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden bg-background bg-waves">
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 1.5 }}
+        className="absolute inset-0 pointer-events-none opacity-20"
+      >
+        <svg width="100%" height="100%" viewBox="0 0 1000 1000" xmlns="http://www.w3.org/2000/svg">
+          <motion.path 
+            initial={{ pathLength: 0 }}
+            animate={{ pathLength: 1 }}
+            transition={{ duration: 3, ease: "easeInOut" }}
+            d="M0,1000 C200,800 400,900 600,700 C800,500 900,600 1000,400" 
+            stroke="currentColor" strokeWidth="0.5" fill="none"
+          />
+          <motion.path 
+            initial={{ pathLength: 0 }}
+            animate={{ pathLength: 1 }}
+            transition={{ duration: 3, delay: 0.5, ease: "easeInOut" }}
+            d="M0,900 C200,700 400,800 600,600 C800,400 900,500 1000,300" 
+            stroke="currentColor" strokeWidth="0.5" fill="none"
+          />
+        </svg>
+      </motion.div>
 
-      <header className="absolute top-0 inset-x-0 z-20 animate-fade-down">
-        <div className="container flex items-center justify-between py-6">
-          <Link to="/" className="flex items-center gap-2 font-display text-xl font-semibold">
-            <span className="flex items-center justify-center h-9 w-9 rounded-full bg-warm text-primary-foreground animate-pulse-glow">
-              <Mic className="h-[18px] w-[18px]" />
+      <div className="container relative z-10 flex flex-col items-center text-center">
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8 }}
+          className="text-xs font-bold uppercase tracking-[0.4em] mb-20 opacity-60 flex items-center gap-4"
+        >
+          <Globe className="h-3 w-3 text-primary" />
+          UN SDG 4 · QUALITY EDUCATION
+          <span className="h-px w-8 bg-foreground/20" />
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 1, ease: "easeOut" }}
+          className="mb-12"
+        >
+           <h1 className="flex flex-col items-center select-none">
+            <span className="speak-serif text-5xl sm:text-7xl md:text-[120px] leading-[0.9] text-foreground tracking-tighter">SPEAK</span>
+            <span className="bold-sans text-[60px] sm:text-[100px] md:text-[160px] leading-[0.8] relative text-primary">
+              BOLD
+              <span className="absolute inset-0 text-primary opacity-20 blur-[1px] translate-x-[2px] translate-y-[2px]">BOLD</span>
             </span>
-            <span className="font-display text-xl font-semibold leading-none">Speak<em className="not-italic text-primary">Bold</em></span>
-          </Link>
-          <nav className="hidden md:flex items-center gap-7 text-sm text-muted-foreground">
-            <Link to="/tracks/public-speaking" className="hover:text-foreground transition-colors">Public Speaking</Link>
-            <Link to="/tracks/impromptu" className="hover:text-foreground transition-colors">Impromptu</Link>
-            <Link to="/tracks/interviews" className="hover:text-foreground transition-colors">Interviews</Link>
-            <Link to="/tracks/body-language" className="hover:text-foreground transition-colors">Body Language</Link>
-          </nav>
-          {user ? (
-            <Button variant="spotlight" size="sm" asChild>
-              <Link to="/profile">
-                <User className="h-4 w-4" />
-                <span className="hidden md:inline ml-2">{user.email?.split("@")[0]}</span>
-              </Link>
-            </Button>
-          ) : (
-            <Button variant="spotlight" size="sm" asChild>
-              <Link to="/login">Log in / Sign up</Link>
-            </Button>
-          )}
-        </div>
-      </header>
-
-      <div className="container relative z-10 pb-20 md:pb-32 pt-32">
-        <div className="max-w-3xl">
-          <div className="flex items-center gap-3 text-primary text-xs font-semibold tracking-[0.25em] uppercase mb-8 animate-fade-up delay-100">
-            <span className="h-px w-10 bg-primary" />
-            Speak with presence — free, no sign-up
-          </div>
-          <h1 className="font-display text-5xl sm:text-6xl md:text-8xl font-semibold leading-[0.95] tracking-tight text-balance mb-8 animate-fade-up delay-200">
-            The room <em className="text-primary not-italic">leans in</em> when you speak.
           </h1>
-          <p className="text-lg md:text-xl text-muted-foreground max-w-2xl text-pretty mb-10 leading-relaxed animate-fade-up delay-300">
-            Real lessons, prompts, drills, and a built-in recorder for public speaking,
-            impromptu thinking, job interviews, and the body language that makes people listen.
-          </p>
-          <div className="flex flex-wrap gap-4 animate-fade-up delay-400">
-            {user ? (
-              <Button variant="hero" size="xl" asChild>
-                <Link to="/tracks/public-speaking">
-                  Start Speaking
-                  <ArrowRight className="h-5 w-5" />
-                </Link>
-              </Button>
-            ) : (
-              <Button variant="hero" size="xl" asChild>
-                <Link to="/login">
-                  Try the 60-second drill
-                  <ArrowRight className="h-5 w-5" />
-                </Link>
-              </Button>
-            )}
-            <Button variant="outline" size="xl" asChild>
-              <a href="#tracks">Browse the four tracks</a>
-            </Button>
-          </div>
+        </motion.div>
 
-          <div className="flex flex-wrap items-center gap-x-10 gap-y-4 mt-16 text-sm text-muted-foreground animate-fade-up delay-500">
-            <div><span className="font-display text-2xl text-foreground font-semibold">5 min</span><br/>daily practice</div>
-            <div className="h-10 w-px bg-border hidden sm:block" />
-            <div><span className="font-display text-2xl text-foreground font-semibold">24</span><br/>impromptu prompts</div>
-          </div>
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 1, delay: 0.6 }}
+          className="text-lg md:text-2xl font-medium tracking-tight mb-20 max-w-2xl text-foreground/60"
+        >
+          Democratizing elite communication skills. Gamified <span className="text-primary italic">quality education</span> for anyone, anywhere.
+        </motion.p>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 0.8 }}
+          className="flex flex-col sm:flex-row items-center gap-6"
+        >
+          <Link 
+            to={user ? "/pathway" : "/login"}
+            className="group relative flex items-center gap-8 px-10 py-4 rounded-full bg-primary text-white hover:scale-105 transition-all duration-500 overflow-hidden shadow-glow"
+          >
+            <span className="text-white text-xl font-serif">✱</span>
+            <span className="text-sm font-black uppercase tracking-[0.3em]">
+              {user ? "THE JOURNEY" : "ACCESS PLATFORM"}
+            </span>
+            <span className="text-white text-xl font-serif">✱</span>
+          </Link>
+
+          <Link 
+            to={user ? "/arena" : "/login"}
+            className="group relative flex items-center gap-8 px-10 py-4 rounded-full border border-primary/30 hover:border-primary hover:bg-primary/5 transition-all duration-500 overflow-hidden"
+          >
+            <span className="text-primary text-xl font-serif animate-pulse">⚡</span>
+            <span className="text-sm font-black uppercase tracking-[0.3em] text-primary">
+              PRACTICE LOUNGE
+            </span>
+            <span className="text-primary text-xl font-serif animate-pulse">⚡</span>
+          </Link>
+        </motion.div>
+        {/* SDG 4 Impact Stats */}
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 1, delay: 1.2 }}
+          className="mt-24 w-full max-w-3xl mx-auto grid grid-cols-3 gap-4 px-4"
+        >
+          {[
+            { icon: Mic, value: stats.drills.toLocaleString(), label: "Practice drills completed" },
+            { icon: Sparkles, value: stats.sessions.toLocaleString(), label: "AI coaching sessions" },
+            { icon: Clock, value: stats.minutes.toLocaleString(), label: "Minutes practiced" },
+          ].map((stat, i) => {
+            const Icon = stat.icon;
+            return (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 1.3 + i * 0.15 }}
+                className="flex flex-col items-center gap-2 p-6 rounded-[1.5rem] bg-muted/5 border border-border/30"
+              >
+                <Icon className="h-5 w-5 text-primary opacity-60" />
+                <p className="speak-serif text-2xl font-bold italic text-primary">{stat.value}</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-30 text-center">{stat.label}</p>
+              </motion.div>
+            );
+          })}
+        </motion.div>
+      </div>
+
+      <div className="absolute bottom-10 left-0 right-0 px-10 flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-40">
+        <span>© {new Date().getFullYear()} SPEAKBOLD</span>
+        <div className="flex gap-8">
+          <span>PRACTICE</span>
+          <span>RECORD</span>
+          <span>MASTER</span>
         </div>
       </div>
     </section>

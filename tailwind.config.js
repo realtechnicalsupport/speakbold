@@ -76,6 +76,10 @@ export default {
         "accordion-down": { from: { height: "0" }, to: { height: "var(--radix-accordion-content-height)" } },
         "accordion-up": { from: { height: "var(--radix-accordion-content-height)" }, to: { height: "0" } },
       },
+      boxShadow: {
+        'glow': '0 0 20px hsl(var(--primary) / 0.3)',
+        'soft': '0 20px 40px rgba(0, 0, 0, 0.1)',
+      },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",

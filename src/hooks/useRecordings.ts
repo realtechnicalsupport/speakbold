@@ -15,7 +15,9 @@ export type CloudRecording = {
   signedUrl?: string;
 };
 
-export const useRecordings = () => {
+export type RecordingFilter = "impromptu" | "interview" | "daily-challenge" | "all";
+
+export const useRecordings = (filter: RecordingFilter = "all") => {
   const { user } = useAuth();
   const [items, setItems] = useState<CloudRecording[]>([]);
   const [loading, setLoading] = useState(false);
@@ -26,11 +28,26 @@ export const useRecordings = () => {
       return;
     }
     setLoading(true);
-    const { data, error } = await supabase
+    
+    // Build filter query
+    let query = supabase
       .from("recordings")
       .select("*")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false });
+      .eq("user_id", user.id);
+    
+    // Apply filter based on track
+    if (filter === "impromptu") {
+      query = query.in("difficulty", ["Easy", "Medium", "Hard"]);
+    } else if (filter === "interview") {
+      query = query.like("prompt_text", "Interview:%");
+    } else if (filter === "daily-challenge") {
+      query = query.like("prompt_text", "The Elevator Pitch%")
+        .or("prompt_text.like.Explain It Simply%")
+        .or("prompt_text.like.Impromptu Story%");
+    }
+    
+    const { data, error } = await query.order("created_at", { ascending: false });
+    
     if (!error && data) {
       const withUrls = data.map((r: any) => {
         // Use public URL directly
@@ -40,7 +57,7 @@ export const useRecordings = () => {
       setItems(withUrls as CloudRecording[]);
     }
     setLoading(false);
-  }, [user]);
+  }, [user, filter]);
 
   useEffect(() => {
     refresh();

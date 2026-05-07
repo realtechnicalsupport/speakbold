@@ -1,107 +1,136 @@
-import { Trophy, ArrowRight } from "lucide-react";
+import { Trophy, ArrowRight, Target, Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { rankFor } from "@/lib/rank";
 import { useLeaderboard } from "@/hooks/useLeaderboard";
 import { useAuth } from "@/context/AuthContext";
-import { useInView } from "@/hooks/useInView";
+import { motion, useInView } from "framer-motion";
+import { useRef } from "react";
+import { cn } from "@/lib/utils";
 
 export const Progress = () => {
-  const { ref, isInView } = useInView({ threshold: 0.1 });
+  const ref = useRef(null);
+  const isInView = useInView(ref, { once: true, margin: "-100px" });
   const { rows, loading } = useLeaderboard(5);
   const { user } = useAuth();
 
   const topFive = rows.slice(0, 5);
 
-  const getMedalEmoji = (position: number) => {
-    switch (position) {
-      case 1: return "🏆";
-      case 2: return "🥈";
-      case 3: return "🥉";
-      default: return null;
-    }
-  };
-
   return (
-    <section id="progress" className="container py-24 md:py-32 border-t border-border" ref={ref}>
-      <div className="grid lg:grid-cols-2 gap-16 items-center">
-        <div className={isInView ? "animate-fade-right" : "opacity-0"}>
-          <div className="flex items-center gap-3 text-primary text-xs font-semibold tracking-[0.2em] uppercase mb-6">
-            <span className="h-px w-10 bg-primary" />
-            Leaderboard
+    <section id="progress" className="container py-32 md:py-60 border-t border-border/60 relative overflow-hidden" ref={ref}>
+      {/* Background Decorative Element */}
+      <div className="absolute top-1/2 left-0 w-[500px] h-[500px] bg-primary/5 rounded-full blur-[150px] animate-pulse-subtle pointer-events-none" />
+
+      <div className="grid lg:grid-cols-2 gap-24 items-center relative z-10">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+          transition={{ duration: 0.8 }}
+        >
+          <div className="flex items-center gap-4 text-xs font-bold uppercase tracking-[0.4em] mb-12 opacity-40">
+            <span className="h-px w-8 bg-foreground/20" />
+            GLOBAL HIERARCHY
           </div>
-          <h2 className="font-display text-4xl md:text-6xl font-semibold leading-[1.05] text-balance mb-8">
-            See how you <em className="text-primary not-italic">rank</em> against others.
+          <h2 className="speak-serif text-5xl md:text-8xl leading-[0.9] text-foreground mb-12 tracking-tighter">
+            See how you <br />
+            <span className="text-primary italic">rank</span> globally.
           </h2>
-          <p className="text-muted-foreground text-lg leading-relaxed text-pretty mb-10 max-w-lg">
-            Practice daily, earn XP, and climb the leaderboard. Join thousands of speakers competing for the top spot.
+          <p className="text-lg md:text-2xl font-medium tracking-tight opacity-60 mb-12 max-w-lg leading-relaxed">
+            Consistency is the only metric that matters. Earn XP through daily drills and ascend the hierarchy.
           </p>
-          <Link to="/leaderboard" className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:bg-primary/90 transition-colors">
-            View Full Leaderboard
-            <ArrowRight className="h-4 w-4" />
+          <Link to="/leaderboard" className="button-pill inline-flex items-center gap-6 group hover:scale-105 transition-transform">
+            <span className="text-xs font-black uppercase tracking-widest">FULL LEADERBOARD</span>
+            <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
           </Link>
-        </div>
+        </motion.div>
 
-        <Card className={`bg-card-gradient border border-border rounded-3xl shadow-soft overflow-hidden ${isInView ? "animate-scale-in" : "opacity-0"}`} style={{ animationDelay: "200ms" }}>
-          <CardHeader className="bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-t-lg pb-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Trophy className="w-5 h-5" />
-                <CardTitle>Top Speakers</CardTitle>
-              </div>
+        <motion.div
+          initial={{ opacity: 0, y: 40 }}
+          animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 40 }}
+          transition={{ duration: 0.8, delay: 0.2 }}
+        >
+          <div className="rounded-[3.5rem] border border-border/60 bg-muted/5 overflow-hidden p-8 md:p-14 shadow-soft relative group hover:border-primary/20 transition-all duration-700">
+             {/* Inner Glow */}
+             <div className="absolute top-0 right-0 p-10 opacity-5 group-hover:opacity-10 transition-opacity">
+               <Trophy className="h-32 w-32" />
+             </div>
+
+            <div className="flex items-center gap-4 mb-14 opacity-40 relative z-10">
+              <Sparkles className="w-5 h-5 text-primary" />
+              <span className="text-xs font-black uppercase tracking-[0.2em]">CURRENT STANDINGS</span>
             </div>
-          </CardHeader>
-          <CardContent className="p-4 space-y-3">
-            {loading ? (
-              Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="flex items-center justify-between p-2">
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <Skeleton className="w-6 h-6 rounded" />
-                    <Skeleton className="w-24 h-4" />
+            
+            <div className="space-y-4 relative z-10">
+              {loading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="flex items-center justify-between p-6 bg-muted/20 rounded-2xl">
+                    <Skeleton className="w-48 h-6" />
+                    <Skeleton className="w-12 h-6" />
                   </div>
-                  <Skeleton className="w-16 h-4" />
+                ))
+              ) : topFive.length === 0 ? (
+                <div className="py-20 text-center space-y-4 opacity-40">
+                  <Target className="h-12 w-12 mx-auto" />
+                  <p className="text-xs font-bold uppercase tracking-widest">No protocol data available</p>
                 </div>
-              ))
-            ) : topFive.length === 0 ? (
-              <p className="text-center text-sm text-gray-500 py-4">No users yet</p>
-            ) : (
-              topFive.map((entry, index) => {
-                const rankData = rankFor(entry.xp);
-                const isCurrentUser = entry.id === user?.id;
-                const medal = getMedalEmoji(index + 1);
-                const position = index + 1;
+              ) : (
+                topFive.map((entry, index) => {
+                  const rankData = rankFor(entry.xp);
+                  const isCurrentUser = entry.id === user?.id;
+                  const position = index + 1;
 
-                return (
-                  <div
-                    key={entry.id}
-                    className={`flex items-center justify-between p-3 rounded-lg transition-colors border-2 border-transparent ${
-                      isCurrentUser ? "border-primary bg-primary/10" : "hover:bg-muted"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <div className="flex-shrink-0 w-5 text-center font-semibold">
-                        {medal || `#${position}`}
+                  return (
+                    <motion.div
+                      key={entry.id}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={isInView ? { opacity: 1, x: 0 } : { opacity: 0, x: -10 }}
+                      transition={{ delay: 0.4 + index * 0.1 }}
+                      className={cn(
+                        "flex items-center justify-between p-6 rounded-[2.5rem] transition-all duration-500",
+                        isCurrentUser ? "bg-primary border border-primary text-white shadow-glow" : "bg-background/40 border border-border/60 hover:border-primary/40 hover:bg-primary/[0.02]"
+                      )}
+                    >
+                      <div className="flex items-center gap-6">
+                        <span className={cn(
+                          "speak-serif text-xl w-6",
+                          isCurrentUser ? "text-white" : "opacity-40"
+                        )}>
+                          {position}
+                        </span>
+                        <div className="h-12 w-12 rounded-full bg-background/10 flex items-center justify-center text-2xl shadow-inner">
+                          {rankData.emblem}
+                        </div>
+                        <div>
+                          <p className={cn(
+                            "text-xs font-black tracking-widest uppercase",
+                            isCurrentUser ? "text-white" : "text-foreground"
+                          )}>
+                            {entry.display_name}
+                          </p>
+                          {isCurrentUser && (
+                            <span className="text-[11px] font-black text-white/60 uppercase tracking-widest">MASTER RANK</span>
+                          )}
+                        </div>
                       </div>
-                      <div className="text-xl flex-shrink-0">{rankData.emblem}</div>
-                      <div className="min-w-0 flex-1">
-                        <p className="font-semibold text-foreground text-sm truncate">
-                          {entry.display_name}
-                          {isCurrentUser && <Badge className="ml-2 bg-primary text-primary-foreground text-xs">You</Badge>}
+                      <div className="text-right">
+                        <p className={cn(
+                          "text-2xl font-sans-bold tracking-tighter tabular-nums",
+                          isCurrentUser ? "text-white" : "text-foreground"
+                        )}>
+                          {entry.xp.toLocaleString()}
                         </p>
+                        <p className={cn(
+                          "text-[11px] font-black uppercase tracking-widest",
+                          isCurrentUser ? "text-white/60" : "opacity-40"
+                        )}>XP</p>
                       </div>
-                    </div>
-                    <div className="flex-shrink-0 text-right">
-                      <p className="font-bold text-foreground">{entry.xp.toLocaleString()}</p>
-                      <p className="text-xs text-muted-foreground">XP</p>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </CardContent>
-        </Card>
+                    </motion.div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </motion.div>
       </div>
     </section>
   );

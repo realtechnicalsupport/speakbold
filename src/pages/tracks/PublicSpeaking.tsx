@@ -2,65 +2,47 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { TrackShell } from "@/components/TrackShell";
 import { RecorderPanel } from "@/components/RecorderPanel";
+import { RecordingsList } from "@/components/RecordingsList";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import { 
   Check, 
   ChevronRight, 
-  AlertTriangle,
   Play,
   Pause,
   RotateCcw,
   Mic,
   MicOff,
   Trophy,
-  ArrowRight,
   Volume2,
   Clock,
   Target,
   Zap,
   Sparkles,
   Loader2,
-  FolderOpen,
-  Trash2,
-  Download,
-  Calendar,
-  X
+  X,
+  RefreshCw,
+  ShieldCheck,
+  ZapOff,
+  ArrowRight
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { useRecordings, useSyncedStreak } from "@/hooks/useRecordings";
-import { FloatingTimer } from "@/components/FloatingTimer";
+import { RecordingFeedbackModal } from "@/components/RecordingFeedback";
 import { toast } from "@/hooks/use-toast";
 import { generateSpeakingDrills, type SpeakingDrill as AISpeakingDrill } from "@/services/geminiService";
 import { setTimerActive } from "@/lib/timerState";
 import { setRecordingActive } from "@/lib/recordingState";
+import { motion, AnimatePresence } from "framer-motion";
 
 type Context = "small" | "large" | "stage" | "virtual";
 
 const CONTEXTS: { id: Context; label: string; desc: string }[] = [
-  { id: "small", label: "Small meeting", desc: "Under 20 people" },
-  { id: "large", label: "Conference room", desc: "20-100 people" },
-  { id: "stage", label: "Large event", desc: "100+ people" },
-  { id: "virtual", label: "Virtual / video", desc: "On screen" },
+  { id: "small", label: "INTIMATE", desc: "Small meeting context" },
+  { id: "large", label: "STRATEGIC", desc: "Boardroom / Conference" },
+  { id: "stage", label: "COMMAND", desc: "Large audience event" },
+  { id: "virtual", label: "DIGITAL", desc: "Virtual / Screen context" },
 ];
 
 interface Drill {
@@ -74,28 +56,6 @@ interface Drill {
   contexts: Record<Context, string>;
   isAI?: boolean;
 }
-
-interface SavedRecording {
-  id: string;
-  drillId: string;
-  drillTitle: string;
-  blob: Blob;
-  url: string;
-  timestamp: number;
-  duration: number;
-  attemptNumber: number;
-}
-
-const RECORDINGS_STORAGE_KEY = "speakbold:speaking-recordings";
-
-const formatDate = (timestamp: number): string => {
-  return new Date(timestamp).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-};
 
 const DEFAULT_DRILLS: Drill[] = [
   {
@@ -246,20 +206,7 @@ const DEFAULT_DRILLS: Drill[] = [
   },
 ];
 
-const CommonMistake = ({ children, onDismiss }: { children: React.ReactNode; onDismiss?: () => void }) => (
-  <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-4 flex items-start gap-3">
-    <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-    <div className="text-sm text-foreground/90 flex-1">{children}</div>
-    {onDismiss && (
-      <button onClick={onDismiss} className="text-muted-foreground hover:text-foreground transition-colors shrink-0">
-        <X className="h-4 w-4" />
-      </button>
-    )}
-  </div>
-);
-
 const PublicSpeaking = () => {
-  // Drills state (includes AI generated drills)
   const [drills, setDrills] = useState<Drill[]>(DEFAULT_DRILLS);
   const [activeDrill, setActiveDrill] = useState(0);
   const [context, setContext] = useState<Context>("large");
@@ -268,15 +215,10 @@ const PublicSpeaking = () => {
     return saved ? new Set(JSON.parse(saved)) : new Set();
   });
   const [recordEnabled, setRecordEnabled] = useState(false);
-  const [dismissedTips, setDismissedTips] = useState<Set<string>>(new Set());
 
   // AI generation state
   const [isGenerating, setIsGenerating] = useState(false);
   const [aiFocus, setAiFocus] = useState("Vocal Variety");
-  const [aiCount, setAiCount] = useState(2);
-
-  // Saved recordings state
-  const [savedRecordings, setSavedRecordings] = useState<SavedRecording[]>([]);
   
   // Timer state
   const [duration, setDuration] = useState(DEFAULT_DRILLS[0].duration);
@@ -288,6 +230,7 @@ const PublicSpeaking = () => {
     setTimerActive(running || pausedAt !== null);
     return () => setTimerActive(false);
   }, [running, pausedAt]);
+
   const idRef = useRef<number | null>(null);
   const hasStartedRef = useRef<boolean>(false);
   const wasRunningRef = useRef<boolean>(false);
@@ -299,96 +242,16 @@ const PublicSpeaking = () => {
   const recorderStopRef = useRef<() => void>();
   
   const { user } = useAuth();
-  const { upload: uploadRecording, refresh: refreshRecordings } = useRecordings();
+  const { upload: uploadRecording, refresh: refreshRecordings } = useRecordings("impromptu");
   const { markPracticed } = useSyncedStreak();
   
   const current = drills[activeDrill >= 0 ? activeDrill : 0];
-
-  // Load saved recordings from localStorage
-  useEffect(() => {
-    const loadRecordings = async () => {
-      try {
-        const stored = localStorage.getItem(RECORDINGS_STORAGE_KEY);
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          const recs: SavedRecording[] = await Promise.all(
-            parsed.map(async (r: SavedRecording & { blobData: string }) => {
-              const response = await fetch(r.blobData);
-              const blob = await response.blob();
-              return {
-                ...r,
-                blob,
-                url: URL.createObjectURL(blob),
-              };
-            })
-          );
-          setSavedRecordings(recs);
-        }
-      } catch (error) {
-        console.error("Failed to load recordings:", error);
-      }
-    };
-    loadRecordings();
-  }, []);
-
-  // Save recordings to localStorage
-  const saveRecordingsToStorage = useCallback(async (recs: SavedRecording[]) => {
-    try {
-      const dataToStore = await Promise.all(
-        recs.map(async (r) => {
-          const reader = new FileReader();
-          const blobData = await new Promise<string>((resolve) => {
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.readAsDataURL(r.blob);
-          });
-          return {
-            id: r.id,
-            drillId: r.drillId,
-            drillTitle: r.drillTitle,
-            timestamp: r.timestamp,
-            duration: r.duration,
-            attemptNumber: r.attemptNumber,
-            blobData,
-          };
-        })
-      );
-      localStorage.setItem(RECORDINGS_STORAGE_KEY, JSON.stringify(dataToStore));
-    } catch (error) {
-      console.error("Failed to save recordings:", error);
-    }
-  }, []);
-
-  // Get recordings for current drill
-  const currentDrillRecordings = savedRecordings
-    .filter((r) => r.drillId === current?.id)
-    .sort((a, b) => b.timestamp - a.timestamp);
-
-  // Delete a recording
-  const deleteRecording = (recordingId: string) => {
-    const recording = savedRecordings.find((r) => r.id === recordingId);
-    if (recording) {
-      URL.revokeObjectURL(recording.url);
-    }
-    const updated = savedRecordings.filter((r) => r.id !== recordingId);
-    setSavedRecordings(updated);
-    saveRecordingsToStorage(updated);
-  };
-
-  // Download a recording
-  const downloadRecording = (recording: SavedRecording) => {
-    const a = document.createElement("a");
-    a.href = recording.url;
-    a.download = `Speaking-${recording.drillTitle.replace(/[^a-z0-9]/gi, '_')}-Attempt${recording.attemptNumber}.webm`;
-    a.click();
-  };
 
   // AI Drill Generation
   const generateAIDrills = async () => {
     setIsGenerating(true);
     try {
-      const newDrills = await generateSpeakingDrills(aiFocus, aiCount);
-      
-      // Convert AI drills to our format
+      const newDrills = await generateSpeakingDrills(aiFocus, 2);
       const formattedDrills: Drill[] = newDrills.map((d, idx) => ({
         id: `ai-drill-${Date.now()}-${idx}`,
         title: d.title,
@@ -408,13 +271,12 @@ const PublicSpeaking = () => {
 
       setDrills(prev => [...prev, ...formattedDrills]);
       toast({
-        title: "Drills generated",
+        title: "Protocol Synthesized",
         description: `Added ${formattedDrills.length} new AI-generated drills.`,
       });
     } catch (error) {
-      console.error("Failed to generate drills:", error);
       toast({
-        title: "Generation failed",
+        title: "Synthesis failed",
         description: "Could not generate drills. Please try again.",
         variant: "destructive",
       });
@@ -506,365 +368,355 @@ const PublicSpeaking = () => {
 
   return (
     <TrackShell
-      eyebrow="Public Speaking - 6 drills"
+      eyebrow="MODULE 01 — PERFORMANCE"
       title={
         <>
-          Train the skills that make talks <em className="text-primary not-italic">land.</em>
+          Train the skills that make talks <span className="text-primary italic">land.</span>
         </>
       }
-      intro="Six focused drills on hooks, structure, pause, pace, energy, and the close. Each one is timed practice - record yourself, listen back, improve."
+      intro="Focused drills on hooks, structure, pause, and pace. Each session is a timed operational drill. Record, audit, and evolve your presence."
       hideHeader={running || pausedAt !== null}
     >
-      {/* Progress bar */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-sm text-muted-foreground">Drills completed</span>
-          <span className="text-sm font-medium">{completedCount}/{drills.length} mastered</span>
-        </div>
-        <div className="h-2 bg-muted rounded-full overflow-hidden">
-          <div 
-            className="h-full bg-primary transition-all duration-500"
-            style={{ width: `${(completedCount / drills.length) * 100}%` }}
-          />
-        </div>
-      </div>
+      {/* Background Decorative Drifting Glow */}
+      <div className="absolute top-[20%] right-[10%] w-[250px] h-[250px] md:w-[400px] md:h-[400px] bg-primary/5 rounded-full blur-[120px] animate-float opacity-30 pointer-events-none" />
 
-      {/* Context selector */}
-      <div className="mb-8">
-        <p className="text-xs uppercase tracking-widest text-muted-foreground mb-3">What&apos;s your speaking context?</p>
-        <div className="flex flex-wrap gap-2">
-          {CONTEXTS.map((c) => (
-            <button
-              key={c.id}
-              onClick={() => setContext(c.id)}
-              className={cn(
-                "px-4 py-2 rounded-full text-sm border transition-colors",
-                context === c.id
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-card border-border text-muted-foreground hover:border-foreground"
-              )}
-            >
-              {c.label}
-            </button>
-          ))}
-        </div>
-        <p className="text-sm text-muted-foreground mt-2">
-          Adjusting guidance for {CONTEXTS.find((c) => c.id === context)?.desc.toLowerCase()}
-        </p>
-      </div>
-
-{!dismissedTips.has("filler") && (
-        <CommonMistake onDismiss={() => setDismissedTips(prev => new Set([...prev, "filler"]))}>
-          Filler words ("um", "like") destroy credibility. If you pause instead, you're powerful.
-        </CommonMistake>
-      )}
-
-      <div className="grid lg:grid-cols-[1fr_420px] gap-10 mt-6">
-        {/* Drills list */}
-        <div className="space-y-4">
-          {drills.map((drill, i) => {
-            const isActive = activeDrill === i;
-            const isCompleted = completedDrills.has(drill.id);
-            
-            return (
-              <article
-                key={drill.id}
-                className={cn(
-                  "border rounded-2xl overflow-hidden transition-all",
-                  isActive 
-                    ? "bg-card-gradient border-primary/40 shadow-soft" 
-                    : "bg-card border-border hover:border-foreground/30",
-                )}
-              >
-                <button
-                  onClick={() => setActiveDrill(activeDrill === i ? -1 : i)}
-                  className="w-full flex items-center justify-between gap-4 p-6 text-left"
-                >
-                  <div className="flex items-center gap-4">
-                    <span className={cn(
-                      "grid place-items-center h-10 w-10 rounded-full font-display text-lg font-semibold shrink-0",
-                      isCompleted ? "bg-green-500/10 text-green-600" : "bg-muted"
-                    )}>
-                      {isCompleted ? <Check className="h-5 w-5" /> : i + 1}
-                    </span>
-                    <div>
-                      <h3 className="font-display text-xl md:text-2xl font-semibold">{drill.title}</h3>
-                      <div className="flex items-center gap-3 mt-1">
-                        <span className="text-xs text-muted-foreground flex items-center gap-1">
-                          <Clock className="h-3.5 w-3.5" />
-                          {drill.duration}s
-                        </span>
-                        {isCompleted && (
-                          <span className="text-xs text-green-600 font-medium">Completed</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <ChevronRight
-                    className={cn(
-                      "h-5 w-5 transition-transform shrink-0",
-                      isActive ? "rotate-90 text-primary" : "text-muted-foreground",
-                    )}
-                  />
-                </button>
-                
-                {isActive && (
-                  <div className="px-6 pb-7 space-y-6 animate-fade-in">
-                    {/* Objective */}
-                    <div className="bg-muted/30 rounded-xl p-4">
-                      <p className="text-xs uppercase tracking-widest text-primary mb-2 flex items-center gap-2">
-                        <Target className="h-3.5 w-3.5" />
-                        Objective
-                      </p>
-                      <p className="text-foreground/90 leading-relaxed">{drill.objective}</p>
-                    </div>
-
-                    {/* Instructions */}
-                    <div>
-                      <p className="text-xs uppercase tracking-widest text-muted-foreground mb-3">Instructions</p>
-                      <ol className="space-y-2">
-                        {drill.instructions.map((step, idx) => (
-                          <li key={idx} className="flex items-start gap-3 text-sm">
-                            <span className="h-5 w-5 rounded-full bg-primary/10 text-primary text-xs flex items-center justify-center shrink-0 mt-0.5">
-                              {idx + 1}
-                            </span>
-                            <span className="text-foreground/85">{step}</span>
-                          </li>
-                        ))}
-                      </ol>
-                    </div>
-
-                    {/* Prompt */}
-                    <div className="border-l-2 border-primary pl-4">
-                      <p className="text-xs uppercase tracking-widest text-primary mb-2 flex items-center gap-2">
-                        <Volume2 className="h-3.5 w-3.5" />
-                        Your prompt
-                      </p>
-                      <p className="font-display text-lg italic leading-relaxed">{drill.prompt}</p>
-                    </div>
-
-                    {/* Context-specific guidance */}
-                    <div className="bg-card border border-border rounded-xl p-4">
-                      <p className="text-xs uppercase tracking-widest text-primary font-semibold mb-2 flex items-center gap-2">
-                        <Zap className="h-3.5 w-3.5" />
-                        In a {context === "small" ? "small room" : context === "large" ? "large room" : context === "stage" ? "large event" : "virtual setting"}:
-                      </p>
-                      <p className="text-sm text-foreground/90">{drill.contexts[context]}</p>
-                    </div>
-                  </div>
-                )}
-              </article>
-            );
-          })}
-        </div>
-
-        {/* Practice panel - sticky sidebar */}
-        <aside className="lg:sticky lg:top-24 self-start space-y-6">
-          {/* Timer and controls */}
-          <div className="relative bg-card-gradient border border-border rounded-3xl p-6 overflow-hidden">
-            <div
-              className="absolute top-0 left-0 h-1 bg-warm transition-all duration-1000 ease-linear"
-              style={{ width: `${pct}%` }}
-            />
-            
-            <div className="text-center mb-6">
-              <p className="text-xs uppercase tracking-widest text-muted-foreground mb-2">
-                Drill {activeDrill >= 0 ? activeDrill + 1 : 1}: {current.title}
-              </p>
-              <span className="font-mono tabular-nums text-5xl font-bold">
-                {mins}:{String(secs).padStart(2, "0")}
-              </span>
+      <div className="grid lg:grid-cols-[1fr_400px] gap-6 lg:gap-12 relative z-10">
+        <div className="space-y-6 md:space-y-10 min-w-0">
+          {/* Progress Section */}
+          <div className="bg-muted/5 border border-border/60 rounded-2xl md:rounded-[2.5rem] p-6 md:p-10 flex items-center justify-between shadow-soft overflow-hidden">
+            <div className="space-y-2">
+              <p className="text-xs font-black uppercase tracking-[0.4em] opacity-40">OPERATIONAL MASTERY</p>
+              <h3 className="speak-serif text-xl md:text-3xl">{completedCount} / {drills.length} <span className="opacity-40 italic text-sm md:text-base block md:inline mt-1 md:mt-0">drills completed</span></h3>
             </div>
+            <div className="h-16 w-16 rounded-full border-4 border-muted flex items-center justify-center relative">
+               <svg className="absolute inset-0 h-full w-full -rotate-90">
+                 <circle
+                   cx="32"
+                   cy="32"
+                   r="28"
+                   fill="none"
+                   stroke="currentColor"
+                   strokeWidth="4"
+                   className="text-primary"
+                   strokeDasharray={176}
+                   strokeDashoffset={176 - (176 * (completedCount / drills.length))}
+                   strokeLinecap="round"
+                 />
+               </svg>
+               <span className="text-xs font-bold">{Math.round((completedCount / drills.length) * 100)}%</span>
+            </div>
+          </div>
 
-            {/* Timer presets */}
-            <div className="flex flex-wrap items-center justify-center gap-2 mb-5">
-              {[30, 45, 60, 90].map((d) => (
-                <button
-                  key={d}
-                  onClick={() => { setDuration(d); setSeconds(d); setRunning(false); }}
+          {/* Drills List */}
+          <div className="space-y-6">
+            <div className="flex items-center gap-4 text-xs font-black uppercase tracking-[0.5em] opacity-40 mb-8">
+              <Target className="h-3 w-3" />
+              AVAILABLE PROTOCOLS
+            </div>
+            {drills.map((drill, i) => {
+              const isActive = activeDrill === i;
+              const isCompleted = completedDrills.has(drill.id);
+              
+              return (
+                <motion.article
+                  key={drill.id}
+                  initial={false}
                   className={cn(
-                    "px-3 py-1.5 rounded-full text-xs border transition-colors",
-                    duration === d
-                      ? "bg-foreground text-background border-foreground"
-                      : "border-border text-muted-foreground hover:text-foreground"
+                    "border rounded-2xl md:rounded-[2.5rem] transition-all duration-500 overflow-hidden group",
+                    isActive 
+                      ? "bg-muted/10 border-primary/40 shadow-glow shadow-primary/5" 
+                      : "bg-muted/5 border-border/60 hover:border-primary/20",
                   )}
                 >
-                  {d}s
-                </button>
-              ))}
-            </div>
+                  <button
+                    onClick={() => setActiveDrill(isActive ? -1 : i)}
+                    className="w-full flex items-center justify-between gap-4 md:gap-6 p-5 md:p-8 text-left"
+                  >
+                    <div className="flex items-center gap-4 md:gap-6 min-w-0">
+                      <div className={cn(
+                        "h-10 w-10 md:h-14 md:w-14 shrink-0 rounded-full flex items-center justify-center font-sans-bold text-base md:text-lg border-2 transition-all duration-500 italic",
+                        isCompleted ? "bg-primary/10 border-primary text-primary" : "bg-muted border-border/60 text-foreground/40 group-hover:border-primary/30"
+                      )}>
+                        {isCompleted ? <Check className="h-6 w-6" /> : i + 1}
+                      </div>
+                      <div>
+                        <h3 className={cn(
+                          "speak-serif text-xl md:text-3xl transition-colors truncate",
+                          isActive ? "text-primary" : "text-foreground"
+                        )}>{drill.title}</h3>
+                        <div className="flex items-center gap-4 mt-2">
+                          <span className="text-xs font-black uppercase tracking-widest opacity-40 flex items-center gap-1.5">
+                            <Clock className="h-3 w-3" />
+                            {drill.duration}S TARGET
+                          </span>
+                          {drill.isAI && (
+                            <span className="text-[11px] font-black uppercase tracking-widest text-primary bg-primary/10 px-2 py-0.5 rounded-full flex items-center gap-1">
+                              <Sparkles className="h-2 w-2" /> AI GEN
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <ChevronRight className={cn(
+                      "h-6 w-6 transition-transform duration-500",
+                      isActive ? "rotate-90 text-primary" : "opacity-20",
+                    )} />
+                  </button>
+                  
+                  <AnimatePresence>
+                    {isActive && (
+                      <motion.div 
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="p-5 md:p-8 pt-0 space-y-6 md:space-y-10"
+                      >
+                        <div className="grid md:grid-cols-2 gap-3 md:gap-4">
+                           <div className="space-y-4">
+                              <p className="text-xs font-black uppercase tracking-widest opacity-40">OBJECTIVE</p>
+                              <p className="text-lg font-medium tracking-tight opacity-70 leading-relaxed italic border-l border-primary/30 pl-6">
+                                "{drill.objective}"
+                              </p>
+                           </div>
+                           <div className="space-y-4">
+                              <p className="text-xs font-black uppercase tracking-widest opacity-40">EXECUTION STEPS</p>
+                              <ul className="space-y-3">
+                                {drill.instructions.map((step, idx) => (
+                                  <div key={idx} className="bg-background/50 border border-border/60 rounded-lg md:rounded-xl p-3 md:p-4 text-xs font-medium opacity-60 flex items-start gap-3">
+                                    <span className="text-primary">✱</span>
+                                    {step}
+                                  </div>
+                                ))}
+                              </ul>
+                           </div>
+                        </div>
 
-            {/* Control buttons */}
-            <div className="flex flex-wrap gap-2 justify-center">
-              {!running ? (
-                <Button
-                  variant="hero"
-                  size="lg"
-                  onClick={() => {
-                    if (seconds === 0) setSeconds(duration);
-                    setRunning(true);
-                    if (pausedAt) setPausedAt(null);
-                    hasStartedRef.current = true;
-                  }}
+                        <div className="p-8 rounded-[2rem] bg-primary/5 border border-primary/20 space-y-4 relative overflow-hidden">
+                           <div className="absolute top-0 right-0 p-6 opacity-5">
+                              <Volume2 className="h-16 w-16" />
+                           </div>
+                           <p className="text-xs font-black uppercase tracking-widest text-primary">OPERATIONAL PROMPT</p>
+                           <p className="speak-serif text-xl md:text-2xl italic leading-relaxed">"{drill.prompt}"</p>
+                        </div>
+
+                        <div className="p-5 md:p-10 rounded-2xl md:rounded-[3rem] bg-muted/5 border border-border/60 relative overflow-hidden group">
+                           <p className="text-xs font-black uppercase tracking-widest opacity-40 flex items-center gap-2">
+                              <Zap className="h-3 w-3 text-primary" />
+                              {CONTEXTS.find(c => c.id === context)?.label} CONTEXT GUIDANCE
+                           </p>
+                           <p className="text-base md:text-lg font-medium opacity-60 leading-relaxed max-w-2xl">{drill.contexts[context]}</p>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.article>
+              );
+            })}
+          </div>
+
+          {/* AI Generator Panel */}
+          <div className="p-5 md:p-10 rounded-2xl md:rounded-[3rem] bg-gradient-to-br from-primary/[0.05] to-accent/[0.05] border border-primary/20 relative overflow-hidden group">
+             <div className="absolute top-0 right-0 p-10 opacity-5 group-hover:opacity-10 transition-opacity">
+                <RefreshCw className="h-24 w-24 animate-spin-slow" />
+             </div>
+             <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 relative z-10">
+                <div className="space-y-4">
+                   <div className="flex items-center gap-3 text-xs font-black uppercase tracking-[0.4em] text-primary">
+                      <Sparkles className="h-4 w-4" />
+                      SYNTHESIS ENGINE
+                   </div>
+                   <h3 className="speak-serif text-3xl">Generate Custom Protocols</h3>
+                   <div className="flex flex-wrap gap-4 pt-4">
+                      {["Vocal Variety", "Body Language", "Structure", "Storytelling"].map(f => (
+                        <button 
+                          key={f}
+                          onClick={() => setAiFocus(f)}
+                          className={cn(
+                            "px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest border transition-all",
+                            aiFocus === f ? "bg-primary text-white border-primary shadow-glow" : "border-border/60 opacity-40 hover:opacity-100"
+                          )}
+                        >
+                          {f}
+                        </button>
+                      ))}
+                   </div>
+                </div>
+                <button
+                  onClick={generateAIDrills}
+                  disabled={isGenerating}
+                  className="button-pill py-3 px-6 md:py-5 md:px-10 bg-primary text-white shadow-glow group/btn w-full md:w-auto"
                 >
-                  <Play className="h-4 w-4" />
-                  {hasStartedRef.current ? "Resume" : "Start Drill"}
-                </Button>
-              ) : (
-                <Button variant="hero" size="lg" onClick={() => { setRunning(false); setPausedAt(Date.now()); }}>
-                  <Pause className="h-4 w-4" />
-                  Pause
-                </Button>
-              )}
-              <Button 
-                variant="outline" 
-                size="lg" 
-                onClick={() => { 
-                  recorderStopRef.current?.(); 
-                  setSeconds(duration); 
-                  setRunning(false); 
-                  setPausedAt(null); 
-                  wasRunningRef.current = false; 
-                  hasStartedRef.current = false; 
-                }}
-              >
-                <RotateCcw className="h-4 w-4" />
-                Reset
-              </Button>
+                  {isGenerating ? (
+                    <span className="flex items-center gap-4 text-xs font-black uppercase tracking-[0.3em] animate-pulse">
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      SYNTHESIZING...
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-4 text-xs font-black uppercase tracking-[0.2em]">
+                       INITIALIZE GENERATION
+                       <ChevronRight className="h-5 w-5 md:h-6 md:w-6 shrink-0 opacity-20 group-hover:opacity-100 group-hover:translate-x-2 transition-all duration-500" />
+                    </span>
+                  )}
+                </button>
+             </div>
+          </div>
+          <RecordingsList />
+        </div>
+
+        {/* Sidebar Controls */}
+        <aside className="space-y-8 relative z-10">
+          <div className="sticky top-32 space-y-8">
+            {/* Timer Panel */}
+            <div className="bg-muted/5 border border-border/60 rounded-2xl md:rounded-[3rem] p-6 md:p-10 space-y-6 md:space-y-10 relative overflow-hidden shadow-soft">
+              <div className="grain pointer-events-none" />
+              <div className="absolute top-0 left-0 h-1 bg-primary/20 w-full">
+                 <motion.div 
+                   className="h-full bg-primary shadow-glow" 
+                   initial={{ width: "100%" }}
+                   animate={{ width: `${pct}%` }}
+                   transition={{ duration: 0.5 }}
+                 />
+              </div>
+
+              <div className="text-center space-y-4">
+                <p className="text-xs font-black uppercase tracking-[0.5em] opacity-40">OPERATIONAL TIMER</p>
+                <div className="speak-serif text-5xl md:text-6xl lg:text-8xl font-bold tracking-tighter italic tabular-nums">
+                  {mins}<span className="animate-pulse">:</span>{String(secs).padStart(2, "0")}
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-4">
+                <AnimatePresence mode="wait">
+                  {!running ? (
+                    <button
+                      onClick={() => {
+                        if (seconds === 0) setSeconds(duration);
+                        setRunning(true);
+                        if (pausedAt) setPausedAt(null);
+                        hasStartedRef.current = true;
+                      }}
+                      className="button-pill w-full py-6 bg-primary text-white flex items-center justify-center gap-4 shadow-glow group"
+                    >
+                      <Play className="h-5 w-5 fill-current" />
+                      <span className="text-sm font-black uppercase tracking-[0.2em]">{hasStartedRef.current ? "RESUME DRILL" : "START PROTOCOL"}</span>
+                    </button>
+                  ) : (
+                    <button 
+                      onClick={() => { setRunning(false); setPausedAt(Date.now()); }}
+                      className="button-pill w-full py-6 border border-primary/30 text-primary flex items-center justify-center gap-4 hover:bg-primary/5 transition-all"
+                    >
+                      <Pause className="h-5 w-5 fill-current" />
+                      <span className="text-sm font-black uppercase tracking-[0.2em]">PAUSE SESSION</span>
+                    </button>
+                  )}
+                </AnimatePresence>
+                <button 
+                  onClick={() => { 
+                    recorderStopRef.current?.(); 
+                    setSeconds(duration); 
+                    setRunning(false); 
+                    setPausedAt(null); 
+                    wasRunningRef.current = false; 
+                    hasStartedRef.current = false; 
+                  }}
+                  className="flex items-center justify-center gap-2 text-xs font-black uppercase tracking-[0.4em] opacity-30 hover:opacity-100 transition-opacity"
+                >
+                  <RotateCcw className="h-3 w-3" />
+                  RESET DRILL
+                </button>
+              </div>
+
+              {/* Context Selector */}
+              <div className="space-y-6 pt-6 border-t border-border/60">
+                 <p className="text-xs font-black uppercase tracking-[0.3em] opacity-40">SELECT CONTEXT</p>
+                 <div className="grid grid-cols-2 gap-3">
+                    {CONTEXTS.map(c => (
+                      <button
+                        key={c.id}
+                        onClick={() => setContext(c.id)}
+                        className={cn(
+                          "py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest border transition-all",
+                          context === c.id ? "bg-primary text-white border-primary shadow-glow" : "border-border/60 opacity-40 hover:opacity-100"
+                        )}
+                      >
+                        {c.label}
+                      </button>
+                    ))}
+                 </div>
+              </div>
+
+              {/* Recording Toggle */}
+              <div className="pt-6 border-t border-border/60 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className={cn(
+                    "h-10 w-10 rounded-full flex items-center justify-center border transition-all duration-500",
+                    recordEnabled ? "bg-primary/10 border-primary text-primary animate-pulse" : "bg-muted border-border/60 opacity-20"
+                  )}>
+                    <Mic className="h-4 w-4" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs font-black uppercase tracking-widest">RECORDING</p>
+                    <p className="text-[11px] font-bold opacity-30 uppercase tracking-widest">{recordEnabled ? "ACTIVE" : "DISABLED"}</p>
+                  </div>
+                </div>
+                <Switch 
+                  checked={recordEnabled} 
+                  onCheckedChange={setRecordEnabled} 
+                  disabled={!user}
+                />
+              </div>
             </div>
 
-            {seconds === 0 && (
-              <div className="mt-5 flex items-center justify-center gap-2 text-primary font-semibold animate-fade-in">
-                <Trophy className="h-5 w-5" />
-                <span>Drill complete! Review your recording.</span>
+            {/* Recorder Hidden Panel */}
+            {recordEnabled && (
+              <div className="opacity-0 pointer-events-none absolute">
+                <RecorderPanel
+                  externalRunning={running}
+                  recorderStartRef={(fn) => { recorderStartRef.current = fn; }}
+                  recorderPauseRef={(fn) => { recorderPauseRef.current = fn; }}
+                  recorderResumeRef={(fn) => { recorderResumeRef.current = fn; }}
+                  recorderStopRef={(fn) => { recorderStopRef.current = fn; }}
+                  onRecorded={async ({ blob }) => {
+                    markPracticed();
+                    if (user) {
+                      await uploadRecording(blob, {
+                        promptText: `Speaking Drill: ${current.title}`,
+                        difficulty: "Medium",
+                        type: "drill"
+                      });
+                    }
+                  }}
+                />
               </div>
             )}
 
-            {/* Recording toggle */}
-            <div className="mt-6 pt-5 border-t border-border flex items-center justify-between gap-4">
-              <div className="flex items-start gap-3">
-                {!user ? (
-                  <MicOff className="h-5 w-5 text-muted-foreground/50 mt-0.5" />
-                ) : recordEnabled ? (
-                  <Mic className="h-5 w-5 text-primary mt-0.5" />
-                ) : (
-                  <Mic className="h-5 w-5 text-red-500 mt-0.5" />
-                )}
-                <div>
-                  <p className="text-sm font-semibold text-foreground">
-                    {recordEnabled ? "Record drill" : "Practice Mode"}
-                  </p>
-                  {!user ? (
-                    <p className="text-xs text-muted-foreground">
-                      <Link to="/login" className="text-primary hover:underline">Sign in</Link> to save recordings and earn XP.
-                    </p>
-                  ) : recordEnabled ? (
-                    <p className="text-xs text-muted-foreground">Recording auto-starts with timer. You'll earn XP when complete.</p>
-                  ) : (
-                    <p className="text-xs text-red-500">Your practice counts toward your streak. Enable recording to earn XP.</p>
-                  )}
-                </div>
-              </div>
-              <Switch 
-                checked={recordEnabled} 
-                onCheckedChange={setRecordEnabled} 
-                aria-label="Toggle recording"
-                disabled={!user}
-              />
+            {/* Audit Trigger */}
+            <AnimatePresence>
+               {seconds === 0 && (
+                 <motion.div
+                   initial={{ opacity: 0, y: 10 }}
+                   animate={{ opacity: 1, y: 0 }}
+                   className="p-8 rounded-[2.5rem] bg-primary text-white shadow-glow flex flex-col items-center text-center gap-6"
+                 >
+                   <Trophy className="h-10 w-10 animate-bounce" />
+                   <div className="space-y-2">
+                      <h4 className="speak-serif text-2xl italic">Drill Complete</h4>
+                      <p className="text-xs font-bold uppercase tracking-widest opacity-80">INITIALIZE PERFORMANCE AUDIT</p>
+                   </div>
+                   <button className="w-full py-4 bg-white text-primary rounded-full text-xs font-black uppercase tracking-[0.3em]">
+                      VIEW RESULTS
+                   </button>
+                 </motion.div>
+               )}
+            </AnimatePresence>
+
+            <div className="flex items-center gap-4 text-[11px] font-black uppercase tracking-[0.5em] opacity-20 justify-center">
+               <ShieldCheck className="h-3 w-3" />
+               ENCRYPTED STREAM
             </div>
           </div>
-
-          {/* Recorder panel */}
-          {recordEnabled && (
-            <div className="animate-fade-in">
-              <RecorderPanel
-                label="Recording your drill"
-                hint="Mic activates when you hit Start."
-                externalRunning={running}
-                recorderStartRef={(fn) => { recorderStartRef.current = fn; }}
-                recorderPauseRef={(fn) => { recorderPauseRef.current = fn; }}
-                recorderResumeRef={(fn) => { recorderResumeRef.current = fn; }}
-                recorderStopRef={(fn) => { recorderStopRef.current = fn; }}
-                onRecorded={async ({ blob, durationMs }) => {
-                  markPracticed();
-                  if (!user) {
-                    toast({
-                      title: "Recording captured",
-                      description: "Sign in to save it to your account.",
-                    });
-                    return;
-                  }
-                  const saved = await uploadRecording(blob, {
-                    promptText: `Speaking Drill: ${current.title}`,
-                    difficulty: "Medium",
-                    durationMs,
-                    targetSeconds: duration,
-                  });
-                  toast({
-                    title: saved ? "Recording saved" : "Save failed",
-                    description: saved
-                      ? "Synced to your account."
-                      : "We couldn't upload your recording.",
-                  });
-                }}
-              />
-            </div>
-          )}
-
-          {/* Self-review checklist */}
-          <div className="border border-border rounded-2xl p-6">
-            <p className="text-xs uppercase tracking-widest text-muted-foreground mb-4">Self-review checklist</p>
-            <ul className="space-y-2 text-sm">
-              {current.selfReviewQuestions.map((q) => (
-                <li key={q} className="flex items-start gap-2">
-                  <Check className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-                  <span className="text-foreground/85">{q}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Navigation */}
-          <div className="flex gap-3">
-            <Button 
-              variant="outline" 
-              className="flex-1"
-              onClick={() => setActiveDrill(a => Math.max(0, a - 1))}
-              disabled={activeDrill === 0}
-            >
-              Previous
-            </Button>
-            <Button 
-              variant="hero" 
-              className="flex-1"
-              onClick={() => setActiveDrill(a => Math.min(drills.length - 1, a + 1))}
-              disabled={activeDrill === drills.length - 1}
-            >
-              Next drill
-              <ArrowRight className="h-4 w-4" />
-            </Button>
-          </div>
-
-{!dismissedTips.has("pause") && (
-            <CommonMistake onDismiss={() => setDismissedTips(prev => new Set([...prev, "pause"]))}>
-              A pause that's 3+ seconds in a small meeting feels like you forgot your line. Match room size.
-            </CommonMistake>
-          )}
-
-          <Button variant="outline" className="w-full" asChild>
-            <Link to="/tracks/impromptu">Try the impromptu drills</Link>
-          </Button>
         </aside>
       </div>
-      <FloatingTimer
-        isRunning={running}
-        seconds={seconds}
-        duration={duration}
-        isPaused={pausedAt !== null}
-        onPause={() => { setRunning(false); setPausedAt(Date.now()); }}
-        onResume={() => { setRunning(true); setPausedAt(null); }}
-        onReset={() => { recorderStopRef.current?.(); setSeconds(duration); setRunning(false); setPausedAt(null); wasRunningRef.current = false; hasStartedRef.current = false; }}
-      />
     </TrackShell>
   );
 };
