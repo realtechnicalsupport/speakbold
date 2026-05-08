@@ -350,6 +350,9 @@ const DuelDrill = ({
     return () => clearTimeout(timer);
   }, [preCount, isAIOpponent, gamemode]);
 
+  const phaseRef = useRef(phase);
+  useEffect(() => { phaseRef.current = phase; }, [phase]);
+
   const generateVerdict = async () => {
     if (!lastRecording) {
       console.warn("[Judge] No recording found to judge.");
@@ -373,14 +376,18 @@ const DuelDrill = ({
       
       console.log("[Judge] Transcription result:", myTranscript);
 
-      if (!myTranscript || myTranscript.trim().length < 10) {
+      if (!myTranscript || myTranscript.trim().length < 5) {
         console.warn("[Judge] Empty or too short transcript. Invalid attempt.");
-        toast({ 
-          title: "Invalid Attempt", 
-          description: "We couldn't hear you clearly. Please ensure your mic is working and try again.", 
-          variant: "destructive" 
+        setVerdictResult({
+          score: 0,
+          oppScore: 0,
+          feedback: "We couldn't hear you clearly. The recording seems to be empty or contained only background noise.",
+          won: false,
+          strengths: "N/A",
+          oppStrengths: "N/A",
+          exampleSpeech: "Ensure your microphone is active and you speak directly into it. Try to maintain a steady pace and clear articulation."
         });
-        onClose();
+        setPhase("results");
         return;
       }
       const isHost = !duel || duel.creator.id === user?.id;
@@ -531,7 +538,7 @@ const DuelDrill = ({
   return (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[60] bg-background/95 backdrop-blur-2xl overflow-y-auto text-foreground flex flex-col"
+      className="fixed inset-0 z-[60] glass overflow-y-auto overflow-x-hidden scrollbar-hide text-foreground flex flex-col"
     >
       {preCount === null && (
         <div className="absolute top-0 left-0 right-0 h-1 bg-muted z-20">
@@ -585,19 +592,18 @@ const DuelDrill = ({
           >
             <ArrowLeft className="h-4 w-4" /> LEAVE BATTLE
           </button>
-          
-          <div className="h-4 w-px bg-border" />
-          
-          <button 
-            onClick={() => setRecordEnabled(!recordEnabled)}
-            className={cn(
-              "flex items-center gap-2 text-sm font-black uppercase tracking-[0.3em] transition-all",
-              recordEnabled ? "text-green-500 hover:text-green-600" : "text-foreground/40 hover:text-foreground"
-            )}
-          >
-            {recordEnabled ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
-            {recordEnabled ? "MIC ON" : "MIC OFF"}
-          </button>
+          {(running || micError) && (
+            <>
+              <div className="h-4 w-px bg-border" />
+              <div className={cn(
+                "flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] py-1 px-3 rounded-full border transition-all",
+                micError ? "bg-red-500/10 border-red-500/20 text-red-500" : "bg-green-500/10 border-green-500/20 text-green-500"
+              )}>
+                {micError ? <MicOff className="h-3 w-3" /> : <Mic className="h-3 w-3 animate-pulse" />}
+                {micError ? "MIC ERROR" : "MIC ACTIVE"}
+              </div>
+            </>
+          )}
         </div>
 
         {phase === "drilling" && (
@@ -608,17 +614,14 @@ const DuelDrill = ({
                  <div className="inline-flex items-center gap-2 md:gap-3 text-[10px] md:text-sm font-black uppercase tracking-[0.3em] md:tracking-[0.4em] text-primary bg-primary/10 px-3 md:px-4 py-1.5 md:py-2 rounded-full border border-primary/20">
                    <Zap className="h-3 w-3 md:h-4 md:h-4 animate-pulse" />
                    {GAMEMODES[mode].label}
-                   {running && (
+                   {running && micError && (
                      <motion.div 
                        initial={{ opacity: 0, y: -10 }} 
                        animate={{ opacity: 1, y: 0 }}
-                       className={cn(
-                         "flex items-center gap-2 px-3 py-1 rounded-md text-[11px] font-black uppercase tracking-widest border",
-                         micError ? "bg-red-500/10 border-red-500 text-red-500" : "bg-green-500/10 border-green-500 text-green-500"
-                       )}
+                       className="flex items-center gap-2 px-3 py-1 rounded-md text-[11px] font-black uppercase tracking-widest border bg-red-500/10 border-red-500 text-red-500"
                      >
-                       {micError ? <MicOff className="h-3 w-3" /> : <Mic className="h-3 w-3 animate-pulse" />}
-                       {micError ? "MIC OFF — CANNOT RECORD" : "RECORDING..."}
+                       <MicOff className="h-3 w-3" />
+                       MIC OFF — CANNOT RECORD
                      </motion.div>
                    )}
                  </div>
@@ -1017,7 +1020,7 @@ const Arena = () => {
   const { 
     duels, profile, loading: arenaLoading, completeDuel, findMatch, completedDuels, refresh: refreshArena,
     onlineUsers, incomingRequests, setIncomingRequests, sendDuelRequest, acceptDuelRequest, sendReadyStatus,
-    broadcastBattleResult, broadcastAnalyzing, sendTranscript
+    broadcastBattleResult, broadcastAnalyzing, sendTranscript, sendForfeit, handleForfeit
   } = useArena();
   const { user } = useAuth();
   
@@ -1166,6 +1169,8 @@ const Arena = () => {
     }, 3000);
   };
 
+  const [selectedDuel, setSelectedDuel] = useState<Duel | null>(null);
+
   if (arenaLoading && !activeDrill) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-8">
@@ -1174,8 +1179,6 @@ const Arena = () => {
       </div>
     );
   }
-
-  const [selectedDuel, setSelectedDuel] = useState<Duel | null>(null);
 
   return (
     <main className="min-h-screen bg-background text-foreground relative overflow-hidden">
@@ -1383,6 +1386,21 @@ const Arena = () => {
               <p className="text-lg opacity-40 leading-relaxed max-w-md">
                 Improve through peer feedback. Match with other learners, get AI-powered insights, and grow your skills with every session.
               </p>
+
+              {/* Desktop Decorative Stats */}
+              <div className="hidden lg:grid grid-cols-3 gap-6 pt-8">
+                 {[
+                   { label: "Active Duels", val: "24", icon: Swords },
+                   { label: "Global ELO", val: "1,240", icon: Trophy },
+                   { label: "AI Analyzed", val: "8.4k", icon: Zap }
+                 ].map((stat, i) => (
+                   <div key={i} className="p-4 rounded-3xl bg-muted/10 border border-border/50 backdrop-blur-md hover:bg-muted/20 transition-colors group">
+                      <stat.icon className="h-4 w-4 text-primary mb-3 opacity-40 group-hover:opacity-100 transition-opacity" />
+                      <p className="text-[10px] font-black uppercase tracking-widest opacity-30">{stat.label}</p>
+                      <p className="speak-serif text-xl italic">{stat.val}</p>
+                   </div>
+                 ))}
+              </div>
             </motion.div>
 
             <div className={cn(
@@ -1576,6 +1594,8 @@ const Arena = () => {
             broadcastBattleResult={broadcastBattleResult}
             sendTranscript={sendTranscript}
             broadcastAnalyzing={broadcastAnalyzing}
+            sendForfeit={sendForfeit}
+            handleForfeit={handleForfeit}
             onClose={() => { setActiveDrill(null); setIsCreating(false); }}
             onComplete={(score, prompt, mode, feedback) => {
               console.log("[Arena] User returning to lobby from battle.");
@@ -1607,7 +1627,7 @@ const Arena = () => {
              className="fixed bottom-12 right-12 z-[100] w-full max-w-sm"
            >
              <div className="bg-background/80 backdrop-blur-2xl border border-primary/20 rounded-[2.5rem] shadow-2xl overflow-hidden">
-                <div className="p-6 border-b border-border flex justify-between items-center bg-primary/5">
+                <div className="p-6 border-b border-white/10 flex justify-between items-center bg-primary/5">
                    <p className="text-sm font-black uppercase tracking-[0.4em] text-primary flex items-center gap-2">
                      <Mic className="h-4 w-4" /> CHALLENGE INBOX
                    </p>

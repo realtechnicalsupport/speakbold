@@ -17,47 +17,98 @@ interface Step {
 const STEPS: Step[] = [
   {
     targetId: "pathway-hero",
-    title: "Personalized Roadmap",
-    content: "Your path is unique. Whether your goal is mastering Interviews, Public Speaking, or Impromptu, we've reordered the curriculum to prioritize your focus area.",
-    icon: Target,
-    position: "bottom",
-  },
-  {
-    targetId: "pathway-units",
-    title: "The Learning Loop",
-    content: "Each unit is a mission. You'll watch a concept, practice the drill, and get instant AI feedback on filler words, pacing, and tone. Completing drills earns XP and unlocks higher tiers.",
-    icon: Mic,
-    position: "top",
-  },
-  {
-    targetId: "arena-grid",
-    title: "The Lounge: Live Stakes",
-    content: "Ready to test your skills under pressure? The Practice Lounge is where you can battle the AI or other learners in real-time scenarios.",
-    icon: Trophy,
-    position: "center",
-    redirectTo: "/arena"
-  },
-  {
-    targetId: "arena-gamemodes",
-    title: "Game Modes",
-    content: "Choose your battlefield: 'Blitz' for quick logic puzzles, 'Pitch' for selling bizarre inventions, 'Debate' for controversial motions, or 'Standard' for deep thematic topics.",
+    title: "The SpeakBold Mission",
+    content: "Welcome, Operator. You're looking at your Personalized Pathway. We analyze your focus areas—Interviews, Public Speaking, or Impromptu—and reorder the entire curriculum to get you to mastery as fast as possible.",
     icon: Sparkles,
     position: "bottom",
   },
   {
-    targetId: "arena-online-users",
-    title: "Challenge Peers",
-    content: "See who's online and send an invite. Try inviting 'Alex (Trainer)' now to see how an online duel works! You'll both get the same prompt and the AI will judge the winner.",
+    targetId: "pathway-units",
+    title: "The 3-Step Learning Loop",
+    content: "1. LEARN the strategy. 2. DRILL the specific skill. 3. AUDIT your results. The AI won't let you progress until you demonstrate a 'Pass' score of 70% or higher.",
+    icon: Target,
+    position: "top",
+  },
+  {
+    targetId: "nav-lab",
+    title: "The Lab: Skill Surgery",
+    content: "The Lab is for unguided practice. If you find your 'Filler Word' score is low, come here to perform 'Skill Surgery' on specific techniques without any progress pressure.",
+    icon: Mic,
+    position: "bottom",
+    redirectTo: "/lab"
+  },
+  {
+    targetId: "lab-grid",
+    title: "Free-Form Tools",
+    content: "Each tool here serves a different outcome. 'Quick Thinking' generates high-pressure random topics, while 'Interview Practice' allows you to simulate high-stakes professional meetings.",
+    icon: Target,
+    position: "top",
+  },
+  {
+    targetId: "nav-arena",
+    title: "The Arena: Live Combat",
+    content: "The Arena is the ultimate test. This is where you put your training into practice against AI personalities or other real users in real-time.",
+    icon: Trophy,
+    position: "bottom",
+    redirectTo: "/arena"
+  },
+  {
+    targetId: "arena-grid",
+    title: "The Battle Flow: 4 Phases",
+    content: "Battles have 4 phases: 1. MATCHMAKING (Find a peer). 2. SYNCED RECORDING (Both answer the same prompt). 3. AI AUDIT (Dual-analysis). 4. VERDICT (Winner takes the ELO).",
+    icon: Mic,
+    position: "bottom",
+  },
+  {
+    targetId: "arena-gamemodes",
+    title: "Strategic Modes",
+    content: "Choose Blitz for speed, Pitch for sales/persuasion, or Debate for logic. Each mode uses different AI judging criteria for the final score.",
+    icon: Sparkles,
+    position: "bottom",
+  },
+  {
+    targetId: "coach-chat-trigger",
+    title: "Your 24/7 Tactical AI",
+    content: "The AI Coach isn't just for chat. It can navigate you to any page, give you tips on rhetoric, or help you understand your recent performance metrics.",
+    icon: Sparkles,
+    position: "top",
+  },
+  {
+    targetId: "nav-profile",
+    title: "The Digital Resume",
+    content: "Your profile is a living document of your growth. Let's look at the metrics that define your SpeakBold ranking.",
+    icon: Trophy,
+    position: "bottom",
+    redirectTo: "/profile"
+  },
+  {
+    targetId: "daily-challenges-container",
+    title: "Daily Consistency",
+    content: "Consistency is the only path to mastery. Daily Challenges reward you with XP and help you maintain your Streak. Completing all three challenges grants a massive bonus.",
+    icon: Target,
+    position: "top",
+  },
+  {
+    targetId: "profile-recordings-tab",
+    title: "The Vault: Technical History",
+    content: "Every recording you ever make is saved here. You can review your filler word count, pacing charts, and AI feedback from weeks ago to see exactly how far you've come.",
     icon: Mic,
     position: "top",
   },
   {
-    targetId: "profile-stats",
-    title: "Your Digital Resume",
-    content: "Your profile tracks your growth. Here you can see your total impact, detailed feedback history, and your current global rank in the SpeakBold community.",
+    targetId: "nav-leaderboard",
+    title: "Global Rankings",
+    content: "Want to see how you stack up? The Leaderboard shows the top operators in the world. Compete for the #1 spot and make your mark on the SpeakBold community.",
     icon: Trophy,
     position: "bottom",
-    redirectTo: "/profile"
+    redirectTo: "/leaderboard"
+  },
+  {
+    targetId: "site-navigation",
+    title: "The Path Forward",
+    content: "You now know the ins and outs. The goal isn't perfection—it's progress. Start your first mission on the Pathway and find your voice. Good luck, Operator.",
+    icon: Sparkles,
+    position: "center",
   },
 ];
 
@@ -70,12 +121,42 @@ export const TutorialOverlay = () => {
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
 
   useEffect(() => {
+    // Developer Utilities
+    (window as any).resetOnboarding = () => {
+      localStorage.removeItem("speakbold_onboarding_v2");
+      localStorage.removeItem("speakbold_tutorial_pending");
+      localStorage.removeItem("speakbold_pathway_selection");
+      if (user) {
+        localStorage.removeItem(`speakbold_tutorial_pending_${user.id}`);
+      }
+      console.log("✅ SpeakBold Onboarding & Tutorial reset. Refreshing page...");
+      window.location.reload();
+    };
+
+    (window as any).startTutorial = () => {
+      if (!user) {
+        console.error("❌ Must be logged in to start tutorial.");
+        return;
+      }
+      localStorage.setItem(`speakbold_tutorial_pending_${user.id}`, "true");
+      console.log("🎯 Tutorial queued for next visit to /pathway. Redirecting...");
+      window.location.href = "/pathway";
+    };
+
+    return () => {
+      delete (window as any).resetOnboarding;
+      delete (window as any).startTutorial;
+    };
+  }, [user]);
+
+  useEffect(() => {
     if (!user) return;
     const pending = localStorage.getItem(`speakbold_tutorial_pending_${user.id}`);
     if (pending === "true") {
       // Only start if we are on the pathway page
       if (location.pathname === "/pathway" && !isVisible) {
         const timer = setTimeout(() => {
+          console.log("🎬 Starting In-Depth Tutorial Flow...");
           setCurrentStep(0);
           setIsVisible(true);
         }, 1500);
@@ -83,6 +164,10 @@ export const TutorialOverlay = () => {
       }
     }
   }, [location.pathname, isVisible, user]);
+
+  useEffect(() => {
+    setTargetRect(null);
+  }, [currentStep]);
 
   useEffect(() => {
     if (!isVisible || currentStep === null) return;
@@ -144,7 +229,6 @@ export const TutorialOverlay = () => {
 
   return (
     <div className="fixed inset-0 z-[300] pointer-events-none">
-      {/* Backdrop with hole */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -156,48 +240,88 @@ export const TutorialOverlay = () => {
             : "none"
         }}
         transition={{ type: "spring", stiffness: 1000, damping: 60, mass: 0.5 }}
-        onClick={handleComplete}
       />
+
+      {/* Target Highlight Pulse */}
+      <AnimatePresence>
+        {targetRect && targetRect.width < 400 && targetRect.height < 150 && (
+          <motion.div 
+            key={`pulse-${currentStep}`}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.1 }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: [0, 1, 0], scale: [1, 1.2, 1.4] }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 2, repeat: Infinity, ease: "easeOut" }}
+              className="absolute border-2 border-primary/50 rounded-2xl pointer-events-none z-[301] shadow-glow shadow-primary/20"
+              style={{
+                top: targetRect.top - 12,
+                left: targetRect.left - 12,
+                width: targetRect.width + 24,
+                height: targetRect.height + 24,
+              }}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: [0, 0.5, 0], scale: [1, 1.4, 1.8] }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 2, repeat: Infinity, ease: "easeOut", delay: 0.5 }}
+              className="absolute border border-primary/30 rounded-2xl pointer-events-none z-[301]"
+              style={{
+                top: targetRect.top - 12,
+                left: targetRect.left - 12,
+                width: targetRect.width + 24,
+                height: targetRect.height + 24,
+              }}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Tooltip */}
       <AnimatePresence mode="wait">
         <motion.div
           key={currentStep}
           initial={{ opacity: 0, scale: 0.9, y: 20 }}
-          animate={{
-            opacity: 1,
-            scale: 1,
-            y: 0,
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          style={{
             top: targetRect
               ? (window.innerWidth < 768
-                ? Math.min(targetRect.bottom + 12, window.innerHeight - 200)
+                ? Math.max(10, Math.min(targetRect.bottom + 12, window.innerHeight - 250))
                 : (step.position === "bottom"
-                  ? Math.min(targetRect.bottom + 24, window.innerHeight - 300)
-                  : Math.max(targetRect.top - 280, 20)))
+                  ? Math.max(80, Math.min(targetRect.bottom + 24, window.innerHeight - 320))
+                  : Math.max(20, Math.min(targetRect.top - 300, window.innerHeight - 350))))
               : "50%",
             left: targetRect
-              ? (window.innerWidth < 768 
-                  ? "20px" 
-                  : Math.max(160, Math.min(targetRect.left + targetRect.width / 2, window.innerWidth - 160)))
+              ? (window.innerWidth < 768
+                ? "20px"
+                : Math.max(20, Math.min(targetRect.left + targetRect.width / 2 - 160, window.innerWidth - 340)))
               : "50%",
           }}
           drag
+          dragElastic={0.1}
           dragMomentum={false}
-          whileDrag={{ scale: 1.05, boxShadow: "0 30px 60px rgba(0,0,0,0.3)", cursor: "grabbing" }}
-          transition={{ 
-            type: "spring", 
-            stiffness: 1000, 
+          whileDrag={{
+            scale: 1.02,
+            boxShadow: "0 40px 80px rgba(0,0,0,0.4)",
+            cursor: "grabbing",
+            transition: { duration: 0.1 }
+          }}
+          transition={{
+            type: "spring",
+            stiffness: 1000,
             damping: 50,
             opacity: { duration: 0.2 },
             scale: { type: "spring", stiffness: 400, damping: 25 },
-            top: { type: "spring", stiffness: 1000, damping: 60, mass: 0.5 },
-            left: { type: "spring", stiffness: 1000, damping: 60, mass: 0.5 }
           }}
           exit={{ opacity: 0, scale: 0.9, y: 20 }}
           className={cn(
             "absolute pointer-events-auto w-[calc(100vw-40px)] md:w-[320px] bg-card border border-border shadow-2xl rounded-[2rem] p-6 md:p-8 space-y-4 md:space-y-6 z-[301] touch-none cursor-grab active:cursor-grabbing",
-            !targetRect && "-translate-x-1/2 -translate-y-1/2",
-            targetRect && (window.innerWidth < 768 ? "" : "-translate-x-1/2")
+            !targetRect && "-translate-x-1/2 -translate-y-1/2"
           )}
         >
           <div className="flex items-center justify-between">

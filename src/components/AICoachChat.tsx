@@ -4,12 +4,14 @@ import { MessageCircle, X, Send, Loader2, Sparkles, Navigation } from "lucide-re
 import { useChat } from "@/context/ChatContext";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 export const AICoachChat = () => {
   const { user } = useAuth();
   const { isOpen, setIsOpen, messages, sendMessage, isLoading } = useChat();
   const [inputText, setInputText] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -37,6 +39,7 @@ export const AICoachChat = () => {
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0, opacity: 0 }}
             onClick={() => setIsOpen(true)}
+            id="coach-chat-trigger"
             className="fixed bottom-24 lg:bottom-8 right-6 z-50 h-14 w-14 rounded-full bg-primary text-white shadow-glow flex items-center justify-center hover:scale-110 active:scale-95 transition-all group border-2 border-primary/50"
             aria-label="Open AI Coach"
           >
@@ -55,7 +58,7 @@ export const AICoachChat = () => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ type: "spring", stiffness: 300, damping: 25 }}
-            className="fixed bottom-0 right-0 lg:bottom-8 lg:right-8 z-[100] w-full lg:w-[400px] h-[85vh] lg:h-[600px] flex flex-col bg-background/90 backdrop-blur-2xl border border-primary/20 rounded-t-[2rem] lg:rounded-[2rem] shadow-2xl overflow-hidden"
+            className="fixed bottom-0 right-0 lg:bottom-8 lg:right-8 z-[100] w-full lg:w-[400px] h-[85vh] lg:h-[600px] flex flex-col glass border border-primary/20 rounded-t-[2rem] lg:rounded-[2rem] shadow-2xl overflow-hidden"
           >
             {/* Header */}
             <div className="p-4 border-b border-border/50 flex items-center justify-between bg-primary/5">
@@ -95,15 +98,32 @@ export const AICoachChat = () => {
                       msg.role === "user" ? "justify-end" : "justify-start"
                     )}
                   >
-                    <div
-                      className={cn(
-                        "max-w-[85%] rounded-2xl p-4 text-sm leading-relaxed",
-                        msg.role === "user"
-                          ? "bg-primary text-white rounded-tr-sm"
-                          : "bg-muted/50 border border-border rounded-tl-sm speak-serif italic text-foreground/90"
+                    <div className="flex flex-col gap-2 max-w-[85%]">
+                      <div
+                        className={cn(
+                          "rounded-2xl p-4 text-sm leading-relaxed shadow-sm",
+                          msg.role === "user"
+                            ? "bg-primary text-white rounded-tr-sm"
+                            : "bg-muted/50 border border-border rounded-tl-sm speak-serif italic text-foreground/90"
+                        )}
+                      >
+                        {msg.content}
+                      </div>
+                      
+                      {msg.navigate_to && (
+                        <motion.button
+                          initial={{ opacity: 0, y: 5 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          onClick={() => {
+                            navigate(msg.navigate_to!);
+                            setIsOpen(false);
+                          }}
+                          className="flex items-center gap-2 px-4 py-2 bg-primary/10 border border-primary/20 rounded-xl text-primary text-xs font-black uppercase tracking-widest hover:bg-primary hover:text-white transition-all w-fit group"
+                        >
+                          <Navigation className="h-3 w-3 group-hover:rotate-12 transition-transform" />
+                          Take Me There
+                        </motion.button>
                       )}
-                    >
-                      {msg.content}
                     </div>
                   </motion.div>
                 ))

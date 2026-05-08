@@ -454,9 +454,11 @@ export const usePathway = () => {
 
         setUnits(reorderedUnits);
         
-        if (data?.pathway_progress) {
+        if (data?.pathway_progress && Object.keys(data.pathway_progress).length > 0) {
+          console.log("[Pathway] Loaded progress from DB:", data.pathway_progress);
           setProgress(data.pathway_progress as Record<string, NodeStatus>);
         } else {
+          console.log("[Pathway] No progress found in DB, initializing first lesson.");
           const initialProgress: Record<string, NodeStatus> = {};
           if (reorderedUnits.length > 0 && reorderedUnits[0].lessons.length > 0) {
             initialProgress[reorderedUnits[0].lessons[0].id] = "available";
@@ -476,38 +478,43 @@ export const usePathway = () => {
   const completeLesson = useCallback(async (lessonId: string) => {
     if (!user) return;
 
-    const newProgress = { ...progress, [lessonId]: "completed" as NodeStatus };
-    
-    let found = false;
-    for (const unit of units) {
-      for (let i = 0; i < unit.lessons.length; i++) {
-        if (unit.lessons[i].id === lessonId) {
-          if (i + 1 < unit.lessons.length) {
-            newProgress[unit.lessons[i + 1].id] = "available";
-          } else {
-            const unitIdx = units.indexOf(unit);
-            if (unitIdx + 1 < units.length) {
-              newProgress[units[unitIdx + 1].lessons[0].id] = "available";
+    setProgress(prev => {
+      const newProgress = { ...prev, [lessonId]: "completed" as NodeStatus };
+      
+      let found = false;
+      for (const unit of units) {
+        for (let i = 0; i < unit.lessons.length; i++) {
+          if (unit.lessons[i].id === lessonId) {
+            if (i + 1 < unit.lessons.length) {
+              newProgress[unit.lessons[i + 1].id] = "available";
+            } else {
+              const unitIdx = units.indexOf(unit);
+              if (unitIdx + 1 < units.length) {
+                newProgress[units[unitIdx + 1].lessons[0].id] = "available";
+              }
             }
+            found = true;
+            break;
           }
-          found = true;
-          break;
         }
+        if (found) break;
       }
-      if (found) break;
-    }
 
-    setProgress(newProgress);
-
-    try {
-      await supabase
+      console.log("[Pathway] Updating progress:", newProgress);
+      
+      // Async update to DB
+      supabase
         .from("profiles")
         .update({ pathway_progress: newProgress })
-        .eq("id", user.id);
-    } catch (err) {
-      console.error("Error updating progress:", err);
-    }
-  }, [user, progress, units]);
+        .eq("id", user.id)
+        .then(({ error }) => {
+          if (error) console.error("[Pathway] DB update failed:", error);
+          else console.log("[Pathway] DB update successful");
+        });
+
+      return newProgress;
+    });
+  }, [user, units]);
 
   const getNodeStatus = useCallback((nodeId: string): NodeStatus => {
     return progress[nodeId] || "locked";

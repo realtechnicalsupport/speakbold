@@ -29,7 +29,8 @@ export const SiteHeader = () => {
       initial={{ y: -100, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
-      className="fixed top-0 inset-x-0 z-50 bg-background/60 backdrop-blur-xl border-b border-border/60"
+      className="fixed top-0 inset-x-0 z-50 glass border-b border-border/60"
+      id="site-navigation"
     >
       <div className="container flex items-center justify-between py-6">
         <Link to="/" className="flex items-center gap-3 group">
@@ -46,7 +47,7 @@ export const SiteHeader = () => {
             <NavLink
               key={n.to}
               to={n.to}
-              id={n.to === "/arena" ? "nav-arena" : undefined}
+              id={n.to === "/arena" ? "nav-arena" : (n.to === "/lab" ? "nav-lab" : undefined)}
               className={({ isActive }) =>
                 cn(
                   "text-sm font-black uppercase tracking-[0.4em] transition-all duration-500 relative py-2",
@@ -70,7 +71,7 @@ export const SiteHeader = () => {
         <div className="flex items-center gap-8">
           <div className="hidden sm:flex items-center gap-6 pr-6 border-r border-border/60">
             <ThemeToggle />
-            <Link to="/leaderboard" className={cn(
+            <Link to="/leaderboard" id="nav-leaderboard" className={cn(
               "transition-all duration-500",
               pathname === "/leaderboard" ? "text-primary" : "opacity-30 hover:opacity-100"
             )}>
@@ -130,7 +131,7 @@ const DuelRequestNotification = () => {
         initial={{ opacity: 0, y: -20, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        className="fixed top-24 right-4 z-[100] w-80 bg-background/80 backdrop-blur-2xl border border-primary/20 rounded-2xl p-4 shadow-glow shadow-primary/10 overflow-hidden"
+        className="fixed top-24 right-4 z-[100] w-80 glass border border-primary/20 rounded-2xl p-4 shadow-glow shadow-primary/10 overflow-hidden"
       >
         <div className="absolute top-0 left-0 w-1 h-full bg-primary" />
         <div className="flex items-start gap-4">

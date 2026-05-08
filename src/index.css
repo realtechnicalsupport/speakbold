@@ -92,6 +92,20 @@
     background: radial-gradient(600px circle at var(--x, 50%) var(--y, 50%), rgba(255, 77, 0, 0.05), transparent 80%);
   }
 
+  .bg-grid {
+    background-size: 50px 50px;
+    background-image: 
+      linear-gradient(to right, hsl(var(--border) / 0.3) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(var(--border) / 0.3) 1px, transparent 1px);
+    mask-image: radial-gradient(ellipse at center, black, transparent 80%);
+  }
+  
+  .dark .bg-grid {
+    background-image: 
+      linear-gradient(to right, hsla(var(--border) / 0.15) 1px, transparent 1px),
+      linear-gradient(to bottom, hsla(var(--border) / 0.15) 1px, transparent 1px);
+  }
+
   .text-glow-orange {
     text-shadow: 0 0 20px rgba(255, 77, 0, 0.2);
   }
@@ -135,6 +149,22 @@
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
+  }
+
+  .glass {
+    @apply bg-background/95 backdrop-blur-2xl border border-border/60 shadow-soft;
+  }
+
+  .glass-card {
+    @apply bg-muted/5 border border-border/60 rounded-2xl shadow-soft transition-all duration-500;
+  }
+
+  .dark .glass {
+    @apply bg-background/95 backdrop-blur-2xl border border-border/60 shadow-2xl;
+  }
+
+  .dark .glass-card {
+    @apply bg-muted/5 border border-border/60 rounded-2xl transition-all duration-500;
   }
 }
 

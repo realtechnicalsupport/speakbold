@@ -69,7 +69,7 @@ const Lab = () => {
               >
                 <Link
                   to={tool.to}
-                  className="group block p-8 rounded-[2rem] border border-border/60 bg-muted/5 hover:bg-muted/20 transition-all duration-300 relative overflow-hidden h-full"
+                  className="group block p-8 rounded-[2rem] glass-card transition-all duration-300 relative overflow-hidden h-full"
                 >
                   <div className="grain pointer-events-none opacity-50" />
                   <div className={`h-14 w-14 rounded-full ${tool.bg} ${tool.color} flex items-center justify-center mb-6`}>

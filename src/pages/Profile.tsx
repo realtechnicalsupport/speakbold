@@ -139,7 +139,7 @@ const Profile = () => {
           ].map((s) => (
             <div
               key={s.label}
-              className="bg-muted/5 border border-border/60 rounded-2xl md:rounded-[2.5rem] p-4 md:p-8 space-y-3 md:space-y-6 group hover:border-primary/30 transition-all duration-500 relative overflow-hidden"
+              className="glass-card rounded-2xl md:rounded-[2.5rem] p-4 md:p-8 space-y-3 md:space-y-6 group relative overflow-hidden"
             >
               <div className="grain pointer-events-none" />
               <s.icon className={cn("h-4 w-4 md:h-5 md:w-5 opacity-20 group-hover:opacity-100 transition-all duration-500", s.color)} />
@@ -158,11 +158,12 @@ const Profile = () => {
         <Tabs defaultValue="daily" className="w-full">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8 md:mb-14 border-b border-border/60 pb-6">
             <div className="overflow-x-auto scrollbar-hide pb-1 -mx-4 px-4 lg:mx-0 lg:px-0">
-              <TabsList className="bg-muted/5 p-1.5 rounded-full h-auto flex flex-nowrap gap-1 border border-border/60 w-max min-w-full">
+              <TabsList className="glass p-1.5 rounded-full h-auto flex flex-nowrap gap-1 w-max min-w-full">
                 {["daily", "streak", "recordings", "achievements"].map(v => (
                   <TabsTrigger
                     key={v}
                     value={v}
+                    id={v === "recordings" ? "profile-recordings-tab" : undefined}
                     className="rounded-full px-4 md:px-8 py-2.5 md:py-3 data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-glow transition-all text-[11px] md:text-xs font-black uppercase tracking-[0.2em] md:tracking-[0.3em] opacity-40 data-[state=active]:opacity-100 whitespace-nowrap"
                   >
                     {v}
@@ -185,7 +186,7 @@ const Profile = () => {
           <TabsContent value="streak" className="space-y-8 focus-visible:ring-0 focus-visible:outline-none animate-in fade-in duration-300">
             <div className="grid lg:grid-cols-[1fr_2fr] gap-6 md:gap-10">
               {/* Streak counter */}
-              <div className="bg-muted/5 border border-border/60 rounded-[2.5rem] p-6 md:p-12 space-y-6 md:space-y-10 relative overflow-hidden">
+              <div className="glass-card rounded-[2.5rem] p-6 md:p-12 space-y-6 md:space-y-10 relative overflow-hidden">
                 <div className="grain pointer-events-none" />
                 <div className="space-y-3">
                   <p className="text-xs font-black uppercase tracking-[0.5em] opacity-40">STREAK</p>
@@ -202,7 +203,7 @@ const Profile = () => {
               </div>
 
               {/* 7-day chart */}
-              <div className="bg-muted/5 border border-border/60 rounded-[2.5rem] p-6 md:p-12 space-y-6 md:space-y-10 relative overflow-hidden">
+              <div className="glass-card rounded-[2.5rem] p-6 md:p-12 space-y-6 md:space-y-10 relative overflow-hidden">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <p className="text-xs font-black uppercase tracking-[0.5em] opacity-40">PAST 7 DAYS</p>
                   <div className="flex items-center gap-2">
@@ -256,7 +257,7 @@ const Profile = () => {
                   return (
                     <div
                       key={r.id}
-                      className="bg-muted/5 border border-border/60 rounded-2xl md:rounded-[2.5rem] p-5 md:p-8 hover:border-primary/40 transition-all group relative overflow-hidden"
+                      className="glass-card rounded-2xl md:rounded-[2.5rem] p-5 md:p-8 group relative overflow-hidden"
                     >
                       <div className="grain pointer-events-none" />
                       <div className="flex items-start justify-between gap-4 mb-4 md:mb-6">
@@ -307,8 +308,8 @@ const Profile = () => {
                   <div
                     key={c.id}
                     className={cn(
-                      "relative bg-muted/5 border rounded-2xl md:rounded-[2.5rem] p-5 md:p-8 flex items-start gap-4 md:gap-8 transition-all duration-500 group overflow-hidden",
-                      done ? "border-primary/30 bg-primary/[0.03]" : "border-border/60 grayscale opacity-50"
+                      "relative glass-card rounded-2xl md:rounded-[2.5rem] p-5 md:p-8 flex items-start gap-4 md:gap-8 transition-all duration-500 group overflow-hidden",
+                      done ? "border-primary/30 bg-primary/[0.03]" : "grayscale opacity-50"
                     )}
                   >
                     <div className="grain pointer-events-none" />

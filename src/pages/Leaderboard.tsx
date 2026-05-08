@@ -60,7 +60,7 @@ const Leaderboard = () => {
               transition={{ delay: 0.2, duration: 1 }}
               className="grid lg:grid-cols-[1fr_400px] gap-8 mb-40"
             >
-              <div className="relative bg-muted/5 border border-primary/20 rounded-[4rem] p-12 md:p-20 overflow-hidden shadow-soft group">
+              <div className="relative glass-card rounded-[4rem] p-12 md:p-20 overflow-hidden shadow-soft group">
                 <div className="grain pointer-events-none" />
                 <div className="absolute top-0 right-0 p-16 opacity-5 pointer-events-none group-hover:opacity-10 transition-opacity duration-1000">
                   <Trophy className="h-64 w-64 text-primary" />
@@ -112,7 +112,7 @@ const Leaderboard = () => {
                 </div>
               </div>
 
-              <div className="bg-muted/5 border border-border/60 rounded-[4rem] p-12 space-y-12 flex flex-col justify-between relative overflow-hidden shadow-soft">
+              <div className="glass-card rounded-[4rem] p-12 space-y-12 flex flex-col justify-between relative overflow-hidden shadow-soft">
                 <div className="grain pointer-events-none" />
                 <div className="space-y-10">
                   <div className="h-16 w-16 rounded-[2rem] bg-primary/10 border border-primary/20 flex items-center justify-center">
@@ -198,10 +198,10 @@ const Leaderboard = () => {
                       viewport={{ once: true }}
                       transition={{ delay: i * 0.05, duration: 0.6 }}
                       className={cn(
-                        "group relative bg-muted/5 border rounded-[2.5rem] p-8 md:p-10 flex items-center gap-10 transition-all duration-700 overflow-hidden shadow-soft",
+                        "group relative glass-card rounded-[2.5rem] p-8 md:p-10 flex items-center gap-10 transition-all duration-700 overflow-hidden shadow-soft",
                         isMe
                           ? "border-primary bg-primary/[0.05] shadow-glow shadow-primary/5"
-                          : "border-border/60 hover:border-primary/40 hover:bg-primary/[0.02]"
+                          : "hover:border-primary/40 hover:bg-primary/[0.02]"
                       )}
                     >
                       <div className="grain pointer-events-none" />
@@ -263,7 +263,7 @@ const Leaderboard = () => {
                 whileInView={{ opacity: 1, scale: 1 }}
                 viewport={{ once: true }}
                 transition={{ delay: i * 0.05 }}
-                className="bg-muted/5 border border-border/60 rounded-[3rem] p-10 space-y-8 group hover:border-primary/40 transition-all duration-700 relative overflow-hidden shadow-soft"
+                className="glass-card rounded-[3rem] p-10 space-y-8 group hover:border-primary/40 transition-all duration-700 relative overflow-hidden shadow-soft"
               >
                 <div className="grain pointer-events-none" />
                 <div className="text-5xl group-hover:scale-110 group-hover:rotate-6 transition-all duration-700 origin-left inline-block">{t.emblem}</div>

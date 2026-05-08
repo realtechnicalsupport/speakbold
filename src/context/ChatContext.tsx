@@ -9,6 +9,7 @@ export type ChatMessage = {
   role: "user" | "assistant";
   content: string;
   created_at?: string;
+  navigate_to?: string;
 };
 
 interface ChatContextType {
@@ -81,7 +82,12 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     const aiResponse = await chatWithAssistant(historyForAi, currentContext);
 
     const aiMsgId = crypto.randomUUID();
-    const newAiMsg: ChatMessage = { id: aiMsgId, role: "assistant", content: aiResponse.text };
+    const newAiMsg: ChatMessage = { 
+      id: aiMsgId, 
+      role: "assistant", 
+      content: aiResponse.text,
+      navigate_to: aiResponse.navigateTo 
+    };
 
     // Update UI
     setMessages((prev) => [...prev, newAiMsg]);
@@ -95,12 +101,12 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
       content: aiResponse.text
     });
 
-    // Handle navigation action if requested
-    if (aiResponse.navigateTo) {
-      console.log("[AICoach] Navigating to:", aiResponse.navigateTo);
-      navigate(aiResponse.navigateTo);
-      setIsOpen(false); // Optionally close chat when navigating
-    }
+    // Handle navigation action if requested - handled by UI button now
+    // if (aiResponse.navigateTo) {
+    //   console.log("[AICoach] Navigating to:", aiResponse.navigateTo);
+    //   navigate(aiResponse.navigateTo);
+    //   setIsOpen(false); 
+    // }
   };
 
   return (

@@ -136,7 +136,7 @@ export async function generateSpeakingDrills(focus: string, count: number = 2): 
 }
 
 export async function generateImpromptuPrompts(category: string, count: number = 3): Promise<ImpromptuPrompt[]> {
-  const prompt = `Generate ${count} impromptu topics for ${category}. Return JSON array with topic, category, framework, frameworkSteps, example.`;
+  const prompt = `Generate ${count} impromptu topics for ${category}. Return JSON array with topic, category, framework, frameworkSteps, example. KEEP THE TOPIC SHORT AND PUNCHY (MAX 7 WORDS).`;
   const response = await callAI(prompt);
   const jsonMatch = response.match(/\[[\s\S]*\]/);
   return JSON.parse(jsonMatch ? jsonMatch[0] : "[]").map((t: any, i: number) => ({ ...t, id: `imp-${Date.now()}-${i}` }));
@@ -155,7 +155,7 @@ export async function generateArenaPrompt(gamemode: string): Promise<string> {
   - If standard: A philosophical deep dive (e.g. 'The ethics of immortality').
 
   DO NOT repeat common topics like 'failure' or 'climate change' unless you have a very fresh angle.
-  Return ONLY the prompt text. No quotes.`;
+  Return ONLY the prompt text. No quotes. KEEP IT CONCISE (MAXIMUM 8 WORDS).`;
   
   return callAI(systemPrompt);
 }
@@ -314,5 +314,77 @@ Format:
   } catch (err) {
     console.error("[chatWithAssistant] Error:", err);
     return { text: "I'm having trouble connecting to my servers right now. Please try again later." };
+  }
+}
+
+export async function judgePathwayDrill(
+  userName: string,
+  transcript: string,
+  lessonTitle: string,
+  lessonObjective: string,
+  lessonPrompt: string,
+  passScore: number = 70
+): Promise<{
+  score: number;
+  feedback: string;
+  strengths: string;
+  coaching: string;
+  exampleSpeech: string;
+  passed: boolean;
+}> {
+  if (!transcript || transcript.trim().length < 10) {
+    return {
+      score: 0,
+      feedback: "No speech detected. Please ensure your microphone is working and try again.",
+      strengths: "N/A",
+      coaching: "Make sure you speak clearly into your microphone for the full duration of the drill.",
+      exampleSpeech: "",
+      passed: false,
+    };
+  }
+
+  const systemPrompt = `You are an expert, encouraging public speaking coach evaluating a student's drill performance.
+
+DRILL: "${lessonTitle}"
+OBJECTIVE: "${lessonObjective}"
+PROMPT GIVEN: "${lessonPrompt}"
+STUDENT: ${userName}
+
+Evaluate the transcript against the drill's specific objective. Be honest, constructive, and encouraging.
+
+Return JSON ONLY:
+{
+  "score": (0-100, how well they met the drill objective),
+  "feedback": "2-3 sentence overall verdict written directly to ${userName}, mentioning what they did well and what needs work",
+  "strengths": "comma-separated list of 2-4 specific technical strengths demonstrated",
+  "coaching": "1 specific, actionable coaching tip they should focus on for next time",
+  "exampleSpeech": "A short, high-quality model response to this drill prompt showing exactly how an expert would execute it (2-4 sentences)"
+}`;
+
+  const fullPrompt = `${systemPrompt}\n\nSTUDENT TRANSCRIPT: ${transcript}`;
+
+  try {
+    const result = await callAI(fullPrompt);
+    const jsonMatch = result.match(/{[\s\S]*}/);
+    const p = JSON.parse(jsonMatch ? jsonMatch[0] : '{"score":50,"feedback":"Analysis unavailable.","strengths":"Attempted","coaching":"Keep practicing.","exampleSpeech":""}');
+    const score = Math.max(0, Math.min(100, p.score || 0));
+    return {
+      score,
+      feedback: p.feedback || "Good effort. Keep practicing!",
+      strengths: p.strengths || "Attempted the drill",
+      coaching: p.coaching || "Keep refining your technique.",
+      exampleSpeech: p.exampleSpeech || "",
+      passed: score >= passScore,
+    };
+  } catch (err) {
+    console.error("[judgePathwayDrill] Error:", err);
+    return {
+      score: 0,
+      feedback: "AI analysis timed out. Your session was still recorded.",
+      strengths: "Completed the drill",
+      coaching: "Try again — you're making progress.",
+      exampleSpeech: "",
+      passed: false,
+    };
   }
 }

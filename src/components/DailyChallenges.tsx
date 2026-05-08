@@ -281,7 +281,7 @@ export const DailyChallenges = () => {
   };
 
   return (
-    <div className="space-y-12">
+    <div className="space-y-12" id="daily-challenges-container">
       {/* Header Area */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-12">
         <div className="space-y-6">
@@ -397,7 +397,7 @@ export const DailyChallenges = () => {
                          <div className="space-y-16">
                             {/* Visual Timer */}
                             <div className="flex flex-col items-center gap-12">
-                               <div className="relative h-48 w-48 md:h-64 md:w-64 flex items-center justify-center">
+                               <div className="relative h-40 w-40 md:h-52 md:w-52 flex items-center justify-center">
                                   <svg className="absolute inset-0 -rotate-90" viewBox="0 0 100 100">
                                      <circle cx="50" cy="50" r="48" fill="none" stroke="currentColor" strokeWidth="1" className="text-muted/10" />
                                      <motion.circle 
@@ -409,8 +409,8 @@ export const DailyChallenges = () => {
                                      />
                                   </svg>
                                    <div className="text-center space-y-2 relative z-10">
-                                      <div className="speak-serif text-5xl md:text-9xl font-bold tabular-nums italic leading-none">{formatTime(timeLeft)}</div>
-                                      <p className="text-xs font-black uppercase tracking-[0.4em] opacity-20">TIME LEFT</p>
+                                      <div className="speak-serif text-4xl md:text-7xl font-bold tabular-nums italic leading-none">{formatTime(timeLeft)}</div>
+                                      <p className="text-[10px] font-black uppercase tracking-[0.4em] opacity-20">TIME LEFT</p>
                                    </div>
                                </div>
 
