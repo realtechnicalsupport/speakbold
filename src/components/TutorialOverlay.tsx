@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, X, Sparkles, Target, Mic, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/context/AuthContext";
 
 interface Step {
   targetId: string;
@@ -17,7 +18,7 @@ const STEPS: Step[] = [
   {
     targetId: "pathway-hero",
     title: "Personalized Roadmap",
-    content: "Your path is unique. We've reordered 12+ units to prioritize your selected focus area. As you improve, the AI adapts the difficulty to keep you in the flow zone.",
+    content: "Your path is unique. Whether your goal is mastering Interviews, Public Speaking, or Impromptu, we've reordered the curriculum to prioritize your focus area.",
     icon: Target,
     position: "bottom",
   },
@@ -29,20 +30,26 @@ const STEPS: Step[] = [
     position: "top",
   },
   {
-    targetId: "lab-grid",
-    title: "The Lab: Skill Surgery",
-    content: "Need to fix a specific issue? The Lab has specialized tools for filler word reduction, articulation, and voice projection. Use this for surgical improvement of technical skills.",
-    icon: Sparkles,
-    position: "center",
-    redirectTo: "/lab"
-  },
-  {
     targetId: "arena-grid",
     title: "The Lounge: Live Stakes",
-    content: "This is the 'Practice Lounge'. Here you can engage in live-simulated scenarios, practice impromptu speaking under pressure, and climb the Elo leaderboard against other learners.",
-    icon: Mic,
+    content: "Ready to test your skills under pressure? The Practice Lounge is where you can battle the AI or other learners in real-time scenarios.",
+    icon: Trophy,
     position: "center",
     redirectTo: "/arena"
+  },
+  {
+    targetId: "arena-gamemodes",
+    title: "Game Modes",
+    content: "Choose your battlefield: 'Blitz' for quick logic puzzles, 'Pitch' for selling bizarre inventions, 'Debate' for controversial motions, or 'Standard' for deep thematic topics.",
+    icon: Sparkles,
+    position: "bottom",
+  },
+  {
+    targetId: "arena-online-users",
+    title: "Challenge Peers",
+    content: "See who's online and send an invite. Try inviting 'Alex (Trainer)' now to see how an online duel works! You'll both get the same prompt and the AI will judge the winner.",
+    icon: Mic,
+    position: "top",
   },
   {
     targetId: "profile-stats",
@@ -57,12 +64,14 @@ const STEPS: Step[] = [
 export const TutorialOverlay = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState<number | null>(null);
   const [isVisible, setIsVisible] = useState(false);
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
 
   useEffect(() => {
-    const pending = localStorage.getItem("speakbold_tutorial_pending");
+    if (!user) return;
+    const pending = localStorage.getItem(`speakbold_tutorial_pending_${user.id}`);
     if (pending === "true") {
       // Only start if we are on the pathway page
       if (location.pathname === "/pathway" && !isVisible) {
@@ -73,7 +82,7 @@ export const TutorialOverlay = () => {
         return () => clearTimeout(timer);
       }
     }
-  }, [location.pathname, isVisible]);
+  }, [location.pathname, isVisible, user]);
 
   useEffect(() => {
     if (!isVisible || currentStep === null) return;
@@ -122,7 +131,9 @@ export const TutorialOverlay = () => {
 
   const handleComplete = () => {
     setIsVisible(false);
-    localStorage.removeItem("speakbold_tutorial_pending");
+    if (user) {
+      localStorage.removeItem(`speakbold_tutorial_pending_${user.id}`);
+    }
     setCurrentStep(null);
   };
 
@@ -144,6 +155,7 @@ export const TutorialOverlay = () => {
             ? `polygon(0% 0%, 0% 100%, ${targetRect.left - 8}px 100%, ${targetRect.left - 8}px ${targetRect.top - 8}px, ${targetRect.right + 8}px ${targetRect.top - 8}px, ${targetRect.right + 8}px ${targetRect.bottom + 8}px, ${targetRect.left - 8}px ${targetRect.bottom + 8}px, ${targetRect.left - 8}px 100%, 100% 100%, 100% 0%)`
             : "none"
         }}
+        transition={{ type: "spring", stiffness: 1000, damping: 60, mass: 0.5 }}
         onClick={handleComplete}
       />
 
@@ -157,22 +169,35 @@ export const TutorialOverlay = () => {
             scale: 1,
             y: 0,
             top: targetRect
-              ? (step.position === "bottom"
-                ? Math.min(targetRect.bottom + 24, window.innerHeight - (window.innerWidth < 768 ? 400 : 300))
-                : Math.max(targetRect.top - (window.innerWidth < 768 ? 320 : 280), 20))
+              ? (window.innerWidth < 768
+                ? Math.min(targetRect.bottom + 12, window.innerHeight - 200)
+                : (step.position === "bottom"
+                  ? Math.min(targetRect.bottom + 24, window.innerHeight - 300)
+                  : Math.max(targetRect.top - 280, 20)))
               : "50%",
             left: targetRect
               ? (window.innerWidth < 768 
-                  ? "50%" 
+                  ? "20px" 
                   : Math.max(160, Math.min(targetRect.left + targetRect.width / 2, window.innerWidth - 160)))
               : "50%",
           }}
-          transition={{ type: "spring", stiffness: 300, damping: 30 }}
+          drag
+          dragMomentum={false}
+          whileDrag={{ scale: 1.05, boxShadow: "0 30px 60px rgba(0,0,0,0.3)", cursor: "grabbing" }}
+          transition={{ 
+            type: "spring", 
+            stiffness: 1000, 
+            damping: 50,
+            opacity: { duration: 0.2 },
+            scale: { type: "spring", stiffness: 400, damping: 25 },
+            top: { type: "spring", stiffness: 1000, damping: 60, mass: 0.5 },
+            left: { type: "spring", stiffness: 1000, damping: 60, mass: 0.5 }
+          }}
           exit={{ opacity: 0, scale: 0.9, y: 20 }}
           className={cn(
-            "absolute pointer-events-auto w-[calc(100vw-40px)] md:w-[320px] bg-card border border-border shadow-2xl rounded-[2rem] p-6 md:p-8 space-y-4 md:space-y-6 z-[301]",
+            "absolute pointer-events-auto w-[calc(100vw-40px)] md:w-[320px] bg-card border border-border shadow-2xl rounded-[2rem] p-6 md:p-8 space-y-4 md:space-y-6 z-[301] touch-none cursor-grab active:cursor-grabbing",
             !targetRect && "-translate-x-1/2 -translate-y-1/2",
-            targetRect && "-translate-x-1/2"
+            targetRect && (window.innerWidth < 768 ? "" : "-translate-x-1/2")
           )}
         >
           <div className="flex items-center justify-between">

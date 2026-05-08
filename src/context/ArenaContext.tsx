@@ -32,6 +32,10 @@ export interface Duel {
   status: "open" | "completed";
   winner: string | null;
   feedback: string | null;
+  oppFeedback?: string;
+  strengths?: string;
+  oppStrengths?: string;
+  exampleSpeech?: string;
   timestamp: number;
   eloChange?: number;
 }
@@ -65,7 +69,7 @@ interface ArenaContextType {
   sendReadyStatus: (duelId: string, isReady: boolean) => Promise<void>;
   sendForfeit: (duelId: string) => Promise<void>;
   handleForfeit: (duelId: string, isMe: boolean, duelObj: Duel) => Promise<void>;
-  completeDuel: (duelId: string, challengerName: string, creatorScore: number, challengerScore: number, feedback: string, duelObj: Duel, explicitWinner?: string) => Promise<void>;
+  completeDuel: (duelId: string, challengerName: string, creatorScore: number, challengerScore: number, feedback: string, duelObj: Duel, explicitWinner?: string, details?: { strengths?: string, oppStrengths?: string, oppFeedback?: string, exampleSpeech?: string }) => Promise<void>;
   broadcastBattleResult: (duelId: string, results: any) => Promise<void>;
   broadcastAnalyzing: (duelId: string) => Promise<void>;
   sendTranscript: (duelId: string, transcript: string) => Promise<void>;
@@ -138,6 +142,10 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             timestamp: new Date(b.created_at).getTime(), 
             winner: b.winner_id, 
             feedback: b.verdict,
+            oppFeedback: b.opp_feedback,
+            strengths: b.strengths,
+            oppStrengths: b.opp_strengths,
+            exampleSpeech: b.example_speech,
             creator: { 
               id: b.challenger_id, 
               name: hostProf?.display_name || (b.challenger_id === user.id ? user.email?.split("@")[0] : "Player"), 
@@ -178,6 +186,20 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           const p = presences[presences.length - 1];
           if (p && p.user) users.push(p.user);
         });
+        
+        // Inject fake user for tutorial if pending
+        if (localStorage.getItem("speakbold_tutorial_pending") === "true") {
+          if (!users.find(u => u.id === "tutorial-fake-user")) {
+            users.push({
+              id: "tutorial-fake-user",
+              name: "Alex (Trainer)",
+              avatar: "🎯",
+              rank: { name: "Silver", tier: "II" },
+              elo: 650
+            });
+          }
+        }
+        
         setOnlineUsers(users);
       })
       .on("broadcast", { event: "duel-request" }, ({ payload }) => {
@@ -261,7 +283,7 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  const completeDuel = async (duelId: string, challengerName: string, creatorScore: number, challengerScore: number, feedback: string, duelObj: Duel, explicitWinner?: string) => {
+  const completeDuel = async (duelId: string, challengerName: string, creatorScore: number, challengerScore: number, feedback: string, duelObj: Duel, explicitWinner?: string, details?: { strengths?: string, oppStrengths?: string, oppFeedback?: string, exampleSpeech?: string }) => {
     if (!user) return;
     const isChallenger = duelObj.challenger?.id === user?.id;
     const isAI = duelId.includes("ai");
@@ -291,6 +313,10 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         challenger_score: creatorScore, 
         opponent_score: challengerScore, 
         verdict: feedback, 
+        strengths: details?.strengths,
+        opp_strengths: details?.oppStrengths,
+        opp_feedback: details?.oppFeedback,
+        example_speech: details?.exampleSpeech,
         winner_id: won ? user.id : (tie ? null : (isAI ? null : (isChallenger ? duelObj.creator.id : duelObj.challenger?.id)))
       };
 

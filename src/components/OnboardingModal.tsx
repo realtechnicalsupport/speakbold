@@ -90,8 +90,9 @@ export const OnboardingModal = () => {
     let active = true;
     const checkOnboarded = async () => {
       try {
-        // 1. Check local storage first
-        const localDone = localStorage.getItem(ONBOARDING_KEY);
+        // 1. Check local storage first (user-specific)
+        const userOnboardingKey = `${ONBOARDING_KEY}_${user.id}`;
+        const localDone = localStorage.getItem(userOnboardingKey);
         console.log("[Onboarding] Local status:", localDone);
         if (localDone && active) return;
 
@@ -109,7 +110,7 @@ export const OnboardingModal = () => {
 
         if (data && active) {
           console.log("[Onboarding] DB says already onboarded");
-          localStorage.setItem(ONBOARDING_KEY, "true");
+          localStorage.setItem(userOnboardingKey, "true");
           return;
         }
 
@@ -160,22 +161,22 @@ export const OnboardingModal = () => {
 
       await supabase.from("profiles").update(updateData).eq("id", user.id);
 
-      localStorage.setItem("speakbold_tutorial_pending", "true");
+      localStorage.setItem(`speakbold_tutorial_pending_${user.id}`, "true");
     } catch (e) {
       console.error("[Onboarding] Failed to save selections:", e);
     }
   };
 
   const dismiss = () => {
-    localStorage.setItem(ONBOARDING_KEY, "true");
+    localStorage.setItem(`${ONBOARDING_KEY}_${user?.id}`, "true");
     markDoneInDB();
     setVisible(false);
   };
 
   const selectPath = (id: string) => {
-    localStorage.setItem("speakbold_pathway_selection", id);
-    localStorage.setItem(ONBOARDING_KEY, "true");
-    localStorage.setItem("speakbold_tutorial_pending", "true");
+    localStorage.setItem(`speakbold_pathway_selection_${user?.id}`, id);
+    localStorage.setItem(`${ONBOARDING_KEY}_${user?.id}`, "true");
+    localStorage.setItem(`speakbold_tutorial_pending_${user?.id}`, "true");
     markDoneInDB(id);
     setVisible(false);
     window.location.href = "/pathway";
@@ -209,7 +210,7 @@ export const OnboardingModal = () => {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -30 }}
                 transition={{ duration: 0.6, ease: "circOut" }}
-                className="max-w-2xl w-full text-center space-y-12 py-16"
+                className="max-w-2xl w-full text-center space-y-8 md:space-y-12 py-8 md:py-16 max-h-[85vh] overflow-y-auto px-4"
               >
                 <motion.div
                   initial={{ scale: 0 }}
@@ -256,7 +257,7 @@ export const OnboardingModal = () => {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -30 }}
                 transition={{ duration: 0.6, ease: "circOut" }}
-                className="max-w-3xl w-full space-y-12 py-8"
+                className="max-w-3xl w-full space-y-8 md:space-y-12 py-8 md:py-16 max-h-[85vh] overflow-y-auto px-4"
               >
                 <div className="text-center space-y-3">
                   <p className="text-xs font-black uppercase tracking-[0.6em] text-primary opacity-60">HOW IT WORKS</p>
@@ -306,7 +307,7 @@ export const OnboardingModal = () => {
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
-                className="max-w-2xl w-full space-y-12 py-8"
+                className="max-w-2xl w-full space-y-8 md:space-y-12 py-8 max-h-[85vh] overflow-y-auto px-4"
               >
                 <div className="text-center space-y-3">
                   <p className="text-xs font-black uppercase tracking-[0.6em] text-primary opacity-60">STEP 2 / 4</p>
@@ -356,7 +357,7 @@ export const OnboardingModal = () => {
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
-                className="max-w-2xl w-full space-y-12 py-8"
+                className="max-w-2xl w-full space-y-8 md:space-y-12 py-8 max-h-[85vh] overflow-y-auto px-4"
               >
                 <div className="text-center space-y-3">
                   <p className="text-xs font-black uppercase tracking-[0.6em] text-primary opacity-60">STEP 3 / 4</p>
@@ -406,7 +407,7 @@ export const OnboardingModal = () => {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -30 }}
                 transition={{ duration: 0.6, ease: "circOut" }}
-                className="max-w-3xl w-full space-y-12 py-8"
+                className="max-w-3xl w-full space-y-8 md:space-y-12 py-8 max-h-[85vh] overflow-y-auto px-4"
               >
                 <div className="text-center space-y-3">
                   <p className="text-xs font-black uppercase tracking-[0.6em] text-primary opacity-60">STEP 4 / 4</p>

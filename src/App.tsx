@@ -31,8 +31,10 @@ import { ThemeProvider } from "./components/theme-provider";
 import { useTimerActive } from "./lib/timerState";
 import { MicrophoneBorder } from "./components/MicrophoneBorder";
 import { ArenaProvider } from "./context/ArenaContext";
+import { ChatProvider } from "./context/ChatContext";
 import { OnboardingModal } from "./components/OnboardingModal";
 import { TutorialOverlay } from "./components/TutorialOverlay";
+import { AICoachChat } from "./components/AICoachChat";
 
 const queryClient = new QueryClient();
 
@@ -60,11 +62,12 @@ const App = () => {
       <AuthProvider>
         <ArenaProvider>
           <ThemeProvider defaultTheme="light" storageKey="speakbold-theme">
-          <TooltipProvider>
-            <Toaster />
+            <TooltipProvider>
+              <Toaster />
             <Sonner />
             <ReminderWrapper>
               <BrowserRouter>
+                <ChatProvider>
                 <div className="grain" />
               
               {/* Global Background Elements */}
@@ -101,6 +104,8 @@ const App = () => {
               <MicrophoneBorder />
               <OnboardingModal />
               <TutorialOverlay />
+              <AICoachChat />
+              </ChatProvider>
             </BrowserRouter>
           </ReminderWrapper>
         </TooltipProvider>

@@ -28,7 +28,7 @@ const DuelDrill = ({
   sendReadyStatus: (duelId: string, isReady: boolean) => void;
   sendForfeit: (duelId: string) => void;
   handleForfeit: (duelId: string, isMe: boolean, duelObj: Duel) => void;
-  completeDuel: (duelId: string, challengerName: string, challengerScore: number, feedbackStr: string, duelObj: Duel) => void;
+  completeDuel: (duelId: string, challengerName: string, creatorScore: number, challengerScore: number, feedback: string, duelObj: Duel, explicitWinner?: string, details?: { strengths?: string, oppStrengths?: string, oppFeedback?: string, exampleSpeech?: string }) => void;
   broadcastBattleResult: (duelId: string, results: any) => void;
   sendTranscript: (duelId: string, transcript: string) => void;
   broadcastAnalyzing: (duelId: string) => void;
@@ -178,7 +178,7 @@ const DuelDrill = ({
 
   // Ready-up Countdown
   useEffect(() => {
-    if (phase !== "drilling" || userReady && opponentReady) return;
+    if (phase !== "drilling" || (userReady && opponentReady) || isCreating) return;
     if (readyTimer <= 0) {
       toast({ title: "Session Timed Out", description: "Players did not ready up in time.", variant: "destructive" });
       onClose();
@@ -354,18 +354,34 @@ const DuelDrill = ({
     if (!lastRecording) {
       console.warn("[Judge] No recording found to judge.");
       toast({ title: "No recording found", description: "The session is invalid without audio.", variant: "destructive" });
+      onClose();
       return;
     }
 
     setPhase("analyzing");
+    
+    // Create a timeout promise to prevent getting stuck
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error("JUDGE_TIMEOUT")), 25000)
+    );
+
     try {
       setAnalyzeText("TRANSCRIBING AUDIO...");
-      const myTranscript = await transcribeAudio(lastRecording.blob);
+      
+      const transcribePromise = transcribeAudio(lastRecording.blob);
+      const myTranscript = await Promise.race([transcribePromise, timeoutPromise]) as string;
+      
       console.log("[Judge] Transcription result:", myTranscript);
 
-      if (!myTranscript || myTranscript.trim().length === 0) {
-        console.warn("[Judge] Empty transcript. Scoring as 0.");
-        myTranscript = "[Silence/Invalid Recording]";
+      if (!myTranscript || myTranscript.trim().length < 10) {
+        console.warn("[Judge] Empty or too short transcript. Invalid attempt.");
+        toast({ 
+          title: "Invalid Attempt", 
+          description: "We couldn't hear you clearly. Please ensure your mic is working and try again.", 
+          variant: "destructive" 
+        });
+        onClose();
+        return;
       }
       const isHost = !duel || duel.creator.id === user?.id;
       
@@ -373,6 +389,14 @@ const DuelDrill = ({
         console.log("[Judge] Challenger sending transcript to Host...");
         sendTranscript(duel.id, myTranscript);
         setAnalyzeText("WAITING FOR AI RESULTS...");
+        
+        // Timeout for waiting for host results
+        setTimeout(() => {
+          if (phase === "analyzing") {
+             toast({ title: "Sync Error", description: "Host did not return results in time.", variant: "destructive" });
+             onClose();
+          }
+        }, 15000);
         return;
       }
 
@@ -393,6 +417,10 @@ const DuelDrill = ({
              break;
           }
         }
+        
+        if (!oppTranscriptRef.current) {
+          throw new Error("OPPONENT_MISSING_TRANSCRIPT");
+        }
       }
 
       setAnalyzeText("AI IS REVIEWING...");
@@ -402,7 +430,8 @@ const DuelDrill = ({
       const challengerName = duel?.challenger?.name || "Opponent";
       
       // Pass BOTH transcripts and names to the judge for comparison
-      const judgeResult = await judgeBattle(hostName, myTranscript, promptToUse, challengerName, finalOppTranscript || undefined);
+      const judgePromise = judgeBattle(hostName, myTranscript, promptToUse, challengerName, finalOppTranscript || undefined);
+      const judgeResult = await Promise.race([judgePromise, timeoutPromise]) as any;
       
       const userName = user?.email?.split("@")[0] || "User";
       
@@ -425,14 +454,26 @@ const DuelDrill = ({
         console.log("[Judge] Broadcasting sync results to peer...");
         broadcastBattleResult(duel.id, finalVerdict);
         // Pass the explicit winner from the judge to ensure ELO correctly reflects the outcome
-        completeDuel(duel.id, userName, judgeResult.score, judgeResult.oppScore || 0, judgeResult.feedback, duel, judgeResult.winner);
+        completeDuel(duel.id, userName, judgeResult.score, judgeResult.oppScore || 0, judgeResult.feedback, duel, judgeResult.winner, {
+          strengths: judgeResult.strengths,
+          oppStrengths: judgeResult.oppStrengths,
+          oppFeedback: judgeResult.oppFeedback,
+          exampleSpeech: judgeResult.exampleSpeech
+        });
       }
       
       setPhase("results");
-    } catch (err) {
+    } catch (err: any) {
       console.error("[Judge] FATAL JUDGE ERROR:", err);
-      toast({ title: "Analysis Failed", description: "The AI judge encountered an error. Please retry.", variant: "destructive" });
-      setPhase("drilling");
+      const isTimeout = err.message === "JUDGE_TIMEOUT";
+      const isMissing = err.message === "OPPONENT_MISSING_TRANSCRIPT";
+      
+      toast({ 
+        title: isTimeout ? "AI Timed Out" : "Invalid Attempt", 
+        description: isTimeout ? "The AI took too long to analyze. Returning to lobby." : "Analysis failed or sync lost. Returning to lobby.", 
+        variant: "destructive" 
+      });
+      onClose();
     }
   };
 
@@ -615,13 +656,25 @@ const DuelDrill = ({
                       {generatingPrompt ? "GENERATING..." : "GENERATE PROMPT"}
                     </button>
                   </div>
-                  <textarea
-                    value={customPrompt}
-                    onChange={e => setCustomPrompt(e.target.value)}
-                    placeholder="Type here or use the generator..."
-                    className="w-full bg-transparent border-b border-primary/30 focus:border-primary outline-none speak-serif text-xl md:text-3xl italic tracking-tight leading-relaxed resize-none h-32 transition-colors"
-                  />
-                </div>
+                    <textarea
+                      value={customPrompt}
+                      onChange={e => setCustomPrompt(e.target.value)}
+                      placeholder="Type here or use the generator..."
+                      className="w-full bg-transparent border-b border-primary/30 focus:border-primary outline-none speak-serif text-xl md:text-3xl italic tracking-tight leading-relaxed resize-none h-32 transition-colors"
+                    />
+                    <button
+                      disabled={!customPrompt.trim()}
+                      onClick={() => {
+                        setUserReady(true);
+                        // For solo custom mode, we set opponent ready immediately
+                        setOpponentReady(true);
+                      }}
+                      className="button-pill w-full py-4 bg-primary text-white shadow-glow group flex items-center justify-center gap-4 mt-4"
+                    >
+                      <span className="text-sm font-black uppercase tracking-[0.3em]">START CHALLENGE</span>
+                      <Sparkles className="h-4 w-4 group-hover:rotate-12 transition-transform" />
+                    </button>
+                  </div>
               ) : (
                 <p className="speak-serif text-xl sm:text-2xl md:text-4xl italic tracking-tight leading-relaxed text-center">"{promptToUse}"</p>
               )}
@@ -629,7 +682,7 @@ const DuelDrill = ({
 
             <div className="max-w-md mx-auto w-full">
               {!finished ? (
-                !userReady ? (
+                !userReady && !isCreating ? (
                   <button
                     disabled={isCreating && !customPrompt.trim()}
                     onClick={() => {
@@ -641,7 +694,7 @@ const DuelDrill = ({
                     <span className="text-sm font-black uppercase tracking-[0.3em]">READY UP ({readyTimer}s)</span>
                     <Sparkles className="h-4 w-4 group-hover:rotate-12 transition-transform" />
                   </button>
-                ) : (
+                ) : !isCreating ? (
                   <div className="bg-muted/50 border border-border rounded-2xl p-4 flex flex-col gap-4">
                      <div className="flex justify-between items-center px-4">
                         <div className="flex items-center gap-3">
@@ -661,7 +714,7 @@ const DuelDrill = ({
                         </span>
                      </div>
                   </div>
-                )
+                ) : null
               ) : (
                 <div className="bg-muted/50 border border-border rounded-2xl p-8 flex flex-col items-center justify-center gap-4">
                    <Radar className="h-12 w-12 text-primary animate-spin-slow opacity-20" />
@@ -856,11 +909,14 @@ const DuelDrill = ({
                     <div className="bg-background/30 border border-border rounded-xl p-4">
                        <p className="text-[11px] font-black uppercase tracking-[0.3em] text-green-500 mb-2">YOUR STRENGTHS</p>
                        <div className="space-y-1">
-                          {verdictResult.strengths.split(',').filter(s => s.trim()).map((s, i) => (
-                             <p key={i} className="text-[11px] opacity-70 leading-tight flex gap-2">
-                                <span className="text-green-500">•</span> {s.trim()}
-                             </p>
-                          ))}
+                          {(typeof verdictResult.strengths === 'string' 
+                             ? verdictResult.strengths.split(',') 
+                             : (Array.isArray(verdictResult.strengths) ? verdictResult.strengths : [])
+                           ).filter(s => s && String(s).trim()).map((s, i) => (
+                              <p key={i} className="text-[11px] opacity-70 leading-tight flex gap-2">
+                                 <span className="text-green-500">•</span> {String(s).trim()}
+                              </p>
+                           ))}
                        </div>
                     </div>
                     <div className="bg-background/30 border border-border rounded-xl p-4">
@@ -1114,15 +1170,119 @@ const Arena = () => {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-8">
         <Radar className="h-12 w-12 text-primary animate-spin-slow mb-4 opacity-20" />
-        <p className="text-sm font-black uppercase tracking-[0.5em] text-primary/40 animate-pulse">SYNCHRONIZING COMBAT RECORDS...</p>
+                <p className="text-sm font-black uppercase tracking-[0.5em] text-primary/40 animate-pulse">SYNCHRONIZING COMBAT RECORDS...</p>
       </div>
     );
   }
 
+  const [selectedDuel, setSelectedDuel] = useState<Duel | null>(null);
+
   return (
-    <main className="min-h-screen bg-background text-foreground relative overflow-x-hidden">
+    <main className="min-h-screen bg-background text-foreground relative overflow-hidden">
       <div className="absolute top-0 inset-x-0 h-screen bg-gradient-to-b from-primary/5 to-transparent pointer-events-none" />
       <SiteHeader />
+
+      <AnimatePresence>
+        {selectedDuel && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[150] flex items-center justify-center bg-background/80 backdrop-blur-md p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="bg-card border border-border rounded-[2.5rem] w-full max-w-2xl max-h-[85vh] overflow-hidden shadow-2xl flex flex-col"
+            >
+              <div className="p-8 border-b border-border flex justify-between items-center bg-muted/30">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.4em] text-primary mb-1">SESSION ARCHIVE</p>
+                  <h3 className="speak-serif text-2xl font-bold italic">{selectedDuel.gamemode.toUpperCase()} BATTLE</h3>
+                </div>
+                <button onClick={() => setSelectedDuel(null)} className="h-10 w-10 rounded-full bg-background border border-border flex items-center justify-center hover:bg-muted transition-colors">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="flex-grow overflow-y-auto p-8 space-y-10">
+                {/* Scoreboard */}
+                <div className="flex items-center justify-center gap-8 md:gap-12 py-6 bg-muted/20 rounded-[2rem] border border-border">
+                  <div className="text-center">
+                    <div className="text-4xl md:text-5xl font-black mb-2">{selectedDuel.creator.score}</div>
+                    <div className="flex items-center gap-2 justify-center">
+                      <div className={cn("h-6 w-6 rounded-full flex items-center justify-center text-[10px] border", getRankColor(selectedDuel.creator.rank))}>{selectedDuel.creator.avatar}</div>
+                      <span className="text-[10px] font-black uppercase tracking-widest opacity-40">{selectedDuel.creator.name}</span>
+                    </div>
+                  </div>
+                  <div className="speak-serif text-3xl opacity-20 italic">vs</div>
+                  <div className="text-center">
+                    <div className="text-4xl md:text-5xl font-black mb-2">{selectedDuel.challenger?.score}</div>
+                    <div className="flex items-center gap-2 justify-center">
+                      <div className={cn("h-6 w-6 rounded-full flex items-center justify-center text-[10px] border", getRankColor(selectedDuel.challenger?.rank || currentRank))}>{selectedDuel.challenger?.avatar || "🤖"}</div>
+                      <span className="text-[10px] font-black uppercase tracking-widest opacity-40">{selectedDuel.challenger?.name}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Prompt */}
+                <div className="space-y-4">
+                  <p className="text-[10px] font-black uppercase tracking-widest opacity-30 flex items-center gap-2">
+                    <Target className="h-3 w-3" /> THE CHALLENGE
+                  </p>
+                  <p className="speak-serif text-xl md:text-2xl italic leading-relaxed border-l-4 border-primary/20 pl-6 py-2">
+                    "{selectedDuel.prompt}"
+                  </p>
+                </div>
+
+                {/* Feedback */}
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="space-y-4">
+                      <p className="text-[10px] font-black uppercase tracking-widest opacity-30 flex items-center gap-2">
+                        <Sparkles className="h-3 w-3" /> COACH'S VERDICT
+                      </p>
+                      <p className="text-sm leading-relaxed opacity-70 italic font-medium">
+                        "{selectedDuel.feedback}"
+                      </p>
+                    </div>
+                    <div className="space-y-4">
+                      <p className="text-[10px] font-black uppercase tracking-widest opacity-30 flex items-center gap-2">
+                        <Trophy className="h-3 w-3" /> CORE STRENGTHS
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedDuel.strengths?.split(',').map((s, i) => (
+                          <span key={i} className="px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-[10px] font-bold text-primary uppercase tracking-widest">
+                            {s.trim()}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Example Speech */}
+                {selectedDuel.exampleSpeech && (
+                  <div className="space-y-4 p-6 bg-primary/5 rounded-[1.5rem] border border-primary/10">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-2">
+                      <Mic className="h-3 w-3" /> HOW AN EXPERT WOULD SAY IT
+                    </p>
+                    <p className="text-sm leading-relaxed opacity-80 whitespace-pre-wrap">
+                      {selectedDuel.exampleSpeech}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="p-8 border-t border-border bg-muted/10 flex justify-end">
+                <button 
+                  onClick={() => setSelectedDuel(null)}
+                  className="px-8 py-3 bg-primary text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:scale-105 active:scale-95 transition-all shadow-glow"
+                >
+                  CLOSE ARCHIVE
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {matchmaking && (
@@ -1274,7 +1434,7 @@ const Arena = () => {
             <div className="space-y-8 p-8 rounded-[2.5rem] bg-muted/20 border border-border relative overflow-hidden">
               <p className="text-sm font-black uppercase tracking-[0.4em] text-primary mb-6">SELECT PRACTICE MODE</p>
               
-              <div className="grid grid-cols-2 gap-3">
+              <div id="arena-gamemodes" className="grid grid-cols-2 gap-3 relative z-10">
                 {(Object.entries(GAMEMODES) as [Gamemode, typeof GAMEMODES.standard][]).map(([mode, data]) => (
                   <button
                     key={mode}
@@ -1323,7 +1483,7 @@ const Arena = () => {
                   <span className="text-sm font-black opacity-30 uppercase tracking-widest">{onlineUsers.length} ACTIVE</span>
                 </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div id="arena-online-users" className="grid grid-cols-1 sm:grid-cols-2 gap-4 relative z-10">
                 {onlineUsers.length === 0 ? (
                   <div className="col-span-full border border-dashed border-border/60 rounded-3xl p-8 text-center opacity-20">
                     <p className="text-sm font-black uppercase tracking-widest italic">Awaiting Peers...</p>
@@ -1365,7 +1525,11 @@ const Arena = () => {
               <div className="space-y-3">
                 {completedDuels.map(duel => {
                    return (
-                  <div key={duel.id} className="p-4 rounded-2xl bg-muted/10 border border-border flex items-center gap-6 group hover:bg-muted/20 transition-all">
+                  <div 
+                    key={duel.id} 
+                    onClick={() => setSelectedDuel(duel)}
+                    className="p-4 rounded-2xl bg-muted/10 border border-border flex items-center gap-6 group hover:bg-muted/20 transition-all cursor-pointer"
+                  >
                     <div className="flex-grow min-w-0">
                       <p className="speak-serif text-sm italic opacity-60 truncate">"{duel.prompt}"</p>
                       {duel.feedback && (
@@ -1373,8 +1537,8 @@ const Arena = () => {
                       )}
                       <div className="flex items-center gap-4 mt-2">
                          <span className="text-[11px] font-black uppercase tracking-widest text-primary bg-primary/10 px-2 py-0.5 rounded">{duel.gamemode}</span>
-                         <span className={cn("text-[11px] font-black uppercase tracking-widest px-2 py-0.5 rounded bg-muted/20 text-foreground/40")}>
-                           SESSION COMPLETE
+                         <span className={cn("text-[11px] font-black uppercase tracking-widest px-2 py-0.5 rounded bg-muted/20 text-foreground/40 group-hover:bg-primary/20 group-hover:text-primary transition-colors")}>
+                           VIEW DETAILS →
                          </span>
                       </div>
                     </div>
@@ -1553,16 +1717,30 @@ const Arena = () => {
                    </div>
 
                    <button 
-                     onClick={() => {
-                        const finalPrompt = challengePrompt.trim() || "Surprise me with your eloquence.";
+                     onClick={async () => {
+                        let finalPrompt = challengePrompt.trim();
+                        if (!finalPrompt) {
+                          setGeneratingPrompt(true);
+                          try {
+                            finalPrompt = await generateArenaPrompt(challengeMode);
+                          } catch (e) {
+                            finalPrompt = "Surprise me with your eloquence.";
+                          }
+                          setGeneratingPrompt(false);
+                        }
                         sendDuelRequest(challengeTarget.id, challengeMode, finalPrompt);
                         setChallengeTarget(null);
                         setChallengePrompt("");
                         setChallengeMode("standard");
                      }}
                      className="w-full py-4 bg-primary text-white rounded-xl text-sm font-black uppercase tracking-widest hover:scale-[1.02] active:scale-95 transition-all shadow-glow"
+                     disabled={generatingPrompt}
                    >
-                     SEND CHALLENGE
+                     {generatingPrompt ? (
+                       <span className="flex items-center gap-2">
+                         <Loader2 className="h-4 w-4 animate-spin" /> GENERATING PROMPT...
+                       </span>
+                     ) : "SEND CHALLENGE"}
                    </button>
                 </div>
              </motion.div>

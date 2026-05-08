@@ -1,6 +1,7 @@
 import { NavLink, useLocation } from "react-router-dom";
 import { Home, User, Map, FlaskConical, Swords } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/context/AuthContext";
 
 import { ThemeToggle } from "./ThemeToggle";
 
@@ -14,6 +15,9 @@ const NAV_ITEMS = [
 
 export const MobileNav = () => {
   const { pathname } = useLocation();
+  const { user } = useAuth();
+
+  if (!user) return null;
 
   return (
     <nav

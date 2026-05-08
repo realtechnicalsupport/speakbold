@@ -143,14 +143,19 @@ export async function generateImpromptuPrompts(category: string, count: number =
 }
 
 export async function generateArenaPrompt(gamemode: string): Promise<string> {
-  const systemPrompt = `Generate a single, compelling, and challenging prompt for a public speaking battle.
+  const seed = Math.random().toString(36).substring(7);
+  const systemPrompt = `Generate a single, compelling, and unique public speaking prompt.
   Gamemode: ${gamemode}
-  - If blitz: A simple but thought-provoking topic.
-  - If debate: A controversial "This House believes..." or "Should X be banned?" style motion.
-  - If pitch: A creative startup or product idea that needs to be sold.
-  - If standard: A meaningful thematic prompt (e.g., 'The importance of failure').
+  Random Seed: ${seed}
+  
+  Requirements:
+  - If blitz: A simple but clever "Would you rather" or "Pick a side" topic.
+  - If debate: A controversial "This House believes..." motion.
+  - If pitch: A bizarre but potentially useful invention (e.g. 'Shoes that generate electricity').
+  - If standard: A philosophical deep dive (e.g. 'The ethics of immortality').
 
-  Return ONLY the prompt text. No quotes, no preamble.`;
+  DO NOT repeat common topics like 'failure' or 'climate change' unless you have a very fresh angle.
+  Return ONLY the prompt text. No quotes.`;
   
   return callAI(systemPrompt);
 }
@@ -214,8 +219,9 @@ export async function judgeBattle(
     
     CRITICAL RULES:
     1. If a transcript is empty, silent, or nonsense (e.g., "[silence]"), SCORE IT 0 and award the win to the other speaker.
-    2. DO NOT TIE if one speaker provided effort and the other did not.
-    3. Be honest and merit-based. A poor performance MUST result in a loss.
+    2. The "winner" MUST ALWAYS be the speaker with the higher numerical score. DO NOT award a win to a lower score.
+    3. If scores are within 5 points, "tie" is acceptable, but preference should be given to the more charismatic speaker.
+    4. Be honest and merit-based. A poor performance MUST result in a loss.
     
     Return JSON only:
     {
@@ -246,14 +252,67 @@ export async function judgeBattle(
   const jsonMatch = result.match(/{[\s\S]*}/);
   const p = JSON.parse(jsonMatch ? jsonMatch[0] : '{"score":50,"feedback":"Error","strengths":"Attempt"}');
   
+  // Programmatically determine the winner to ensure consistency regardless of AI string response
+  let finalWinner: "you" | "opponent" | "tie" = "tie";
+  const s1 = p.score || 0;
+  const s2 = p.oppScore || 0;
+  
+  if (opponentTranscript) {
+    if (s1 > s2) finalWinner = "you";
+    else if (s2 > s1) finalWinner = "opponent";
+    else finalWinner = "tie";
+  } else {
+    // Solo mode: score > 0 is a success/win
+    finalWinner = s1 > 0 ? "you" : "tie";
+  }
+  
   return { 
-    score: p.score || 0, 
-    oppScore: p.oppScore || 0,
+    score: s1, 
+    oppScore: s2,
     feedback: p.feedback || "No significant content provided to evaluate.", 
     oppFeedback: p.oppFeedback || p.feedback || "No significant content provided to evaluate.",
     strengths: p.strengths || "N/A",
     oppStrengths: p.oppStrengths || "N/A",
-    winner: p.winner || "tie",
+    winner: finalWinner,
     exampleSpeech: p.exampleSpeech || ""
   };
+}
+
+export async function chatWithAssistant(history: { role: string; content: string }[], currentContext: any): Promise<{ text: string; navigateTo?: string }> {
+  const contextStr = JSON.stringify(currentContext);
+  const systemPrompt = `You are the SpeakBold AI Coach, an expert in public speaking and the ultimate guide for this application.
+You are friendly, direct, and encouraging. Keep answers concise.
+
+Current App Context (User State): ${contextStr}
+
+The user can ask you for public speaking advice OR to navigate the app.
+If the user asks to go somewhere, you MUST provide a "navigateTo" path.
+Available paths:
+- "/" (Home/Landing)
+- "/pathway" (Curriculum/Learning)
+- "/lab" (Skill Surgery/Drills)
+- "/arena" (Practice Lounge/Battles)
+- "/profile" (Stats/Resume)
+- "/leaderboard" (Rankings)
+
+CRITICAL: You must return a valid JSON object ONLY. Do not wrap in markdown blocks.
+Format:
+{
+  "text": "Your helpful response here...",
+  "navigateTo": "/path" (optional, omit if no navigation needed)
+}`;
+
+  const fullPrompt = systemPrompt + "\n\nChat History:\n" + history.map(h => `${h.role}: ${h.content}`).join("\n") + "\nassistant: ";
+  
+  try {
+    const rawResponse = await callAI(fullPrompt);
+    const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]);
+    }
+    return { text: rawResponse };
+  } catch (err) {
+    console.error("[chatWithAssistant] Error:", err);
+    return { text: "I'm having trouble connecting to my servers right now. Please try again later." };
+  }
 }

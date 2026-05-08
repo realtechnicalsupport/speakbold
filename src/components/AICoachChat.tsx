@@ -1,0 +1,148 @@
+import React, { useState, useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { MessageCircle, X, Send, Loader2, Sparkles, Navigation } from "lucide-react";
+import { useChat } from "@/context/ChatContext";
+import { cn } from "@/lib/utils";
+import { useAuth } from "@/context/AuthContext";
+
+export const AICoachChat = () => {
+  const { user } = useAuth();
+  const { isOpen, setIsOpen, messages, sendMessage, isLoading } = useChat();
+  const [inputText, setInputText] = useState("");
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, isOpen, isLoading]);
+
+  if (!user) return null;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inputText.trim() || isLoading) return;
+    sendMessage(inputText);
+    setInputText("");
+  };
+
+  return (
+    <>
+      {/* Floating Action Button */}
+      <AnimatePresence>
+        {!isOpen && (
+          <motion.button
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0, opacity: 0 }}
+            onClick={() => setIsOpen(true)}
+            className="fixed bottom-24 lg:bottom-8 right-6 z-50 h-14 w-14 rounded-full bg-primary text-white shadow-glow flex items-center justify-center hover:scale-110 active:scale-95 transition-all group border-2 border-primary/50"
+            aria-label="Open AI Coach"
+          >
+            <div className="absolute inset-0 rounded-full bg-white/20 animate-ping opacity-0 group-hover:opacity-100" />
+            <Sparkles className="h-6 w-6 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 group-hover:animate-spin-slow transition-opacity" />
+            <MessageCircle className="h-6 w-6 transition-opacity group-hover:opacity-0" />
+          </motion.button>
+        )}
+      </AnimatePresence>
+
+      {/* Chat Window */}
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            transition={{ type: "spring", stiffness: 300, damping: 25 }}
+            className="fixed bottom-0 right-0 lg:bottom-8 lg:right-8 z-[100] w-full lg:w-[400px] h-[85vh] lg:h-[600px] flex flex-col bg-background/90 backdrop-blur-2xl border border-primary/20 rounded-t-[2rem] lg:rounded-[2rem] shadow-2xl overflow-hidden"
+          >
+            {/* Header */}
+            <div className="p-4 border-b border-border/50 flex items-center justify-between bg-primary/5">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center shadow-glow">
+                  <Sparkles className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black uppercase tracking-[0.2em] text-primary">SpeakBold AI</h3>
+                  <p className="text-[10px] font-bold uppercase tracking-widest opacity-40">Personal Coach</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsOpen(false)}
+                className="p-2 rounded-full hover:bg-muted text-foreground/50 hover:text-foreground transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Messages Area */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {messages.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center p-6 opacity-50">
+                  <MessageCircle className="h-12 w-12 mb-4 text-primary opacity-50" />
+                  <p className="text-sm font-black uppercase tracking-widest">How can I help you improve today?</p>
+                  <p className="text-[11px] mt-2 italic">Ask about public speaking techniques or ask me to take you to a specific page.</p>
+                </div>
+              ) : (
+                messages.map((msg, idx) => (
+                  <motion.div
+                    key={msg.id || idx}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={cn(
+                      "flex w-full",
+                      msg.role === "user" ? "justify-end" : "justify-start"
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        "max-w-[85%] rounded-2xl p-4 text-sm leading-relaxed",
+                        msg.role === "user"
+                          ? "bg-primary text-white rounded-tr-sm"
+                          : "bg-muted/50 border border-border rounded-tl-sm speak-serif italic text-foreground/90"
+                      )}
+                    >
+                      {msg.content}
+                    </div>
+                  </motion.div>
+                ))
+              )}
+
+              {isLoading && (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start">
+                  <div className="bg-muted/50 border border-border rounded-2xl rounded-tl-sm p-4 flex items-center gap-2 text-primary">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span className="text-[10px] font-black uppercase tracking-widest">THINKING...</span>
+                  </div>
+                </motion.div>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Input Area */}
+            <form onSubmit={handleSubmit} className="p-4 bg-background border-t border-border/50">
+              <div className="relative flex items-center">
+                <input
+                  type="text"
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  placeholder="Ask for advice or say 'Take me to the Arena'..."
+                  disabled={isLoading}
+                  className="w-full bg-muted/30 border border-border rounded-full pl-6 pr-14 py-4 text-sm focus:border-primary focus:outline-none transition-colors disabled:opacity-50"
+                />
+                <button
+                  type="submit"
+                  disabled={!inputText.trim() || isLoading}
+                  className="absolute right-2 h-10 w-10 rounded-full bg-primary text-white flex items-center justify-center disabled:opacity-50 disabled:bg-muted disabled:text-foreground/40 hover:scale-105 active:scale-95 transition-all shadow-glow"
+                >
+                  <Send className="h-4 w-4 ml-0.5" />
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
+  );
+};
