@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useArena, type Duel, type Gamemode, GAMEMODES, getRankColor, getRankFromElo } from "@/hooks/useArena";
 import { SiteHeader } from "@/components/SiteHeader";
 import { RecorderPanel } from "@/components/RecorderPanel";
@@ -426,7 +426,8 @@ const DuelDrill = ({
         }
         
         if (!oppTranscriptRef.current) {
-          throw new Error("OPPONENT_MISSING_TRANSCRIPT");
+          console.warn("[Judge] Opponent transcript missing. Proceeding with 0 score for them.");
+          finalOppTranscript = "[NO_TRANSCRIPT_RECEIVED]";
         }
       }
 
