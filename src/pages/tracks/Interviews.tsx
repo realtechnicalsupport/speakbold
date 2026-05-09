@@ -34,7 +34,7 @@ import { useRecordings, useSyncedStreak } from "@/hooks/useRecordings";
 import { useSyncedInterviewQuestions } from "@/hooks/useSyncedInterviewQuestions";
 import { toast } from "@/hooks/use-toast";
 import { generateInterviewQuestions } from "@/services/geminiService";
-import { setTimerActive } from "@/lib/timerState";
+import { setTimerActive, setTimerSeconds } from "@/lib/timerState";
 import { setRecordingActive } from "@/lib/recordingState";
 import { RecordingFeedbackModal } from "@/components/RecordingFeedback";
 import { motion, AnimatePresence } from "framer-motion";
@@ -102,8 +102,9 @@ const Interviews = () => {
   
   useEffect(() => {
     setTimerActive(running || pausedAt !== null);
-    return () => setTimerActive(false);
-  }, [running, pausedAt]);
+    setTimerSeconds(seconds, duration);
+    return () => { setTimerActive(false); setTimerSeconds(0, 0); };
+  }, [running, pausedAt, seconds, duration]);
 
   const idRef = useRef<number | null>(null);
   const hasStartedRef = useRef<boolean>(false);

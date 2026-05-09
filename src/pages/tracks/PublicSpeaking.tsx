@@ -32,7 +32,7 @@ import { useRecordings, useSyncedStreak } from "@/hooks/useRecordings";
 import { RecordingFeedbackModal } from "@/components/RecordingFeedback";
 import { toast } from "@/hooks/use-toast";
 import { generateSpeakingDrills, type SpeakingDrill as AISpeakingDrill } from "@/services/geminiService";
-import { setTimerActive } from "@/lib/timerState";
+import { setTimerActive, setTimerSeconds } from "@/lib/timerState";
 import { setRecordingActive } from "@/lib/recordingState";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -228,8 +228,9 @@ const PublicSpeaking = () => {
   
   useEffect(() => {
     setTimerActive(running || pausedAt !== null);
-    return () => setTimerActive(false);
-  }, [running, pausedAt]);
+    setTimerSeconds(seconds, duration);
+    return () => { setTimerActive(false); setTimerSeconds(0, 0); };
+  }, [running, pausedAt, seconds, duration]);
 
   const idRef = useRef<number | null>(null);
   const hasStartedRef = useRef<boolean>(false);

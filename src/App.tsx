@@ -36,6 +36,7 @@ import { OnboardingModal } from "./components/OnboardingModal";
 import { TutorialOverlay } from "./components/TutorialOverlay";
 import { FloatingNodes } from "./components/FloatingNodes";
 import { AICoachChat } from "./components/AICoachChat";
+import { GlobalStatusBar } from "./components/GlobalStatusBar";
 
 const queryClient = new QueryClient();
 
@@ -113,6 +114,7 @@ const App = () => {
               </div>
               {!timerActive && <MobileNav />}
               <MicrophoneBorder />
+              <GlobalStatusBar />
               <OnboardingModal />
               <AICoachChat />
               </ChatProvider>

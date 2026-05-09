@@ -15,7 +15,7 @@ import { useSyncedPrompts } from "@/hooks/useSyncedPrompts";
 import { useRecordings, useSyncedStreak } from "@/hooks/useRecordings";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "@/hooks/use-toast";
-import { setTimerActive, useTimerActive } from "@/lib/timerState";
+import { setTimerActive, setTimerSeconds, useTimerActive } from "@/lib/timerState";
 import { setRecordingActive } from "@/lib/recordingState";
 import { generateImpromptuPrompts } from "@/services/geminiService";
 import { motion, AnimatePresence } from "framer-motion";
@@ -173,8 +173,9 @@ const Impromptu = () => {
 
   useEffect(() => {
     setTimerActive(running || pausedAt !== null);
-    return () => setTimerActive(false);
-  }, [running, pausedAt]);
+    setTimerSeconds(seconds, duration);
+    return () => { setTimerActive(false); setTimerSeconds(0, 0); };
+  }, [running, pausedAt, seconds, duration]);
 
   useEffect(() => {
     if (!running && !pausedAt) {
