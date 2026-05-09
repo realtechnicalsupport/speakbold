@@ -1,7 +1,8 @@
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || "";
 const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY || "";
 
-const GEMINI_MODELS = ["gemini-2.5-flash-lite", "gemini-2.0-flash-lite", "gemini-2.0-flash"];
+// Valid production models
+const GEMINI_MODELS = ["gemini-2.0-flash", "gemini-2.0-flash-lite-preview-02-05", "gemini-1.5-flash"];
 const GROQ_MODELS = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
 
 async function sleep(ms: number) { return new Promise(resolve => setTimeout(resolve, ms)); }
@@ -26,16 +27,19 @@ async function callAI(prompt: string, attempt: number = 0, temperature: number =
         const data = await res.json();
         return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
       }
-      if (res.status === 429) {
-        console.warn(`Gemini Limit reached. Trying fallback...`);
-        return callAI(prompt, 3, temperature); // Skip to Groq
+      const errorText = await res.text();
+      console.warn(`Gemini API Error (${res.status}): ${errorText.slice(0, 100)}`);
+      
+      if (res.status === 429 || res.status === 404 || res.status === 400) {
+        console.warn(`Gemini attempt ${attempt} failed. Trying next...`);
+        return callAI(prompt, attempt + 1, temperature);
       }
-    } catch (e) { console.error("Gemini Error:", e); }
+    } catch (e) { console.error("Gemini Fetch Error:", e); }
   }
 
   // Fallback to Groq (attempt 3+)
   if (GROQ_API_KEY) {
-    const model = GROQ_MODELS[(attempt - 3) % GROQ_MODELS.length];
+    const model = GROQ_MODELS[(attempt - 3) % GROQ_MODELS.length] || GROQ_MODELS[0];
     try {
       const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
@@ -53,19 +57,24 @@ async function callAI(prompt: string, attempt: number = 0, temperature: number =
         const data = await res.json();
         return data.choices?.[0]?.message?.content || "";
       }
+      const errorText = await res.text();
+      console.warn(`Groq API Error (${res.status}): ${errorText.slice(0, 100)}`);
+
       if (res.status === 429 && attempt < 5) {
         await sleep(1000);
         return callAI(prompt, attempt + 1, temperature);
       }
-    } catch (e) { console.error("Groq Error:", e); }
+    } catch (e) { console.error("Groq Fetch Error:", e); }
   }
 
-  throw new Error("All AI providers (Gemini & Groq) are currently at capacity. Please try again in a few minutes.");
+  throw new Error("All AI providers (Gemini & Groq) are currently at capacity or misconfigured. Please check API keys and try again.");
 }
 
 // --- MULTI-PROVIDER TRANSCRIPTION ---
 export async function transcribeAudio(blob: Blob, attempt: number = 0): Promise<string> {
-  console.log(`[Transcription] Attempt ${attempt}, Blob size: ${blob.size}, Type: ${blob.type}`);
+  const cleanMimeType = blob.type.split(';')[0] || "audio/webm";
+  console.log(`[Transcription] Attempt ${attempt}, Blob size: ${blob.size}, MIME: ${cleanMimeType}`);
+  
   // Try Groq Whisper FIRST for transcription as it has much higher limits and is faster
   if (GROQ_API_KEY && attempt === 0) {
     try {
@@ -82,7 +91,9 @@ export async function transcribeAudio(blob: Blob, attempt: number = 0): Promise<
         const data = await res.json();
         return data.text || "";
       }
-    } catch (e) { console.error("Groq Whisper failed, trying Gemini..."); }
+      const err = await res.text();
+      console.warn(`Groq Whisper failed (${res.status}): ${err.slice(0, 100)}`);
+    } catch (e) { console.error("Groq Whisper Exception:", e); }
   }
 
   // Fallback to Gemini Multimodal
@@ -103,7 +114,7 @@ export async function transcribeAudio(blob: Blob, attempt: number = 0): Promise<
           contents: [{
             parts: [
               { text: "Transcribe exactly." },
-              { inlineData: { mimeType: blob.type || "audio/webm", data: base64Data } }
+              { inlineData: { mimeType: cleanMimeType, data: base64Data } }
             ]
           }]
         })
@@ -112,11 +123,13 @@ export async function transcribeAudio(blob: Blob, attempt: number = 0): Promise<
         const data = await res.json();
         return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
       }
-    } catch (e) { console.error("Gemini Transcription failed."); }
+      const err = await res.text();
+      console.warn(`Gemini Transcription failed (${res.status}) for ${model}: ${err.slice(0, 100)}`);
+    } catch (e) { console.error("Gemini Transcription Exception:", e); }
   }
 
   if (attempt < 2) return transcribeAudio(blob, attempt + 1);
-  throw new Error("Transcription failed on all providers.");
+  throw new Error("Transcription failed on all providers. Please check if VITE_GROQ_API_KEY and VITE_GEMINI_API_KEY are set correctly in your Vercel environment.");
 }
 
 // --- SHARED LOGIC ---
