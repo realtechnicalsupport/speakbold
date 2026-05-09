@@ -265,8 +265,12 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const handleForfeit = async (duelId: string, isMe: boolean, duelObj: Duel) => {
     if (!user) return;
-    const penalty = 0;
-    const eloChange = isMe ? -penalty : penalty;
+    const myElo = profile.elo || 0;
+    // Determine opponent's ELO from the duel object
+    const isCreator = duelObj.creator.id === user.id;
+    const oppElo = isCreator ? (duelObj.challenger?.elo || 0) : (duelObj.creator.elo || 0);
+    // If I forfeited → I lost. If opponent forfeited → I won.
+    const eloChange = calculateEloChange(myElo, oppElo, !isMe);
     
     try {
       await supabase.rpc('add_user_elo', { user_id: user.id, elo_amount: eloChange });
