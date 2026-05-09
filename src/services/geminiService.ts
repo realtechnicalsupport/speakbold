@@ -113,8 +113,8 @@ export async function transcribeAudio(blob: Blob, attempt: number = 0): Promise<
         body: JSON.stringify({
           contents: [{
             parts: [
-              { text: "Transcribe exactly." },
-              { inlineData: { mimeType: cleanMimeType, data: base64Data } }
+              { text: "Transcribe the audio exactly. Output only the transcript." },
+              { inline_data: { mime_type: cleanMimeType, data: base64Data } }
             ]
           }]
         })
@@ -128,8 +128,11 @@ export async function transcribeAudio(blob: Blob, attempt: number = 0): Promise<
     } catch (e) { console.error("Gemini Transcription Exception:", e); }
   }
 
-  if (attempt < 2) return transcribeAudio(blob, attempt + 1);
-  throw new Error("Transcription failed on all providers. Please check if VITE_GROQ_API_KEY and VITE_GEMINI_API_KEY are set correctly in your Vercel environment.");
+  if (attempt < 2) {
+    await sleep(1000); // Wait 1s before retrying
+    return transcribeAudio(blob, attempt + 1);
+  }
+  throw new Error("Transcription failed on all providers. Check your browser console for specific API errors (429 = Rate Limit, 401 = Invalid Key).");
 }
 
 // --- SHARED LOGIC ---
