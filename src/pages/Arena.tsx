@@ -38,9 +38,18 @@ const DuelDrill = ({
   const mode = duel ? duel.gamemode : (gamemode || "standard");
   const duration = GAMEMODES[mode].duration;
   
-  const [seconds, setSeconds] = useState(duration);
-  const [running, setRunning] = useState(false);
-  const [finished, setFinished] = useState(false);
+  const [finished, setFinished] = useState(() => sessionStorage.getItem("arena_finished") === "true");
+  const [running, setRunning] = useState(() => sessionStorage.getItem("arena_running") === "true");
+  const [seconds, setSeconds] = useState(() => {
+    const saved = sessionStorage.getItem("arena_seconds");
+    const startTime = sessionStorage.getItem("arena_start_time");
+    if (saved && startTime && sessionStorage.getItem("arena_running") === "true") {
+      const elapsed = (Date.now() - parseInt(startTime)) / 1000;
+      const remaining = Math.max(0, duration - elapsed);
+      return Math.floor(remaining);
+    }
+    return saved ? parseInt(saved) : duration;
+  });
   const [recordEnabled, setRecordEnabled] = useState(true);
   const idRef = useRef<number | null>(null);
   const recorderStartRef = useRef<() => void>();
@@ -49,6 +58,7 @@ const DuelDrill = ({
   const hasFiredCount = useRef(false);
 
   const [customPrompt, setCustomPrompt] = useState("");
+  const [debateStand, setDebateStand] = useState<"FOR" | "AGAINST">("FOR");
   const promptToUse = duel ? duel.prompt : customPrompt;
   const [lastRecording, setLastRecording] = useState<{ blob: Blob; durationMs: number } | null>(null);
   const [showModelSpeech, setShowModelSpeech] = useState(false);
@@ -60,33 +70,40 @@ const DuelDrill = ({
   const [analyzeText, setAnalyzeText] = useState("EXTRACTING AUDIO...");
   const [preCount, setPreCount] = useState<number | null>(null);
   
-  const [userReady, setUserReady] = useState(false);
-  const [opponentReady, setOpponentReady] = useState(false);
   const [readyTimer, setReadyTimer] = useState(15);
   const [showAbandonConfirm, setShowAbandonConfirm] = useState(false);
 
   const [oppTranscript, setOppTranscript] = useState<string | null>(null);
   const oppTranscriptRef = useRef<string | null>(null);
   const [aiArgument, setAiArgument] = useState<string>("");
-  const [aiSpeaking, setAiSpeaking] = useState(false);
   const [spokenCharIndex, setSpokenCharIndex] = useState(0);
-  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const [generatingPrompt, setGeneratingPrompt] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
-  const [draftingDone, setDraftingDone] = useState(!isCreating);
+  
+  const [draftingDone, setDraftingDone] = useState(() => {
+    if (!isCreating) return true;
+    return sessionStorage.getItem("arena_drafting_done") === "true";
+  });
+  const [userReady, setUserReady] = useState(() => sessionStorage.getItem("arena_user_ready") === "true");
+  const [opponentReady, setOpponentReady] = useState(() => sessionStorage.getItem("arena_opponent_ready") === "true");
 
-  // Session persistence for tab-switching resilience
+  // Session persistence for battle states
   useEffect(() => {
-    if (isCreating) sessionStorage.setItem("arena_is_creating", "true");
-    return () => {};
-  }, [isCreating]);
+    if (isCreating || duel) {
+      if (isCreating) sessionStorage.setItem("arena_is_creating", "true");
+      sessionStorage.setItem("arena_drafting_done", draftingDone.toString());
+      sessionStorage.setItem("arena_user_ready", userReady.toString());
+      sessionStorage.setItem("arena_opponent_ready", opponentReady.toString());
+      sessionStorage.setItem("arena_running", running.toString());
+      sessionStorage.setItem("arena_finished", finished.toString());
+      sessionStorage.setItem("arena_seconds", seconds.toString());
+      if (running && !sessionStorage.getItem("arena_start_time")) {
+        sessionStorage.setItem("arena_start_time", (Date.now() - (duration - seconds) * 1000).toString());
+      }
+    }
+  }, [isCreating, duel, draftingDone, userReady, opponentReady, running, finished, seconds, duration]);
 
   // When muted, skip AI speech and go straight to user turn
-  useEffect(() => {
-    if (isMuted && aiSpeaking) {
-      window.speechSynthesis.cancel();
-    }
-  }, [isMuted, aiSpeaking]);
+  // [REMOVED as interactive AI turns are disabled]
 
   // Listen for authoritative result from host or transcript from peer
   useEffect(() => {
@@ -185,7 +202,7 @@ const DuelDrill = ({
 
   useEffect(() => {
     if (userReady && !opponentReady) {
-      const isAI = opponent?.name.includes("(AI)") || false;
+      const isAI = opponent?.name.includes("(AI)") || isCreating;
       const delay = isAI ? 500 : 4000;
       const timer = setTimeout(() => {
         setOpponentReady(true);
@@ -194,10 +211,9 @@ const DuelDrill = ({
     }
   }, [userReady, opponentReady, opponent]);
 
-  // Ready-up Countdown ΓÇö only for PvP (not AI/custom)
+  // Ready-up Countdown
   useEffect(() => {
-    const isAI = duel?.id?.startsWith("ai-") || isCreating;
-    if (phase !== "drilling" || (userReady && opponentReady) || isAI) return;
+    if (phase !== "drilling" || (userReady && opponentReady)) return;
     if (readyTimer <= 0) {
       toast({ title: "Session Timed Out", description: "Players did not ready up in time.", variant: "destructive" });
       onClose();
@@ -208,7 +224,7 @@ const DuelDrill = ({
   }, [readyTimer, userReady, opponentReady, phase, onClose, isCreating, duel?.id]);
 
   // For AI opponents, trigger the ai-turn phase before the user's countdown
-  const isAIOpponent = duel?.id.startsWith("ai-") || false;
+  const isAIOpponent = duel?.id.startsWith("ai-") || isCreating;
 
   useEffect(() => {
     if (userReady && opponentReady && isAIOpponent && phase === "drilling" && !hasFiredCount.current) {
@@ -220,145 +236,17 @@ const DuelDrill = ({
 
   useEffect(() => {
     if (preCount === 0 && phase === "drilling" && isAIOpponent) {
-      if (gamemode === "debate" || gamemode === "pitch") {
-        // Interactive modes: AI speaks first
-        setPreCount(null);
-        setPhase("ai-turn");
-      } else {
-        // Parallel modes: user speaks immediately, AI generates in background
-        setPreCount(null);
-        setRunning(true);
-        generateAIArgument(promptToUse, duration, gamemode || "standard", opponent?.persona).then(arg => {
-          oppTranscriptRef.current = arg;
-          setOppTranscript(arg);
-        }).catch(e => console.error("Silent AI gen failed:", e));
-      }
+      // All modes are now parallel: user speaks immediately, AI generates in background
+      setPreCount(null);
+      setRunning(true);
+      generateAIArgument(promptToUse, duration, gamemode || "standard", opponent?.persona).then(arg => {
+        oppTranscriptRef.current = arg;
+        setOppTranscript(arg);
+      }).catch(e => console.error("Silent AI gen failed:", e));
     }
   }, [preCount, phase, isAIOpponent, gamemode, promptToUse, duration]);
 
-  // Handle the AI's turn: generate speech, speak it, then start user countdown
-  useEffect(() => {
-    if (phase !== "ai-turn" || !promptToUse) return;
-    let cancelled = false;
-
-    const runAITurn = async () => {
-      setAiSpeaking(true);
-      setSpokenCharIndex(0);
-      setAiArgument("The AI is formulating its argument...");
-
-      try {
-        const argument = await generateAIArgument(promptToUse, duration, gamemode || "standard", opponent?.persona);
-        if (cancelled) return;
-
-        setAiArgument(argument);
-        // Store the AI argument as the opponent transcript for judging
-        oppTranscriptRef.current = argument;
-        setOppTranscript(argument);
-
-        // Speak it via browser TTS
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(argument);
-        utterance.rate = 1.0;
-        utterance.pitch = 1.0;
-        const voices = window.speechSynthesis.getVoices();
-        const preferred = voices.find(v => v.lang.startsWith("en") && (v.name.includes("Natural") || v.name.includes("Premium") || v.name.includes("Google")));
-        if (preferred) utterance.voice = preferred;
-
-        utteranceRef.current = utterance;
-
-        // Enhanced sync logic: Use boundary events + a smooth interpolation timer
-        let lastCharIndex = 0;
-        let syncTimer: number | null = null;
-        
-        const startInterpolation = (startIndex: number) => {
-          if (syncTimer) clearInterval(syncTimer);
-          let currentPos = startIndex;
-          // Approximate speaking speed (chars per ms)
-          // 150 wpm is roughly 12.5 chars per second (including spaces)
-          const charsPerMs = 0.015; 
-          
-          syncTimer = window.setInterval(() => {
-            currentPos += charsPerMs * 50; // Update every 50ms
-            // Don't overshoot too far past the last known boundary
-            const maxOvershoot = 20; 
-            if (currentPos < argument.length && currentPos < lastCharIndex + maxOvershoot) {
-              setSpokenCharIndex(Math.floor(currentPos));
-            }
-          }, 50);
-        };
-
-        utterance.onstart = () => {
-          setAiSpeaking(true);
-          startInterpolation(0);
-        };
-
-        utterance.onboundary = (e) => {
-          if (e.name === "word") {
-            const index = e.charIndex;
-            lastCharIndex = index;
-            // Find word end for cleaner highlighting
-            const nextSpace = argument.indexOf(" ", index);
-            const wordEnd = nextSpace === -1 ? argument.length : nextSpace;
-            setSpokenCharIndex(wordEnd);
-            // Restart interpolation from the authoritative boundary
-            startInterpolation(wordEnd);
-          }
-        };
-
-        utterance.onend = () => {
-          if (syncTimer) clearInterval(syncTimer);
-          if (cancelled) return;
-          setSpokenCharIndex(argument.length);
-          setAiSpeaking(false);
-          setTimeout(() => {
-            if (cancelled) return;
-            setPhase("drilling");
-            setPreCount(3);
-          }, 1000);
-        };
-
-        utterance.onerror = (e) => {
-          if (syncTimer) clearInterval(syncTimer);
-          console.error("[AI TTS] Error:", e);
-          if (cancelled) return;
-          setSpokenCharIndex(argument.length);
-          setAiSpeaking(false);
-          setPhase("drilling");
-          setPreCount(3);
-        };
-
-        // If muted, skip playback entirely
-        if (isMuted) {
-          oppTranscriptRef.current = argument;
-          setOppTranscript(argument);
-          setAiSpeaking(false);
-          setSpokenCharIndex(argument.length);
-          setTimeout(() => {
-            if (cancelled) return;
-            setPhase("drilling");
-            setPreCount(3);
-          }, 500);
-          return;
-        }
-
-        window.speechSynthesis.speak(utterance);
-      } catch (err) {
-        console.error("[AI Turn] Failed to generate argument:", err);
-        if (!cancelled) {
-          setAiSpeaking(false);
-          hasFiredCount.current = true;
-          setPhase("drilling");
-          setPreCount(5);
-        }
-      }
-    };
-
-    runAITurn();
-    return () => {
-      cancelled = true;
-      window.speechSynthesis.cancel();
-    };
-  }, [phase]);
+  // [REMOVED ai-turn effect as interactive AI turns are disabled]
 
   useEffect(() => {
     if (userReady && opponentReady && preCount === null && !running && !finished && !hasFiredCount.current && seconds === duration) {
@@ -370,11 +258,6 @@ const DuelDrill = ({
   useEffect(() => {
     if (preCount === null) return;
     if (preCount === 0) {
-      // For AI opponents in interactive modes (debate/pitch), let the AI routing effect
-      // handle the transition to "ai-turn". Don't auto-start the user timer here.
-      if (isAIOpponent && (gamemode === "debate" || gamemode === "pitch")) {
-        return;
-      }
       setPreCount(null);
       setRunning(true);
       return;
@@ -697,9 +580,31 @@ const DuelDrill = ({
                       placeholder="Type here or use the generator..."
                       className="w-full bg-transparent border-b border-primary/30 focus:border-primary outline-none speak-serif text-xl md:text-3xl italic tracking-tight leading-relaxed resize-none h-32 transition-colors"
                     />
+                    {mode === "debate" && (
+                      <div className="flex items-center gap-4 mt-4 mb-2">
+                        <p className="text-[10px] font-black uppercase tracking-widest opacity-50">YOUR STAND:</p>
+                        <div className="flex bg-muted/50 rounded-full p-1 border border-border">
+                          <button
+                            onClick={() => setDebateStand("FOR")}
+                            className={cn("px-4 py-1.5 rounded-full text-xs font-black tracking-widest transition-all", debateStand === "FOR" ? "bg-primary text-white" : "text-primary/50 hover:text-primary")}
+                          >
+                            FOR
+                          </button>
+                          <button
+                            onClick={() => setDebateStand("AGAINST")}
+                            className={cn("px-4 py-1.5 rounded-full text-xs font-black tracking-widest transition-all", debateStand === "AGAINST" ? "bg-red-500 text-white shadow-glow" : "text-red-500/50 hover:text-red-500")}
+                          >
+                            AGAINST
+                          </button>
+                        </div>
+                      </div>
+                    )}
                     <button
                       disabled={!customPrompt.trim()}
                       onClick={() => {
+                        if (mode === "debate") {
+                          setCustomPrompt(prev => `${prev} (I am arguing ${debateStand} this topic)`);
+                        }
                         setDraftingDone(true);
                         setUserReady(true);
                         setOpponentReady(true);
@@ -785,30 +690,8 @@ const DuelDrill = ({
                 </p>
               </div>
               <div className="ml-auto flex items-center gap-2">
-                {aiSpeaking && !isMuted && (
-                  <>
-                    <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                    <span className="h-3 w-3 rounded-full bg-green-500/70 animate-pulse delay-75" />
-                    <span className="h-4 w-4 rounded-full bg-green-500/50 animate-pulse delay-150" />
-                  </>
-                )}
-                <button
-                  onClick={() => {
-                    setIsMuted(m => !m);
-                    if (!isMuted) window.speechSynthesis.cancel();
-                  }}
-                  className={cn(
-                    "flex items-center gap-1.5 px-3 py-1 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all",
-                    isMuted
-                      ? "bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20"
-                      : "bg-muted/50 border-border text-foreground/40 hover:text-foreground"
-                  )}
-                >
-                  {isMuted ? <MicOff className="h-3 w-3" /> : <Mic className="h-3 w-3" />}
-                  {isMuted ? "UNMUTE" : "MUTE AI"}
-                </button>
-                <span className={cn("text-[10px] font-black uppercase tracking-widest", aiSpeaking ? "text-green-400" : "text-primary/40")}>
-                  {aiSpeaking ? (isMuted ? "MUTED" : "LIVE") : "LOADING"}
+                <span className={cn("text-[10px] font-black uppercase tracking-widest", "text-primary/40")}>
+                  AI READY
                 </span>
               </div>
             </div>
@@ -1666,6 +1549,13 @@ const Arena = () => {
               setIsCreating(false);
               sessionStorage.removeItem("arena_active_drill");
               sessionStorage.removeItem("arena_is_creating");
+              sessionStorage.removeItem("arena_drafting_done");
+              sessionStorage.removeItem("arena_user_ready");
+              sessionStorage.removeItem("arena_opponent_ready");
+              sessionStorage.removeItem("arena_running");
+              sessionStorage.removeItem("arena_finished");
+              sessionStorage.removeItem("arena_seconds");
+              sessionStorage.removeItem("arena_start_time");
             }}
             onComplete={(score, prompt, mode, feedback) => {
               if (isCreating) {
@@ -1675,6 +1565,13 @@ const Arena = () => {
               setIsCreating(false);
               sessionStorage.removeItem("arena_active_drill");
               sessionStorage.removeItem("arena_is_creating");
+              sessionStorage.removeItem("arena_drafting_done");
+              sessionStorage.removeItem("arena_user_ready");
+              sessionStorage.removeItem("arena_opponent_ready");
+              sessionStorage.removeItem("arena_running");
+              sessionStorage.removeItem("arena_finished");
+              sessionStorage.removeItem("arena_seconds");
+              sessionStorage.removeItem("arena_start_time");
               if (pendingUpdate.current) {
                 setTimeout(() => {
                   setEloUpdate(pendingUpdate.current);
