@@ -563,6 +563,7 @@ const LessonDrill = ({
 
 /* ── Main Pathway Page ───────────────────────────────────── */
 const Pathway = () => {
+  const { user } = useAuth();
   const {
     units, loading, selection, getNodeStatus,
     completeLesson, progressPercent, completedCount, totalLessons
