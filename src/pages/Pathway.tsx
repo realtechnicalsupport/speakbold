@@ -619,7 +619,10 @@ const Pathway = () => {
             </div>
             <h1 className="speak-serif text-5xl md:text-8xl lg:text-9xl tracking-tighter leading-[0.8] mb-4">
               {(() => {
-                const sel = localStorage.getItem("speakbold_pathway_selection");
+                const hasCustom = units.some(u => u.name === "Personalized Focus");
+                if (hasCustom) return <>Your <span className="text-primary italic">Personalized</span> Path.</>;
+                
+                const sel = selection || localStorage.getItem(`speakbold_pathway_selection_${user?.id}`) || localStorage.getItem("speakbold_pathway_selection");
                 if (sel === "vocal") return <>Vocal <span className="text-primary italic">Mastery</span>.</>;
                 if (sel === "interviews") return <>Interview <span className="text-primary italic">Success</span>.</>;
                 if (sel === "impromptu") return <>Quick <span className="text-primary italic">Thinking</span>.</>;
@@ -628,7 +631,10 @@ const Pathway = () => {
             </h1>
             <p className="text-xl md:text-3xl font-medium opacity-40 max-w-2xl leading-tight italic">
               {(() => {
-                const sel = localStorage.getItem("speakbold_pathway_selection");
+                const hasCustom = units.some(u => u.name === "Personalized Focus");
+                if (hasCustom) return "We've built this sequence specifically to tackle your selected weaknesses first.";
+
+                const sel = selection || localStorage.getItem(`speakbold_pathway_selection_${user?.id}`) || localStorage.getItem("speakbold_pathway_selection");
                 if (sel === "vocal") return "Eliminate filler words and build a commanding, confident tone.";
                 if (sel === "interviews") return "Master the STAR method and answer tough questions with ease.";
                 if (sel === "impromptu") return "Never freeze. Learn to structure your thoughts instantly on the spot.";

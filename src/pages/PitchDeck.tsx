@@ -6,87 +6,116 @@ import { cn } from "@/lib/utils";
 
 const SLIDES = [
   {
-    id: "hero",
+    id: "cover",
     title: "SpeakBold",
-    subtitle: "COMMUNICATION SKILLS FOR EVERYONE.",
-    tagline: "UN SDG 4 · Quality Education",
+    subtitle: "DEMOCRATIZING ELITE COMMUNICATION SKILLS.",
+    tagline: "UN SDG 4 · QUALITY EDUCATION FOR ALL",
     hero: true,
   },
   {
     id: "problem",
-    title: "The Gap",
-    lead: "Communication is the #1 skill that creates or closes opportunity — and it is the least taught in schools.",
+    title: "The Silence Gap",
+    lead: "Communication is the #1 predictor of social mobility — yet it is the least taught skill in global education systems.",
     points: [
-      "75% of employers rank communication above technical skills when hiring",
-      "Students from under-resourced schools get zero structured speaking practice",
-      "Traditional coaching costs $150–500/hour — inaccessible to most learners",
+      "Economic Barrier: Private coaching costs $200+/hour, creating an elite-only skill tier.",
+      "SDG 4 Gap: Lack of structured speaking practice prevents 'Quality Education' for all.",
+      "Direct Impact: Targets SDG 4.4 (Skills for employment) and 4.7 (Education for sustainable development).",
     ],
-    icon: "problem",
-  },
-  {
-    id: "sdg",
-    title: "Our SDG 4 Answer",
-    lead: "SpeakBold democratizes elite communication training through AI-powered coaching — free, structured, and available to anyone with a device.",
-    sdgPoints: [
-      { icon: GraduationCap, label: "Inclusive Education", desc: "Free access for all learners, regardless of background" },
-      { icon: Target, label: "Measurable Outcomes", desc: "AI-verified skill progression with transparent scoring" },
-      { icon: Globe, label: "Global Reach", desc: "Mobile-first, works on any device, any location" },
-    ],
+    icon: "Target",
   },
   {
     id: "solution",
-    title: "How It Works",
-    tracks: [
-      { name: "Learning Path", icon: BookOpen, desc: "Structured drills from beginner to advanced. AI judges every attempt." },
-      { name: "Daily Practice", icon: Sparkles, desc: "Focused 5-minute challenges that build habits and XP." },
-      { name: "Interview Prep", icon: Briefcase, desc: "STAR-method coaching with instant AI feedback." },
-      { name: "Peer Practice", icon: Users, desc: "Partner up for real-time speaking duels with AI judging." },
+    title: "The AI Equalizer",
+    lead: "SpeakBold solves SDG 4 challenges by turning every smartphone into a private speaking laboratory at zero cost.",
+    points: [
+      "Scalable Literacy: Democratizing advanced soft skills for billions of learners.",
+      "Bias-Free Feedback: AI coaching that provides objective, standard-based analysis.",
+      "Gamified Equity: Bridging the confidence gap through structured, verifiable mastery.",
+    ],
+    icon: "Zap",
+  },
+  {
+    id: "how-it-works-1",
+    title: "The Mastery Loop",
+    lead: "Our platform uses a 3-step pedagogical loop to ensure skill retention and measurable growth.",
+    steps: [
+      { name: "1. LEARN", desc: "Watch tactical strategy modules on specific speaking techniques." },
+      { name: "2. DRILL", desc: "Perform high-intensity 60-second speaking tasks in The Lab." },
+      { name: "3. AUDIT", desc: "Receive instant AI breakdowns and 'pass' gates to advance." },
     ],
   },
   {
-    id: "ai",
-    title: "The AI Coach",
-    lead: "Every recording is analyzed by AI across 6 skill dimensions. Learners get specific, actionable feedback — not generic tips.",
-    features: [
-      { icon: Mic, text: "Filler word detection & scoring" },
-      { icon: TrendingUp, text: "Pace, clarity & structure grading" },
-      { icon: BarChart3, text: "Confidence & delivery analysis" },
-      { icon: Sparkles, text: "Personalized next-step recommendations" },
-      { icon: ShieldCheck, text: "Transcript + full feedback breakdown" },
-      { icon: Target, text: "Pass/fail thresholds per skill level" },
+    id: "how-it-works-2",
+    title: "User Journey",
+    lead: "From first record to verified mastery — a seamless flow designed for growth.",
+    journey: [
+      { step: "Onboarding", desc: "Identify skill level and set global ranking goals." },
+      { step: "Training", desc: "Navigate the 'Pathway' with AI-locked progression." },
+      { step: "Validation", desc: "Earn skill transcripts and move up the Leaderboard." },
+    ],
+  },
+  {
+    id: "how-it-works-3",
+    title: "Practice Ecosystem",
+    lead: "Two distinct environments for technical growth and real-world application.",
+    tracks: [
+      { name: "Skill Surgery (The Lab)", icon: Mic, desc: "Focused, unguided practice to refine specific mechanics like filler word reduction." },
+      { name: "The Arena (Peer Battle)", icon: Users, desc: "Real-time 1v1 speaking duels judged by AI for true competitive pressure." },
     ],
   },
   {
     id: "impact",
-    title: "Real Impact",
-    lead: "SpeakBold turns every learner's phone into a personal speaking coach — closing the gap that income, geography, and schooling create.",
+    title: "Global Impact",
+    lead: "SpeakBold isn't just an app; it's a direct intervention in global education equity.",
     impactPoints: [
-      { stat: "0", label: "Cost to access the full platform" },
-      { stat: "6", label: "AI-assessed skill dimensions per attempt" },
-      { stat: "4", label: "Structured learning units with AI mastery gates" },
-      { stat: "24/7", label: "Coaching available, no scheduling needed" },
+      { stat: "SDG 4", label: "Direct alignment with Quality Education goals" },
+      { stat: "0.00", label: "Cost to the learner for elite-level coaching" },
+      { stat: "Verifiable", label: "Skills transcripts that boost employability" },
+      { stat: "Inclusive", label: "Built for low-bandwidth, high-impact reach" },
     ],
   },
   {
-    id: "credentials",
-    title: "Verifiable Outcomes",
-    lead: "Education is only as valuable as the evidence it provides. SpeakBold generates official skills transcripts for every learner.",
-    features: [
-      { icon: FileText, text: "Printable Skill Transcripts & PDFs" },
-      { icon: CheckCircle2, text: "AI-Verified Test Scores" },
-      { icon: GraduationCap, text: "Unit Mastery Documentation" },
-      { icon: ShieldCheck, text: "Unique Credential ID Tracking" },
+    id: "risks",
+    title: "Risks & Mitigation",
+    lead: "Proactive management of technical and ethical challenges.",
+    riskPoints: [
+      { 
+        risk: "AI Hallucinations", 
+        mitigation: "Strict prompt engineering and threshold-based scoring to ensure consistent feedback." 
+      },
+      { 
+        risk: "Data Privacy", 
+        mitigation: "Encrypted recording storage and transparent data deletion policies for learner safety." 
+      },
+      { 
+        risk: "Accessibility", 
+        mitigation: "Optimized for low-bandwidth environments to reach rural and under-resourced areas." 
+      },
     ],
   },
   {
-    id: "tech",
-    title: "Built to Scale",
-    tech: ["React 18", "TypeScript", "Vite", "Supabase", "Framer Motion", "Google Gemini AI", "WebRTC"],
-    techNote: "Real-time peer practice via WebRTC. AI analysis via Gemini. Zero infrastructure cost per user — built to scale to millions.",
+    id: "roadmap",
+    title: "Next Steps",
+    lead: "The roadmap from a tool to a global standard.",
+    points: [
+      "Multi-Language Support: Expanding AI coaching to Spanish, French, and Hindi.",
+      "LMS Integration: API for schools to embed SpeakBold into their curricula.",
+      "Certification: Partnering with industry leaders for 'AI-Verified Communication' badges.",
+    ],
+  },
+  {
+    id: "team",
+    title: "Elite Builders",
+    lead: "A lean, high-velocity team dedicated to the SpeakBold mission.",
+    team: [
+      { name: "Lead Operator", role: "Product Strategy & Architecture", exp: "Full-stack builder focused on high-impact UX." },
+      { name: "AI Strategist", role: "Model Fine-Tuning", exp: "Specializing in real-time NLP and scoring systems." },
+      { name: "SDG Advocate", role: "Community & Impact", exp: "Ensuring global alignment with UN Education goals." },
+    ],
   },
   {
     id: "cta",
-    title: "Ready to speak boldly?",
+    title: "Ready to SpeakBold?",
     cta: true,
   },
 ];
@@ -142,7 +171,7 @@ export const PitchDeck = () => {
             transition={{ duration: 0.7, ease: "circOut" }}
             className="w-full max-w-5xl"
           >
-            {current.id === "hero" && (
+            {current.id === "cover" && (
               <div className="text-center space-y-12">
                 <motion.div
                   initial={{ scale: 0 }} animate={{ scale: 1 }}
@@ -167,7 +196,7 @@ export const PitchDeck = () => {
               </div>
             )}
 
-            {(current.id === "problem" || current.id === "solution") && current.points && (
+            {(current.id === "problem" || current.id === "solution" || current.id === "roadmap") && current.points && (
               <div className="space-y-16">
                 <div className="space-y-4">
                   <div className="flex items-center gap-4 text-xs font-black uppercase tracking-[0.6em] text-primary">
@@ -177,7 +206,7 @@ export const PitchDeck = () => {
                   {current.lead && <p className="text-xl md:text-2xl font-medium opacity-50 max-w-3xl leading-relaxed">{current.lead}</p>}
                 </div>
                 <ul className="space-y-10">
-                  {current.points.map((p, i) => (
+                  {current.points.map((p: any, i: number) => (
                     <motion.li key={i} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.15 + 0.3 }} className="flex items-start gap-8">
                       <div className="h-10 w-10 rounded-full border border-primary/40 flex items-center justify-center shrink-0 mt-2">
                         <span className="text-primary font-black text-sm">{i + 1}</span>
@@ -189,41 +218,69 @@ export const PitchDeck = () => {
               </div>
             )}
 
-            {current.id === "sdg" && (
+            {current.id === "how-it-works-1" && current.steps && (
               <div className="space-y-16">
                 <div className="space-y-4">
-                  <div className="flex items-center gap-3 text-xs font-black uppercase tracking-[0.6em] text-primary">
-                    <Heart className="h-4 w-4" /> SDG 4 · QUALITY EDUCATION
+                   <div className="flex items-center gap-4 text-xs font-black uppercase tracking-[0.6em] text-primary">
+                    <Zap className="h-4 w-4" /> THE MASTERY LOOP
                   </div>
                   <h2 className="speak-serif text-6xl md:text-[8rem] font-bold leading-none tracking-tighter italic">{current.title}.</h2>
-                  <p className="text-xl md:text-2xl font-medium opacity-50 max-w-3xl leading-relaxed">{current.lead}</p>
                 </div>
                 <div className="grid md:grid-cols-3 gap-8">
-                  {current.sdgPoints?.map((item, i) => {
-                    const Icon = item.icon;
-                    return (
-                      <motion.div key={i} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.15 + 0.3 }}
-                        className="p-10 rounded-[3rem] border border-primary/20 bg-primary/5 space-y-4 relative overflow-hidden">
-                        <Icon className="h-10 w-10 text-primary" />
-                        <h3 className="speak-serif text-2xl font-bold italic">{item.label}</h3>
-                        <p className="text-base font-medium opacity-40 leading-relaxed">{item.desc}</p>
-                      </motion.div>
-                    );
-                  })}
+                  {current.steps.map((s: any, i: number) => (
+                    <motion.div key={i} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.15 + 0.3 }}
+                      className="p-10 rounded-[3rem] border border-primary/20 bg-primary/5 space-y-6 relative overflow-hidden group">
+                      <div className="h-14 w-14 rounded-2xl bg-primary text-white flex items-center justify-center text-2xl font-black italic shadow-glow">
+                        0{i + 1}
+                      </div>
+                      <div className="space-y-2">
+                        <h3 className="speak-serif text-3xl font-bold italic">{s.name}</h3>
+                        <p className="text-lg font-medium opacity-40 leading-relaxed">{s.desc}</p>
+                      </div>
+                    </motion.div>
+                  ))}
                 </div>
               </div>
             )}
 
-            {current.id === "solution" && current.tracks && (
+            {current.id === "how-it-works-2" && current.journey && (
               <div className="space-y-16">
                 <div className="space-y-4">
                   <div className="flex items-center gap-4 text-xs font-black uppercase tracking-[0.6em] text-primary">
-                    <Zap className="h-4 w-4" /> HOW IT WORKS
+                    <TrendingUp className="h-4 w-4" /> THE USER FLOW
+                  </div>
+                  <h2 className="speak-serif text-6xl md:text-[8rem] font-bold leading-none tracking-tighter italic">{current.title}.</h2>
+                </div>
+                <div className="relative pt-12">
+                  <div className="absolute top-[60px] left-0 right-0 h-0.5 bg-border/40 hidden md:block" />
+                  <div className="grid md:grid-cols-3 gap-12 relative z-10">
+                    {current.journey.map((j: any, i: number) => (
+                      <motion.div key={i} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.2 + 0.3 }}
+                        className="space-y-6">
+                        <div className="h-12 w-12 rounded-full bg-background border-4 border-primary flex items-center justify-center text-sm font-black italic shadow-glow">
+                          {i + 1}
+                        </div>
+                        <div className="space-y-2">
+                          <h3 className="speak-serif text-3xl font-bold italic">{j.step}</h3>
+                          <p className="text-lg font-medium opacity-40 leading-relaxed">{j.desc}</p>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {current.id === "how-it-works-3" && current.tracks && (
+              <div className="space-y-16">
+                <div className="space-y-4">
+                  <div className="flex items-center gap-4 text-xs font-black uppercase tracking-[0.6em] text-primary">
+                    <Sparkles className="h-4 w-4" /> PRACTICE ECOSYSTEM
                   </div>
                   <h2 className="speak-serif text-6xl md:text-[8rem] font-bold leading-none tracking-tighter italic">{current.title}.</h2>
                 </div>
                 <div className="grid md:grid-cols-2 gap-8">
-                  {current.tracks.map((t, i) => {
+                  {current.tracks.map((t: any, i: number) => {
                     const Icon = t.icon;
                     return (
                       <motion.div key={i} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.1 + 0.3 }}
@@ -231,30 +288,6 @@ export const PitchDeck = () => {
                         <Icon className="h-10 w-10 text-primary mb-6 group-hover:scale-110 transition-transform" />
                         <h3 className="speak-serif text-3xl font-bold italic mb-4">{t.name}</h3>
                         <p className="text-lg font-medium opacity-40 leading-relaxed">{t.desc}</p>
-                      </motion.div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {current.id === "ai" && (
-              <div className="space-y-16">
-                <div className="space-y-4">
-                  <div className="flex items-center gap-4 text-xs font-black uppercase tracking-[0.6em] text-primary">
-                    <Sparkles className="h-4 w-4" /> POWERED BY AI
-                  </div>
-                  <h2 className="speak-serif text-6xl md:text-[8rem] font-bold leading-none tracking-tighter italic">{current.title}.</h2>
-                  <p className="text-xl md:text-2xl font-medium opacity-50 max-w-3xl leading-relaxed">{current.lead}</p>
-                </div>
-                <div className="grid md:grid-cols-3 gap-6">
-                  {current.features?.map((f, i) => {
-                    const Icon = f.icon;
-                    return (
-                      <motion.div key={i} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 + 0.3 }}
-                        className="flex items-center gap-6 p-8 rounded-[2rem] border border-border/60 bg-muted/5 group hover:border-primary/30 transition-all">
-                        <Icon className="h-6 w-6 text-primary shrink-0 opacity-40 group-hover:opacity-100 transition-opacity" />
-                        <span className="text-sm font-bold opacity-40 group-hover:opacity-100 transition-opacity">{f.text}</span>
                       </motion.div>
                     );
                   })}
@@ -272,7 +305,7 @@ export const PitchDeck = () => {
                   <p className="text-xl md:text-2xl font-medium opacity-50 max-w-3xl leading-relaxed">{current.lead}</p>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-                  {current.impactPoints?.map((item, i) => (
+                  {current.impactPoints?.map((item: any, i: number) => (
                     <motion.div key={i} initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.1 + 0.3 }}
                       className="text-center p-8 rounded-[2rem] border border-primary/20 bg-primary/5 space-y-3">
                       <p className="speak-serif text-5xl font-bold text-primary italic">{item.stat}</p>
@@ -283,45 +316,53 @@ export const PitchDeck = () => {
               </div>
             )}
 
-            {current.id === "credentials" && (
+            {current.id === "risks" && current.riskPoints && (
               <div className="space-y-16">
                 <div className="space-y-4">
                   <div className="flex items-center gap-4 text-xs font-black uppercase tracking-[0.6em] text-primary">
-                    <FileText className="h-4 w-4" /> LEARNER CREDENTIALS
+                    <ShieldCheck className="h-4 w-4" /> RISKS & MITIGATION
                   </div>
                   <h2 className="speak-serif text-6xl md:text-[8rem] font-bold leading-none tracking-tighter italic">{current.title}.</h2>
-                  <p className="text-xl md:text-2xl font-medium opacity-50 max-w-3xl leading-relaxed">{current.lead}</p>
                 </div>
-                <div className="grid md:grid-cols-2 gap-6">
-                  {current.features?.map((f, i) => {
-                    const Icon = f.icon;
-                    return (
-                      <motion.div key={i} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.15 + 0.3 }}
-                        className="flex items-center gap-6 p-8 rounded-[2rem] border border-border/60 bg-muted/5 group hover:border-primary/30 transition-all">
-                        <Icon className="h-6 w-6 text-primary shrink-0 opacity-40 group-hover:opacity-100 transition-opacity" />
-                        <span className="text-xl font-bold opacity-40 group-hover:opacity-100 transition-opacity">{f.text}</span>
-                      </motion.div>
-                    );
-                  })}
+                <div className="grid md:grid-cols-3 gap-6">
+                  {current.riskPoints.map((r: any, i: number) => (
+                    <motion.div key={i} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 + 0.3 }}
+                      className="p-8 rounded-[2rem] border border-border/60 bg-muted/5 space-y-6">
+                      <div className="space-y-2">
+                        <p className="text-xs font-black uppercase tracking-widest text-primary">RISK</p>
+                        <h3 className="speak-serif text-2xl font-bold italic">{r.risk}</h3>
+                      </div>
+                      <div className="space-y-2">
+                        <p className="text-xs font-black uppercase tracking-widest opacity-30">MITIGATION</p>
+                        <p className="text-sm font-medium opacity-60 leading-relaxed">{r.mitigation}</p>
+                      </div>
+                    </motion.div>
+                  ))}
                 </div>
               </div>
             )}
 
-            {current.id === "tech" && (
+            {current.id === "team" && current.team && (
               <div className="space-y-16">
                 <div className="space-y-4">
                   <div className="flex items-center gap-4 text-xs font-black uppercase tracking-[0.6em] text-primary">
-                    <ShieldCheck className="h-4 w-4" /> TECHNOLOGY
+                    <Users className="h-4 w-4" /> ELITE BUILDERS
                   </div>
                   <h2 className="speak-serif text-6xl md:text-[8rem] font-bold leading-none tracking-tighter italic">{current.title}.</h2>
-                  <p className="text-xl md:text-2xl font-medium opacity-50 max-w-3xl leading-relaxed">{current.techNote}</p>
                 </div>
-                <div className="flex flex-wrap gap-4">
-                  {current.tech?.map((t, i) => (
-                    <motion.span key={i} initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.05 + 0.3 }}
-                      className="px-8 py-4 rounded-full border border-primary/20 bg-primary/5 text-primary text-xs font-black uppercase tracking-[0.4em] shadow-glow shadow-primary/5">
-                      {t}
-                    </motion.span>
+                <div className="grid md:grid-cols-3 gap-8">
+                  {current.team.map((m: any, i: number) => (
+                    <motion.div key={i} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.15 + 0.3 }}
+                      className="p-10 rounded-[3.5rem] border border-border/60 bg-muted/5 text-center space-y-6 group hover:border-primary/40 transition-all duration-700">
+                      <div className="h-24 w-24 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto group-hover:scale-110 transition-transform">
+                        <Users className="h-10 w-10 text-primary" />
+                      </div>
+                      <div className="space-y-2">
+                        <h3 className="speak-serif text-3xl font-bold italic">{m.name}</h3>
+                        <p className="text-xs font-black uppercase tracking-widest text-primary">{m.role}</p>
+                      </div>
+                      <p className="text-sm font-medium opacity-40 leading-relaxed">{m.exp}</p>
+                    </motion.div>
                   ))}
                 </div>
               </div>

@@ -122,14 +122,41 @@ export const TutorialOverlay = () => {
 
   useEffect(() => {
     // Developer Utilities
-    (window as any).resetOnboarding = () => {
+    (window as any).resetOnboarding = async () => {
       localStorage.removeItem("speakbold_onboarding_v2");
       localStorage.removeItem("speakbold_tutorial_pending");
       localStorage.removeItem("speakbold_pathway_selection");
+      
       if (user) {
         localStorage.removeItem(`speakbold_tutorial_pending_${user.id}`);
+        localStorage.removeItem(`speakbold_onboarding_v2_${user.id}`);
+        
+        try {
+          const { supabase } = await import("@/integrations/supabase/client");
+          // Clear onboarding flag in DB
+          await supabase
+            .from("custom_prompts")
+            .delete()
+            .eq("user_id", user.id)
+            .eq("client_id", "system_onboarding_done");
+            
+          // Reset profile fields
+          await supabase
+            .from("profiles")
+            .update({ 
+              strengths: [], 
+              weaknesses: [], 
+              pathway_selection: null,
+              pathway_progress: {} 
+            })
+            .eq("id", user.id);
+            
+          console.log("✅ SpeakBold DB Records, Onboarding & Tutorial reset. Refreshing page...");
+        } catch (err) {
+          console.error("❌ Failed to reset DB records:", err);
+        }
       }
-      console.log("✅ SpeakBold Onboarding & Tutorial reset. Refreshing page...");
+      
       window.location.reload();
     };
 

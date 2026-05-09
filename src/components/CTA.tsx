@@ -1,10 +1,11 @@
 import { Link } from "react-router-dom";
-import { Button } from "@/components/ui/button";
 import { ArrowRight, Mic } from "lucide-react";
 import { motion, useInView } from "framer-motion";
 import { useRef } from "react";
+import { useAuth } from "@/context/AuthContext";
 
 export const CTA = () => {
+  const { user } = useAuth();
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-100px" });
 
@@ -60,11 +61,11 @@ export const CTA = () => {
             </p>
             
             <Link 
-to="/pathway"
+              to={user ? "/pathway" : "/login"}
               className="button-pill px-16 py-5 flex items-center gap-6 group hover:scale-105 transition-transform"
             >
               <span className="text-2xl font-serif animate-pulse-subtle">✱</span>
-              <span className="text-sm font-black uppercase tracking-[0.3em]">Start Training</span>
+              <span className="text-sm font-black uppercase tracking-[0.3em]">{user ? "THE JOURNEY" : "ENTER TRAINING"}</span>
               <span className="text-2xl font-serif animate-pulse-subtle">✱</span>
             </Link>
           </motion.div>

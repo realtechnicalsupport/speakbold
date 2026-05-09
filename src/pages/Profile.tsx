@@ -126,6 +126,25 @@ const Profile = () => {
                 </div>
               )}
             </div>
+
+            {/* Utility Tools */}
+            <div className="pt-6 flex flex-wrap items-center gap-4 border-t border-border/40">
+              <p className="text-[10px] font-black uppercase tracking-[0.4em] opacity-20 w-full mb-2">PLATFORM TOOLS</p>
+              <button 
+                onClick={() => (window as any).resetOnboarding?.()}
+                className="text-[10px] font-black uppercase tracking-[0.2em] opacity-30 hover:opacity-100 hover:text-primary transition-all flex items-center gap-2"
+              >
+                <Zap className="h-3 w-3" />
+                RESET ONBOARDING & PATHWAY
+              </button>
+              <button 
+                onClick={() => (window as any).startTutorial?.()}
+                className="text-[10px] font-black uppercase tracking-[0.2em] opacity-30 hover:opacity-100 hover:text-primary transition-all flex items-center gap-2"
+              >
+                <Sparkles className="h-3 w-3" />
+                REPLAY TUTORIAL
+              </button>
+            </div>
           </div>
         </div>
 

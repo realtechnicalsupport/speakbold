@@ -109,13 +109,13 @@ const Login = () => {
           </motion.div>
 
           <div className="grid grid-cols-2 gap-8 pt-12 border-t border-border/60">
-            <div>
+            <div className="space-y-1">
               <p className="text-4xl font-sans-bold tracking-tighter text-foreground italic">5<span className="text-sm not-italic opacity-40 ml-1 uppercase">min</span></p>
-              <p className="text-xs font-black uppercase tracking-widest opacity-40 mt-1">DAILY DRILLS</p>
+              <p className="text-xs font-black uppercase tracking-widest opacity-40">DAILY DRILLS</p>
             </div>
-            <div>
+            <div className="space-y-1">
               <p className="text-4xl font-sans-bold tracking-tighter text-foreground italic">24<span className="text-sm not-italic opacity-40 ml-1 uppercase">+</span></p>
-              <p className="text-xs font-black uppercase tracking-widest opacity-40 mt-1">CORE PROMPTS</p>
+              <p className="text-xs font-black uppercase tracking-widest opacity-40">CORE PROMPTS</p>
             </div>
           </div>
         </div>
@@ -163,7 +163,7 @@ const Login = () => {
                     exit={{ opacity: 0, height: 0 }}
                     className="space-y-3"
                   >
-                    <Label htmlFor="name" className="text-xs font-bold uppercase tracking-widest opacity-40">OPERATOR NAME</Label>
+                    <Label htmlFor="name" className="text-xs font-bold uppercase tracking-widest opacity-40">Username</Label>
                     <Input
                       id="name"
                       type="text"
@@ -179,7 +179,7 @@ const Login = () => {
               </AnimatePresence>
 
               <div className="space-y-3">
-                <Label htmlFor="email" className="text-xs font-bold uppercase tracking-widest opacity-40">COMMUNICATION VECTOR</Label>
+                <Label htmlFor="email" className="text-xs font-bold uppercase tracking-widest opacity-40">Email</Label>
                 <div className="relative">
                   <Mail className="absolute left-5 top-1/2 -translate-y-1/2 h-4 w-4 text-primary/40 pointer-events-none" />
                   <Input
@@ -198,7 +198,7 @@ const Login = () => {
               {mode !== "forgot" && (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="password" className="text-xs font-bold uppercase tracking-widest opacity-40">SECURITY PASSPHRASE</Label>
+                    <Label htmlFor="password" className="text-xs font-bold uppercase tracking-widest opacity-40">Password</Label>
                     {mode === "login" && (
                       <button
                         type="button"

@@ -14,7 +14,8 @@ export type UnitId =
   | "body" 
   | "conflict" 
   | "executive" 
-  | "mastery";
+  | "mastery"
+  | "custom";
 
 export interface PathwayLesson {
   id: string;
@@ -426,11 +427,11 @@ export const usePathway = () => {
 
     const fetchProgress = async () => {
       try {
-        const localSelection = localStorage.getItem("speakbold_pathway_selection");
+        const localSelection = localStorage.getItem(`speakbold_pathway_selection_${user.id}`) || localStorage.getItem("speakbold_pathway_selection");
         
         const { data, error } = await supabase
           .from("profiles")
-          .select("pathway_progress, pathway_selection")
+          .select("pathway_progress, pathway_selection, strengths, weaknesses")
           .eq("id", user.id)
           .single();
 
@@ -452,19 +453,76 @@ export const usePathway = () => {
           reorderedUnits = order.map(id => reorderedUnits.find(u => u.id === id)!).filter(Boolean);
         }
 
+        // --- DYNAMIC CUSTOM PLAN GENERATION ---
+        const weaknesses = (data?.weaknesses as string[]) || [];
+        if (weaknesses.length > 0) {
+          console.log("[Pathway] Generating custom unit for weaknesses:", weaknesses);
+          const customLessons: PathwayLesson[] = [];
+          
+          const mapping: Record<string, PathwayLesson> = {
+            "Filler Words (um, uh)": VOCAL_LESSONS[0],
+            "Speaking Too Fast": VOCAL_LESSONS[2],
+            "Monotone Voice": VOCAL_LESSONS[1],
+            "Freezing Under Pressure": IMPROMPTU_LESSONS[0],
+            "Lack of Eye Contact": BODY_LESSONS[1],
+            "Vague Answers": IMPROMPTU_LESSONS[2]
+          };
+
+          weaknesses.forEach((w, idx) => {
+            if (mapping[w]) {
+              customLessons.push({
+                ...mapping[w],
+                id: `custom-${mapping[w].id}-${idx}`
+              });
+            } else {
+              // Create a generic drill for custom weaknesses
+              customLessons.push({
+                id: `custom-generic-${idx}`,
+                type: "lesson",
+                unitId: "vocal",
+                title: `Mastery: ${w}`,
+                subtitle: "Personalized focus area",
+                objective: `Practice and improve your skills specifically related to: ${w}.`,
+                instructions: [
+                  `Record a 60-second speech on a topic of your choice.`,
+                  `Focus exclusively on improving: ${w}.`,
+                  `Listen back and grade yourself on how well you handled this specific challenge.`
+                ],
+                prompt: `Deliver a 60-second introduction while focusing on: ${w}.`,
+                durationSeconds: 60,
+                selfReview: [`Did I improve on ${w}?`, "Did I feel more confident?"]
+              });
+            }
+          });
+
+          if (customLessons.length > 0) {
+            const customUnit: PathwayUnit = {
+              id: "custom", 
+              name: "Personalized Focus",
+              tagline: "Targeting your unique goals",
+              color: "#F59E0B", 
+              lessons: customLessons,
+            };
+
+            reorderedUnits = [customUnit, ...reorderedUnits];
+          }
+        }
+        // --------------------------------------
+
         setUnits(reorderedUnits);
         
-        if (data?.pathway_progress && Object.keys(data.pathway_progress).length > 0) {
-          console.log("[Pathway] Loaded progress from DB:", data.pathway_progress);
-          setProgress(data.pathway_progress as Record<string, NodeStatus>);
-        } else {
-          console.log("[Pathway] No progress found in DB, initializing first lesson.");
-          const initialProgress: Record<string, NodeStatus> = {};
-          if (reorderedUnits.length > 0 && reorderedUnits[0].lessons.length > 0) {
-            initialProgress[reorderedUnits[0].lessons[0].id] = "available";
+        let currentProgress = (data?.pathway_progress as Record<string, NodeStatus>) || {};
+        
+        // Ensure the first lesson of the entire path is available if not completed
+        if (reorderedUnits.length > 0 && reorderedUnits[0].lessons.length > 0) {
+          const firstId = reorderedUnits[0].lessons[0].id;
+          if (!currentProgress[firstId]) {
+            currentProgress[firstId] = "available";
           }
-          setProgress(initialProgress);
         }
+
+        console.log("[Pathway] Loaded progress:", currentProgress);
+        setProgress(currentProgress);
       } catch (err) {
         console.error("Error fetching progress:", err);
       } finally {

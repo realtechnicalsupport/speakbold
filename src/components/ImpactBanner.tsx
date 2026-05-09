@@ -66,6 +66,14 @@ export const ImpactBanner = () => {
 
   const metrics = [
     {
+      icon: Globe,
+      value: stats.learners,
+      suffix: "",
+      label: "Operators joined",
+      color: "text-blue-500",
+      bg: "bg-blue-500/10",
+    },
+    {
       icon: Mic,
       value: stats.drillsCompleted,
       suffix: "",
@@ -77,7 +85,7 @@ export const ImpactBanner = () => {
       icon: Sparkles,
       value: stats.aiCoachingSessions,
       suffix: "",
-      label: "AI coaching sessions delivered",
+      label: "AI coaching sessions",
       color: "text-purple-500",
       bg: "bg-purple-500/10",
     },
@@ -85,7 +93,7 @@ export const ImpactBanner = () => {
       icon: Clock,
       value: stats.minutesPracticed,
       suffix: "",
-      label: "Minutes of speaking practice",
+      label: "Minutes practiced",
       color: "text-emerald-500",
       bg: "bg-emerald-500/10",
     },
@@ -116,7 +124,7 @@ export const ImpactBanner = () => {
       </motion.div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-6xl mx-auto">
         {metrics.map((metric, i) => {
           const Icon = metric.icon;
           return (

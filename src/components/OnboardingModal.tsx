@@ -167,17 +167,17 @@ export const OnboardingModal = () => {
     }
   };
 
-  const dismiss = () => {
+  const dismiss = async () => {
     localStorage.setItem(`${ONBOARDING_KEY}_${user?.id}`, "true");
-    markDoneInDB();
+    await markDoneInDB();
     setVisible(false);
   };
 
-  const selectPath = (id: string) => {
+  const selectPath = async (id: string) => {
     localStorage.setItem(`speakbold_pathway_selection_${user?.id}`, id);
     localStorage.setItem(`${ONBOARDING_KEY}_${user?.id}`, "true");
     localStorage.setItem(`speakbold_tutorial_pending_${user?.id}`, "true");
-    markDoneInDB(id);
+    await markDoneInDB(id);
     setVisible(false);
     window.location.href = "/pathway";
   };
@@ -315,26 +315,59 @@ export const OnboardingModal = () => {
                     What are your <span className="text-primary italic">strengths</span>?
                   </h2>
                   <p className="text-xs md:text-sm font-medium opacity-40 leading-relaxed">
-                    Select all that apply to you.
+                    Select from the list or add your own.
                   </p>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[40vh] overflow-y-auto px-2">
-                  {STRENGTHS.map(s => (
-                    <button
-                      key={s}
-                      onClick={() => setSelectedStrengths(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s])}
-                      className={cn(
-                        "p-6 rounded-2xl border transition-all duration-300 text-left relative overflow-hidden",
-                        selectedStrengths.includes(s) 
-                          ? "border-primary bg-primary/10 text-primary" 
-                          : "border-border/60 bg-muted/5 text-foreground/60 hover:border-primary/30"
-                      )}
-                    >
-                      <span className="text-sm font-bold">{s}</span>
-                      {selectedStrengths.includes(s) && <Sparkles className="absolute top-2 right-2 h-3 w-3 animate-pulse" />}
-                    </button>
-                  ))}
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {STRENGTHS.map(s => (
+                      <button
+                        key={s}
+                        onClick={() => setSelectedStrengths(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s])}
+                        className={cn(
+                          "p-6 rounded-2xl border transition-all duration-300 text-left relative overflow-hidden",
+                          selectedStrengths.includes(s) 
+                            ? "border-primary bg-primary/10 text-primary" 
+                            : "border-border/60 bg-muted/5 text-foreground/60 hover:border-primary/30"
+                        )}
+                      >
+                        <span className="text-sm font-bold">{s}</span>
+                        {selectedStrengths.includes(s) && <Sparkles className="absolute top-2 right-2 h-3 w-3 animate-pulse" />}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="relative group">
+                    <input 
+                      type="text" 
+                      placeholder="Add a custom strength..."
+                      className="w-full bg-muted/5 border border-border/60 rounded-2xl p-6 text-sm font-bold focus:border-primary/50 transition-all outline-none pr-16"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          const val = (e.target as HTMLInputElement).value.trim();
+                          if (val && !selectedStrengths.includes(val)) {
+                            setSelectedStrengths(prev => [...prev, val]);
+                            (e.target as HTMLInputElement).value = '';
+                          }
+                        }
+                      }}
+                    />
+                    <div className="absolute right-6 top-1/2 -translate-y-1/2 text-[10px] font-black uppercase tracking-widest opacity-20 group-focus-within:opacity-100 transition-opacity">PRESS ENTER</div>
+                  </div>
+
+                  {selectedStrengths.filter(s => !STRENGTHS.includes(s)).length > 0 && (
+                    <div className="flex flex-wrap gap-2 pt-2">
+                      {selectedStrengths.filter(s => !STRENGTHS.includes(s)).map(s => (
+                        <div key={s} className="px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-3">
+                          {s}
+                          <button onClick={() => setSelectedStrengths(prev => prev.filter(x => x !== s))} className="hover:text-foreground">
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex justify-center pt-8">
@@ -369,21 +402,54 @@ export const OnboardingModal = () => {
                   </p>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[40vh] overflow-y-auto px-2">
-                  {WEAKNESSES.map(w => (
-                    <button
-                      key={w}
-                      onClick={() => setSelectedWeaknesses(prev => prev.includes(w) ? prev.filter(x => x !== w) : [...prev, w])}
-                      className={cn(
-                        "p-6 rounded-2xl border transition-all duration-300 text-left relative overflow-hidden",
-                        selectedWeaknesses.includes(w) 
-                          ? "border-primary bg-primary/10 text-primary" 
-                          : "border-border/60 bg-muted/5 text-foreground/60 hover:border-primary/30"
-                      )}
-                    >
-                      <span className="text-sm font-bold">{w}</span>
-                    </button>
-                  ))}
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {WEAKNESSES.map(w => (
+                      <button
+                        key={w}
+                        onClick={() => setSelectedWeaknesses(prev => prev.includes(w) ? prev.filter(x => x !== w) : [...prev, w])}
+                        className={cn(
+                          "p-6 rounded-2xl border transition-all duration-300 text-left relative overflow-hidden",
+                          selectedWeaknesses.includes(w) 
+                            ? "border-primary bg-primary/10 text-primary" 
+                            : "border-border/60 bg-muted/5 text-foreground/60 hover:border-primary/30"
+                        )}
+                      >
+                        <span className="text-sm font-bold">{w}</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="relative group">
+                    <input 
+                      type="text" 
+                      placeholder="Add a custom area to improve..."
+                      className="w-full bg-muted/5 border border-border/60 rounded-2xl p-6 text-sm font-bold focus:border-primary/50 transition-all outline-none pr-16"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          const val = (e.target as HTMLInputElement).value.trim();
+                          if (val && !selectedWeaknesses.includes(val)) {
+                            setSelectedWeaknesses(prev => [...prev, val]);
+                            (e.target as HTMLInputElement).value = '';
+                          }
+                        }
+                      }}
+                    />
+                    <div className="absolute right-6 top-1/2 -translate-y-1/2 text-[10px] font-black uppercase tracking-widest opacity-20 group-focus-within:opacity-100 transition-opacity">PRESS ENTER</div>
+                  </div>
+
+                  {selectedWeaknesses.filter(w => !WEAKNESSES.includes(w)).length > 0 && (
+                    <div className="flex flex-wrap gap-2 pt-2">
+                      {selectedWeaknesses.filter(w => !WEAKNESSES.includes(w)).map(w => (
+                        <div key={w} className="px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-3">
+                          {w}
+                          <button onClick={() => setSelectedWeaknesses(prev => prev.filter(x => x !== w))} className="hover:text-foreground">
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex justify-center pt-8">

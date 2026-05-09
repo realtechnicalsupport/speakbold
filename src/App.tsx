@@ -34,6 +34,7 @@ import { ArenaProvider } from "./context/ArenaContext";
 import { ChatProvider } from "./context/ChatContext";
 import { OnboardingModal } from "./components/OnboardingModal";
 import { TutorialOverlay } from "./components/TutorialOverlay";
+import { FloatingNodes } from "./components/FloatingNodes";
 import { AICoachChat } from "./components/AICoachChat";
 
 const queryClient = new QueryClient();
@@ -60,6 +61,8 @@ const App = () => {
             <Sonner />
             <ReminderWrapper>
               <BrowserRouter>
+                <FloatingNodes />
+                <TutorialOverlay />
                 <ChatProvider>
               
               {/* Global Background Elements */}
@@ -111,7 +114,6 @@ const App = () => {
               {!timerActive && <MobileNav />}
               <MicrophoneBorder />
               <OnboardingModal />
-              <TutorialOverlay />
               <AICoachChat />
               </ChatProvider>
             </BrowserRouter>
