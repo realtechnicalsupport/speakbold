@@ -19,8 +19,14 @@ export const getRankColor = (rank: Rank) => {
 
 export const getRankFromElo = (elo: number): Rank => {
   const ranks: RankName[] = ["Bronze", "Silver", "Gold", "Platinum", "Diamond"];
-  const rankIndex = Math.min(Math.floor(elo / 400), ranks.length - 1);
+  const maxRankIndex = ranks.length - 1;
+  const rankIndex = Math.min(Math.floor(elo / 400), maxRankIndex);
   const name = ranks[rankIndex];
+  
+  // Cap at Diamond I if ELO goes beyond the final tier threshold
+  if (elo >= (maxRankIndex * 400) + 266) {
+    return { name, tier: "I" };
+  }
   
   const pointsInRank = elo % 400;
   let tier: RankTier = "III";
