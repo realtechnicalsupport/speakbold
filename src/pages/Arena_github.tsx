@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+﻿import { useState, useRef, useEffect } from "react";
 import { useArena, type Duel, type Gamemode, GAMEMODES, getRankColor, getRankFromElo } from "@/hooks/useArena";
 import { SiteHeader } from "@/components/SiteHeader";
 import { RecorderPanel } from "@/components/RecorderPanel";
@@ -16,7 +16,7 @@ import { setRecordingActive } from "@/lib/recordingState";
 import { MicrophoneBorder } from "@/components/MicrophoneBorder";
 import { transcribeAudio, judgeBattle, generateAIArgument, generateArenaPrompt } from "@/services/geminiService";
 
-/* ── Duel Drill Modal ──────────────────────────────────── */
+/* ΓöÇΓöÇ Duel Drill Modal ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 const DuelDrill = ({
   duel, gamemode, onClose, onComplete, isCreating, sendReadyStatus, completeDuel, broadcastBattleResult, sendTranscript, broadcastAnalyzing, sendForfeit, handleForfeit
 }: {
@@ -72,21 +72,6 @@ const DuelDrill = ({
   const [spokenCharIndex, setSpokenCharIndex] = useState(0);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const [generatingPrompt, setGeneratingPrompt] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
-  const [draftingDone, setDraftingDone] = useState(!isCreating);
-
-  // Session persistence for tab-switching resilience
-  useEffect(() => {
-    if (isCreating) sessionStorage.setItem("arena_is_creating", "true");
-    return () => {};
-  }, [isCreating]);
-
-  // When muted, skip AI speech and go straight to user turn
-  useEffect(() => {
-    if (isMuted && aiSpeaking) {
-      window.speechSynthesis.cancel();
-    }
-  }, [isMuted, aiSpeaking]);
 
   // Listen for authoritative result from host or transcript from peer
   useEffect(() => {
@@ -170,10 +155,7 @@ const DuelDrill = ({
   useEffect(() => {
     // Check mic permission on mount
     navigator.mediaDevices.getUserMedia({ audio: true })
-      .then((stream) => {
-        setMicError(false);
-        stream.getTracks().forEach(t => t.stop());
-      })
+      .then(() => setMicError(false))
       .catch(() => setMicError(true));
   }, []);
 
@@ -194,10 +176,9 @@ const DuelDrill = ({
     }
   }, [userReady, opponentReady, opponent]);
 
-  // Ready-up Countdown ΓÇö only for PvP (not AI/custom)
+  // Ready-up Countdown
   useEffect(() => {
-    const isAI = duel?.id?.startsWith("ai-") || isCreating;
-    if (phase !== "drilling" || (userReady && opponentReady) || isAI) return;
+    if (phase !== "drilling" || (userReady && opponentReady) || isCreating) return;
     if (readyTimer <= 0) {
       toast({ title: "Session Timed Out", description: "Players did not ready up in time.", variant: "destructive" });
       onClose();
@@ -205,7 +186,7 @@ const DuelDrill = ({
     }
     const timer = setInterval(() => setReadyTimer(prev => prev - 1), 1000);
     return () => clearInterval(timer);
-  }, [readyTimer, userReady, opponentReady, phase, onClose, isCreating, duel?.id]);
+  }, [readyTimer, userReady, opponentReady, phase, onClose]);
 
   // For AI opponents, trigger the ai-turn phase before the user's countdown
   const isAIOpponent = duel?.id.startsWith("ai-") || false;
@@ -326,20 +307,6 @@ const DuelDrill = ({
           setPhase("drilling");
           setPreCount(3);
         };
-
-        // If muted, skip playback entirely
-        if (isMuted) {
-          oppTranscriptRef.current = argument;
-          setOppTranscript(argument);
-          setAiSpeaking(false);
-          setSpokenCharIndex(argument.length);
-          setTimeout(() => {
-            if (cancelled) return;
-            setPhase("drilling");
-            setPreCount(3);
-          }, 500);
-          return;
-        }
 
         window.speechSynthesis.speak(utterance);
       } catch (err) {
@@ -641,6 +608,7 @@ const DuelDrill = ({
 
         {phase === "drilling" && (
           <>
+            <MicrophoneBorder />
             <div className="text-center mb-12">
                <div className="flex flex-col items-center gap-3 mb-4 md:mb-6">
                  <div className="inline-flex items-center gap-2 md:gap-3 text-[10px] md:text-sm font-black uppercase tracking-[0.3em] md:tracking-[0.4em] text-primary bg-primary/10 px-3 md:px-4 py-1.5 md:py-2 rounded-full border border-primary/20">
@@ -653,7 +621,7 @@ const DuelDrill = ({
                        className="flex items-center gap-2 px-3 py-1 rounded-md text-[11px] font-black uppercase tracking-widest border bg-red-500/10 border-red-500 text-red-500"
                      >
                        <MicOff className="h-3 w-3" />
-                       MIC OFF — CANNOT RECORD
+                       MIC OFF ΓÇö CANNOT RECORD
                      </motion.div>
                    )}
                  </div>
@@ -671,7 +639,7 @@ const DuelDrill = ({
               <p className="text-[10px] md:text-sm font-black uppercase tracking-[0.3em] md:tracking-[0.4em] text-primary mb-4 md:mb-6 flex items-center gap-2">
                 <Target className="h-3 w-3 md:h-4 md:h-4" /> YOUR TOPIC
               </p>
-              {isCreating && !draftingDone ? (
+              {isCreating && !running && !finished ? (
                 <div className="space-y-4">
                   <div className="flex justify-between items-center mb-2">
                     <p className="text-[10px] font-black opacity-30 tracking-widest uppercase">Draft your challenge prompt or</p>
@@ -700,8 +668,8 @@ const DuelDrill = ({
                     <button
                       disabled={!customPrompt.trim()}
                       onClick={() => {
-                        setDraftingDone(true);
                         setUserReady(true);
+                        // For solo custom mode, we set opponent ready immediately
                         setOpponentReady(true);
                       }}
                       className="button-pill w-full py-4 bg-primary text-white shadow-glow group flex items-center justify-center gap-4 mt-4"
@@ -717,7 +685,7 @@ const DuelDrill = ({
 
             <div className="max-w-md mx-auto w-full">
               {!finished ? (
-                !userReady && (!isCreating || draftingDone) ? (
+                !userReady && !isCreating ? (
                   <button
                     disabled={isCreating && !customPrompt.trim()}
                     onClick={() => {
@@ -733,7 +701,7 @@ const DuelDrill = ({
                   <div className="bg-muted/50 border border-border rounded-2xl p-4 flex flex-col gap-4">
                      <div className="flex justify-between items-center px-4">
                         <div className="flex items-center gap-3">
-                           <div className="h-8 w-8 rounded-full bg-background flex items-center justify-center text-sm border border-border">👤</div>
+                           <div className="h-8 w-8 rounded-full bg-background flex items-center justify-center text-sm border border-border">≡ƒæñ</div>
                            <span className="text-sm font-black uppercase tracking-widest opacity-60">YOU</span>
                         </div>
                         <span className="text-sm font-black uppercase tracking-[0.4em] text-green-500 animate-pulse">READY</span>
@@ -741,7 +709,7 @@ const DuelDrill = ({
                      <div className="h-px bg-border w-full opacity-50" />
                      <div className="flex justify-between items-center px-4">
                         <div className="flex items-center gap-3">
-                           <div className="h-8 w-8 rounded-full bg-background flex items-center justify-center text-sm border border-border">{opponent?.avatar || "👤"}</div>
+                           <div className="h-8 w-8 rounded-full bg-background flex items-center justify-center text-sm border border-border">{opponent?.avatar || "≡ƒæñ"}</div>
                            <span className="text-sm font-black uppercase tracking-widest opacity-60">{opponent?.name || "OPPONENT"}</span>
                         </div>
                         <span className={cn("text-sm font-black uppercase tracking-[0.4em]", opponentReady ? "text-green-500 animate-pulse" : "text-primary animate-pulse opacity-50")}>
@@ -770,7 +738,7 @@ const DuelDrill = ({
             <div className="flex items-center gap-4 px-4 md:px-8 py-4 border-b border-border/50 shrink-0">
               <div className="relative">
                 <div className="h-10 w-10 md:h-12 md:w-12 rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center text-xl md:text-2xl">
-                  🤖
+                  ≡ƒñû
                 </div>
                 {aiSpeaking && (
                   <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-green-500 border-2 border-background animate-ping" />
@@ -785,30 +753,15 @@ const DuelDrill = ({
                 </p>
               </div>
               <div className="ml-auto flex items-center gap-2">
-                {aiSpeaking && !isMuted && (
+                {aiSpeaking && (
                   <>
                     <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
                     <span className="h-3 w-3 rounded-full bg-green-500/70 animate-pulse delay-75" />
                     <span className="h-4 w-4 rounded-full bg-green-500/50 animate-pulse delay-150" />
                   </>
                 )}
-                <button
-                  onClick={() => {
-                    setIsMuted(m => !m);
-                    if (!isMuted) window.speechSynthesis.cancel();
-                  }}
-                  className={cn(
-                    "flex items-center gap-1.5 px-3 py-1 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all",
-                    isMuted
-                      ? "bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20"
-                      : "bg-muted/50 border-border text-foreground/40 hover:text-foreground"
-                  )}
-                >
-                  {isMuted ? <MicOff className="h-3 w-3" /> : <Mic className="h-3 w-3" />}
-                  {isMuted ? "UNMUTE" : "MUTE AI"}
-                </button>
                 <span className={cn("text-[10px] font-black uppercase tracking-widest", aiSpeaking ? "text-green-400" : "text-primary/40")}>
-                  {aiSpeaking ? (isMuted ? "MUTED" : "LIVE") : "LOADING"}
+                  {aiSpeaking ? "LIVE" : "LOADING"}
                 </span>
               </div>
             </div>
@@ -845,7 +798,7 @@ const DuelDrill = ({
                   }}
                   className="px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl bg-primary text-white hover:scale-105 active:scale-95 transition-all shadow-glow"
                 >
-                  SKIP & START →
+                  SKIP & START ΓåÆ
                 </button>
               )}
             </div>
@@ -964,7 +917,7 @@ const DuelDrill = ({
                              : (Array.isArray(verdictResult.strengths) ? verdictResult.strengths : [])
                            ).filter(s => s && String(s).trim()).map((s, i) => (
                               <p key={i} className="text-[11px] opacity-70 leading-tight flex gap-2">
-                                 <span className="text-green-500">•</span> {String(s).trim()}
+                                 <span className="text-green-500">ΓÇó</span> {String(s).trim()}
                               </p>
                            ))}
                        </div>
@@ -974,7 +927,7 @@ const DuelDrill = ({
                        <div className="space-y-1">
                           {verdictResult.oppStrengths.split(',').filter(s => s.trim()).map((s, i) => (
                              <p key={i} className="text-[11px] opacity-70 leading-tight flex gap-2">
-                                <span className="text-orange-500">•</span> {s.trim()}
+                                <span className="text-orange-500">ΓÇó</span> {s.trim()}
                              </p>
                           ))}
                        </div>
@@ -1043,7 +996,7 @@ const DuelDrill = ({
                     }
                     onClose();
                   }}
-                  className="button-pill py-4 bg-transparent text-foreground/40 border border-border/50 hover:bg-red-500 hover:text-white hover:border-red-500 transition-all text-xs font-black uppercase tracking-widest"
+                  className="button-pill py-4 bg-red-500 text-white border-red-500 hover:bg-red-600 transition-colors text-xs font-black uppercase tracking-widest"
                 >
                   FORFEIT & LEAVE (-30 ELO)
                 </button>
@@ -1058,12 +1011,11 @@ const DuelDrill = ({
           </motion.div>
         )}
       </AnimatePresence>
-      <MicrophoneBorder />
     </motion.div>
   );
 };
 
-/* ── Main Arena Page ───────────────────────────────────── */
+/* ΓöÇΓöÇ Main Arena Page ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 const Arena = () => {
   const { 
     duels, profile, loading: arenaLoading, completeDuel, findMatch, completedDuels, refresh: refreshArena,
@@ -1072,19 +1024,8 @@ const Arena = () => {
   } = useArena();
   const { user } = useAuth();
   
-  const [activeDrill, setActiveDrill] = useState<Duel | null>(() => {
-    try { const s = sessionStorage.getItem("arena_active_drill"); return s ? JSON.parse(s) : null; } catch { return null; }
-  });
-  const [isCreating, setIsCreating] = useState(() => sessionStorage.getItem("arena_is_creating") === "true");
-
-  useEffect(() => {
-    if (activeDrill) sessionStorage.setItem("arena_active_drill", JSON.stringify(activeDrill));
-    else sessionStorage.removeItem("arena_active_drill");
-  }, [activeDrill]);
-
-  useEffect(() => {
-    sessionStorage.setItem("arena_is_creating", isCreating.toString());
-  }, [isCreating]);
+  const [activeDrill, setActiveDrill] = useState<Duel | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
   const [selectedMode, setSelectedMode] = useState<Gamemode>("standard");
   
   const [matchmaking, setMatchmaking] = useState(false);
@@ -1164,7 +1105,7 @@ const Arena = () => {
       creator: {
         id: request.senderId,
         name: request.senderName,
-        avatar: "👤",
+        avatar: "≡ƒæñ",
         rank: request.senderRank,
         elo: 0,
         score: null
@@ -1172,7 +1113,7 @@ const Arena = () => {
       challenger: {
         id: request.targetId || user?.id, 
         name: request.targetName || user?.email?.split("@")[0] || "Challenger",
-        avatar: "👤",
+        avatar: "≡ƒæñ",
         rank: request.targetRank || getRankFromElo(profile.elo),
         elo: 0,
         score: null
@@ -1214,7 +1155,7 @@ const Arena = () => {
 
   const currentRank = getRankFromElo(profile.elo);
   const userName = user?.email?.split("@")[0] || "Operator";
-  const currentUser = { name: userName, avatar: "👤", rank: currentRank, elo: profile.elo };
+  const currentUser = { name: userName, avatar: "≡ƒæñ", rank: currentRank, elo: profile.elo };
 
   const handleFindMatch = async (mode: Gamemode) => {
     setMatchmaking(true);
@@ -1278,7 +1219,7 @@ const Arena = () => {
                   <div className="text-center">
                     <div className="text-4xl md:text-5xl font-black mb-2">{selectedDuel.challenger?.score}</div>
                     <div className="flex items-center gap-2 justify-center">
-                      <div className={cn("h-6 w-6 rounded-full flex items-center justify-center text-[10px] border", getRankColor(selectedDuel.challenger?.rank || currentRank))}>{selectedDuel.challenger?.avatar || "🤖"}</div>
+                      <div className={cn("h-6 w-6 rounded-full flex items-center justify-center text-[10px] border", getRankColor(selectedDuel.challenger?.rank || currentRank))}>{selectedDuel.challenger?.avatar || "≡ƒñû"}</div>
                       <span className="text-[10px] font-black uppercase tracking-widest opacity-40">{selectedDuel.challenger?.name}</span>
                     </div>
                   </div>
@@ -1367,7 +1308,7 @@ const Arena = () => {
                <div className="flex flex-col md:flex-row items-center gap-12 z-10 px-4">
                  <div className="text-center">
                    <div className={cn("h-24 w-24 md:h-32 md:w-32 rounded-full border-4 flex items-center justify-center text-4xl md:text-5xl mb-4 bg-muted shadow-2xl", getRankColor(me.rank))}>
-                     {me.avatar || "👤"}
+                     {me.avatar || "≡ƒæñ"}
                    </div>
                    <p className="text-xl md:text-2xl font-bold truncate max-w-[150px] mx-auto">{me.name}</p>
                    <p className={cn("text-[10px] md:text-sm font-black uppercase tracking-widest mt-1", getRankColor(me.rank))}>{me.rank.name} {me.rank.tier}</p>
@@ -1377,7 +1318,7 @@ const Arena = () => {
                  
                  <div className="text-center">
                    <div className={cn("h-24 w-24 md:h-32 md:w-32 rounded-full border-4 flex items-center justify-center text-4xl md:text-5xl mb-4 bg-muted shadow-2xl", getRankColor(opp.rank))}>
-                     {opp.avatar || "🤖"}
+                     {opp.avatar || "≡ƒñû"}
                    </div>
                    <p className="text-xl md:text-2xl font-bold truncate max-w-[150px] mx-auto">{opp.name}</p>
                    <p className={cn("text-[10px] md:text-sm font-black uppercase tracking-widest mt-1", getRankColor(opp.rank))}>{opp.rank.name} {opp.rank.tier}</p>
@@ -1475,7 +1416,7 @@ const Arena = () => {
                   <div className="absolute inset-0 rounded-full border-4 border-current opacity-20 animate-spin-slow" />
                   <div className="absolute inset-2 rounded-full border border-current opacity-40" />
                   <div className="h-16 w-16 rounded-full bg-background flex items-center justify-center text-4xl shadow-2xl relative z-10 border border-current/20">
-                    👤
+                    ≡ƒæñ
                   </div>
                </div>
 
@@ -1535,16 +1476,10 @@ const Arena = () => {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                  <button 
-                   onClick={() => {
-                     if (selectedMode === "debate") {
-                       setIsCreating(true);
-                     } else {
-                       handleFindMatch(selectedMode);
-                     }
-                   }}
+                   onClick={() => handleFindMatch(selectedMode)}
                    className="w-full py-6 bg-primary text-white rounded-2xl text-[12px] font-black uppercase tracking-[0.3em] hover:scale-[1.02] active:scale-95 transition-all shadow-glow flex items-center justify-center gap-3"
                  >
-                   <Radar className="h-5 w-5" /> {selectedMode === "debate" ? "CUSTOM DEBATE" : "FIND PARTNER"}
+                   <Radar className="h-5 w-5" /> FIND PARTNER
                  </button>
                  <button 
                    onClick={() => setIsCreating(true)}
@@ -1621,7 +1556,7 @@ const Arena = () => {
                       <div className="flex items-center gap-4 mt-2">
                          <span className="text-[11px] font-black uppercase tracking-widest text-primary bg-primary/10 px-2 py-0.5 rounded">{duel.gamemode}</span>
                          <span className={cn("text-[11px] font-black uppercase tracking-widest px-2 py-0.5 rounded bg-muted/20 text-foreground/40 group-hover:bg-primary/20 group-hover:text-primary transition-colors")}>
-                           VIEW DETAILS →
+                           VIEW DETAILS ΓåÆ
                          </span>
                       </div>
                     </div>
@@ -1632,7 +1567,7 @@ const Arena = () => {
                        </div>
                        <span className="text-[11px] font-black text-primary">WITH</span>
                        <div className="text-left flex items-center gap-2">
-                          <div className={cn("h-6 w-6 rounded-full flex items-center justify-center text-sm border bg-background", getRankColor(currentRank))}>👤</div>
+                          <div className={cn("h-6 w-6 rounded-full flex items-center justify-center text-sm border bg-background", getRankColor(currentRank))}>≡ƒæñ</div>
                           <span className={cn("text-xl font-black opacity-60")}>{duel.challenger?.score}</span>
                        </div>
                     </div>
@@ -1661,26 +1596,23 @@ const Arena = () => {
             broadcastAnalyzing={broadcastAnalyzing}
             sendForfeit={sendForfeit}
             handleForfeit={handleForfeit}
-            onClose={() => {
-              setActiveDrill(null);
-              setIsCreating(false);
-              sessionStorage.removeItem("arena_active_drill");
-              sessionStorage.removeItem("arena_is_creating");
-            }}
+            onClose={() => { setActiveDrill(null); setIsCreating(false); }}
             onComplete={(score, prompt, mode, feedback) => {
+              console.log("[Arena] User returning to lobby from battle.");
               if (isCreating) {
-                toast({ title: "Custom Battle Recorded", description: "Your custom practice results have been saved." });
+                toast({ title: "Custom Challenge Live", description: "Your challenge is waiting for a victim." });
               }
               setActiveDrill(null);
               setIsCreating(false);
-              sessionStorage.removeItem("arena_active_drill");
-              sessionStorage.removeItem("arena_is_creating");
+
+              // If we have a buffered update, fire it now
               if (pendingUpdate.current) {
+                console.log("[Arena] Firing buffered ELO update:", pendingUpdate.current);
                 setTimeout(() => {
                   setEloUpdate(pendingUpdate.current);
                   pendingUpdate.current = null;
                   setTimeout(() => setEloUpdate(null), 4000);
-                }, 500);
+                }, 500); // Small delay for layout transition
               }
             }}
           />
@@ -1706,7 +1638,7 @@ const Arena = () => {
                      <div key={req.id} className="p-4 rounded-2xl bg-muted/30 border border-border flex flex-col gap-3">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                               <div className="h-8 w-8 rounded-full bg-background flex items-center justify-center border border-border">👤</div>
+                               <div className="h-8 w-8 rounded-full bg-background flex items-center justify-center border border-border">≡ƒæñ</div>
                                <p className="text-sm font-bold">{req.senderName}</p>
                             </div>
                             <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-primary/10 border border-primary/20">

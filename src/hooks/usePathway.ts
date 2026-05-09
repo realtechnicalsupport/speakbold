@@ -533,7 +533,31 @@ export const usePathway = () => {
     fetchProgress();
   }, [user]);
 
-  const completeLesson = useCallback(async (lessonId: string) => {
+  // Sync progress to DB whenever it changes
+  useEffect(() => {
+    if (!user || loading) return;
+    
+    const syncProgress = async () => {
+      console.log("[Pathway] Syncing progress to DB:", progress);
+      const { error } = await supabase
+        .from("profiles")
+        .update({ pathway_progress: progress })
+        .eq("id", user.id);
+        
+      if (error) {
+        console.error("[Pathway] Progress sync failed:", error);
+      } else {
+        console.log("[Pathway] Progress sync successful");
+      }
+    };
+
+    // We only sync if there is actually progress (to avoid overwriting with {} on initial load)
+    if (Object.keys(progress).length > 0) {
+      syncProgress();
+    }
+  }, [progress, user, loading]);
+
+  const completeLesson = useCallback((lessonId: string) => {
     if (!user) return;
 
     setProgress(prev => {
@@ -543,12 +567,21 @@ export const usePathway = () => {
       for (const unit of units) {
         for (let i = 0; i < unit.lessons.length; i++) {
           if (unit.lessons[i].id === lessonId) {
+            // Unlock next lesson in current unit
             if (i + 1 < unit.lessons.length) {
-              newProgress[unit.lessons[i + 1].id] = "available";
-            } else {
+              const nextId = unit.lessons[i + 1].id;
+              if (newProgress[nextId] !== "completed") {
+                newProgress[nextId] = "available";
+              }
+            } 
+            // Or unlock first lesson of next unit
+            else {
               const unitIdx = units.indexOf(unit);
               if (unitIdx + 1 < units.length) {
-                newProgress[units[unitIdx + 1].lessons[0].id] = "available";
+                const nextUnitLessonId = units[unitIdx + 1].lessons[0].id;
+                if (newProgress[nextUnitLessonId] !== "completed") {
+                  newProgress[nextUnitLessonId] = "available";
+                }
               }
             }
             found = true;
@@ -557,18 +590,6 @@ export const usePathway = () => {
         }
         if (found) break;
       }
-
-      console.log("[Pathway] Updating progress:", newProgress);
-      
-      // Async update to DB
-      supabase
-        .from("profiles")
-        .update({ pathway_progress: newProgress })
-        .eq("id", user.id)
-        .then(({ error }) => {
-          if (error) console.error("[Pathway] DB update failed:", error);
-          else console.log("[Pathway] DB update successful");
-        });
 
       return newProgress;
     });

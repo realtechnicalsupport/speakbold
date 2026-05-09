@@ -40,7 +40,7 @@ export interface Duel {
   eloChange?: number;
 }
 
-const AI_PERSONAS = [
+export const AI_PERSONAS = [
   { name: "Echo", avatar: "🌊", personality: "Emotional and passionate.", skill: "Beginner", eloOffset: -200, strengths: "Emotional connection", weaknesses: "Lack of structure" },
   { name: "LogicBot", avatar: "🔢", personality: "Extremely structured.", skill: "Intermediate", eloOffset: 0, strengths: "Logical structure", weaknesses: "Lacks charisma" },
   { name: "Persuado", avatar: "🎭", personality: "Charismatic and theatrical.", skill: "Advanced", eloOffset: 200, strengths: "Rhetoric", weaknesses: "Over-exaggeration" },
@@ -216,7 +216,14 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       .subscribe(async (status) => {
         if (status === "SUBSCRIBED") {
           await channel.track({
-            user: { id: user.id, name: user.email?.split("@")[0] || "Anonymous", avatar: "👤", rank: getRankFromElo(profile.elo), elo: profile.elo },
+            user: { 
+              id: user.id, 
+              name: user.email?.split("@")[0] || "Anonymous", 
+              avatar: "👤", 
+              rank: getRankFromElo(profile.elo), 
+              elo: profile.elo,
+              status: "idle" // Default status
+            },
             online_at: new Date().toISOString(),
           });
         }
@@ -344,13 +351,28 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
+  const updateStatus = useCallback(async (status: "idle" | "battling") => {
+    if (!user || !arenaChannel.current) return;
+    await arenaChannel.current.track({
+      user: { 
+        id: user.id, 
+        name: user.email?.split("@")[0] || "Anonymous", 
+        avatar: "👤", 
+        rank: getRankFromElo(profile.elo), 
+        elo: profile.elo,
+        status 
+      },
+      online_at: new Date().toISOString(),
+    });
+  }, [user, profile.elo]);
+
   useEffect(() => { if (user) refresh(); }, [user, refresh]);
 
   return (
     <ArenaContext.Provider value={{
       duels, profile, loading, onlineUsers, incomingRequests, refresh, setIncomingRequests,
       sendDuelRequest, acceptDuelRequest, sendReadyStatus, sendForfeit, handleForfeit, completeDuel, broadcastBattleResult,
-      broadcastAnalyzing, sendTranscript, findMatch,
+      broadcastAnalyzing, sendTranscript, findMatch, updateStatus,
       completedDuels: duels.filter(d => d.status === "completed")
     }}>
       {children}

@@ -22,7 +22,14 @@ export function MicrophoneBorder() {
           ? { audio: { deviceId: { exact: savedDeviceId } } }
           : { audio: true };
         
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        let stream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia(constraints);
+        } catch (err) {
+          console.warn("[MicBorder] Failed with saved device, falling back to default:", err);
+          stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        }
+
         if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
         streamRef.current = stream;
         
@@ -34,6 +41,7 @@ export function MicrophoneBorder() {
         
         const ctx = new AudioContext();
         audioCtxRef.current = ctx;
+        if (ctx.state === 'suspended') await ctx.resume();
         
         const analyser = ctx.createAnalyser();
         analyser.fftSize = 256;
@@ -54,19 +62,19 @@ export function MicrophoneBorder() {
           smoothRef.current = smoothRef.current * 0.4 + avg * 0.6;
           const v = smoothRef.current;
           
-          const size = 5 + v * 65;
-          const op = 0.1 + v * 0.55;
+          const size = 10 + v * 100;
+          const op = 0.2 + v * 0.8;
           
           el.style.boxShadow =
-            `inset 0 0 ${size}px ${size / 3}px hsla(14 88% 62% / ${op}), ` +
-            `inset 0 0 ${size * 1.8}px ${size / 1.5}px hsla(14 88% 62% / ${op * 0.2})`;
+            `inset 0 0 ${size}px ${size / 2}px hsla(14, 88%, 62%, ${op}), ` +
+            `inset 0 0 ${size * 2}px ${size}px hsla(14, 88%, 62%, ${op * 0.3})`;
           
           rafRef.current = requestAnimationFrame(loop);
         };
         
         rafRef.current = requestAnimationFrame(loop);
-      } catch {
-        // denied
+      } catch (err) {
+        console.error("[MicBorder] Final failure:", err);
       }
     })();
     

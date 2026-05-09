@@ -7,7 +7,7 @@ const GROQ_MODELS = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
 async function sleep(ms: number) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
 // --- MULTI-PROVIDER AI CALLER ---
-async function callAI(prompt: string, attempt: number = 0): Promise<string> {
+async function callAI(prompt: string, attempt: number = 0, temperature: number = 0.7): Promise<string> {
   // Try Gemini first (attempt 0-2)
   if (attempt < 3 && GEMINI_API_KEY) {
     const model = GEMINI_MODELS[attempt % GEMINI_MODELS.length];
@@ -17,7 +17,10 @@ async function callAI(prompt: string, attempt: number = 0): Promise<string> {
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        body: JSON.stringify({ 
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature }
+        })
       });
       if (res.ok) {
         const data = await res.json();
@@ -25,7 +28,7 @@ async function callAI(prompt: string, attempt: number = 0): Promise<string> {
       }
       if (res.status === 429) {
         console.warn(`Gemini Limit reached. Trying fallback...`);
-        return callAI(prompt, 3); // Skip to Groq
+        return callAI(prompt, 3, temperature); // Skip to Groq
       }
     } catch (e) { console.error("Gemini Error:", e); }
   }
@@ -43,7 +46,7 @@ async function callAI(prompt: string, attempt: number = 0): Promise<string> {
         body: JSON.stringify({
           model,
           messages: [{ role: "user", content: prompt }],
-          temperature: 0.7
+          temperature: temperature
         })
       });
       if (res.ok) {
@@ -52,7 +55,7 @@ async function callAI(prompt: string, attempt: number = 0): Promise<string> {
       }
       if (res.status === 429 && attempt < 5) {
         await sleep(1000);
-        return callAI(prompt, attempt + 1);
+        return callAI(prompt, attempt + 1, temperature);
       }
     } catch (e) { console.error("Groq Error:", e); }
   }
@@ -143,28 +146,50 @@ export async function generateImpromptuPrompts(category: string, count: number =
 }
 
 export async function generateArenaPrompt(gamemode: string): Promise<string> {
+  const themes = [
+    "Futurism", "Ancient History", "Absurdist Humor", "Corporate Satire", 
+    "Deep Ethics", "Childhood Wonder", "Cyberpunk", "Nature & Ecology",
+    "Space Exploration", "Psychology", "Street Smarts", "Pop Culture",
+    "Hidden Secrets", "The Uncanny", "Daily Inconveniences", "Surrealism",
+    "Food Culture", "Social Media", "Urban Legends", "Mythology",
+    "Time Travel", "Parallel Universes", "The 90s Nostalgia", "Luxury Living",
+    "Minimalism", "Sports Culture", "Fashion Evolution", "Pet Psychology"
+  ];
+  const styles = [
+    "Socratic", "Provocative", "Whimsical", "Grim", "Enthusiastic", "Cynical", "Mysterious",
+    "Inquisitive", "Deadpan", "Over-the-top", "Stoic", "Playful", "Academic-lite"
+  ];
+  const randomTheme = themes[Math.floor(Math.random() * themes.length)];
+  const randomStyle = styles[Math.floor(Math.random() * styles.length)];
   const seed = Math.random().toString(36).substring(7);
-  const systemPrompt = `Generate a single, compelling, and unique public speaking prompt.
+
+  const systemPrompt = `You are a creative prompt engineer for an elite public speaking app.
   Gamemode: ${gamemode}
+  Inspiration Theme: ${randomTheme}
+  Tone/Style: ${randomStyle}
   Random Seed: ${seed}
   
   Requirements:
-  - If blitz: A simple but clever "Would you rather" or "Pick a side" topic.
-  - If debate: A controversial "This House believes..." motion.
-  - If pitch: A bizarre but potentially useful invention (e.g. 'Shoes that generate electricity').
-  - If standard: A philosophical deep dive (e.g. 'The ethics of immortality').
+  - If blitz: A fast-paced choice or "hot take".
+  - If debate: A high-stakes "This House believes..." motion.
+  - If pitch: A product/service that solves a bizarre or hyper-specific problem.
+  - If standard: A profound, paradoxical, or highly unusual question.
 
-  DO NOT repeat common topics like 'failure' or 'climate change' unless you have a very fresh angle.
-  Return ONLY the prompt text. No quotes. KEEP IT CONCISE (MAXIMUM 8 WORDS).`;
+  CRITICAL: BE UNCONVENTIONAL BUT ACCESSIBLE. 
+  Avoid clichés (no climate change, no AI ethics, no leadership, no failure, no school uniforms). 
+  Avoid boring or hyper-academic topics. Make it something a person could talk about at a dinner party.
+  Make it relatable to a general audience. Use simple but thought-provoking language.
   
-  return callAI(systemPrompt);
+  Return ONLY the prompt text. No quotes. MAXIMUM 10 WORDS.`;
+  
+  return callAI(systemPrompt, 0, 1.2); // High temperature for maximum variety
 }
 
 export async function generateAIArgument(prompt: string, durationSeconds: number, gamemode: string, persona?: any): Promise<string> {
   const wordCount = Math.floor(durationSeconds * 2.2); // ~2.2 words/sec speaking pace
 
   let gamemodeInstructions = "Deliver a compelling, standalone speech";
-  if (gamemode === "debate") gamemodeInstructions = "Write a strong, argumentative opening statement for a debate";
+  if (gamemode === "debate") gamemodeInstructions = "Write a strong, argumentative opening statement for a debate IN FAVOR OF the motion";
   if (gamemode === "pitch") gamemodeInstructions = "Act as a strict investor/client. State a complex problem or objection in 2-3 sentences that the user must pitch a solution for";
   if (gamemode === "blitz") gamemodeInstructions = "Deliver a rapid-fire, high-energy impromptu speech";
 

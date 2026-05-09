@@ -472,47 +472,47 @@ const LessonDrill = ({
           <div className="space-y-8 max-w-2xl mx-auto">
             {/* Score Circle */}
             <div className="flex flex-col items-center gap-4 py-8">
-              <div className={cn("h-36 w-36 rounded-full border-4 flex flex-col items-center justify-center shadow-glow", aiResult.passed ? "border-primary bg-primary/10" : "border-muted-foreground/30 bg-muted/10")}>
-                <span className="speak-serif text-5xl font-bold italic">{aiResult.score}</span>
-                <span className="text-[10px] font-black uppercase tracking-widest opacity-40">/ 100</span>
+              <div className={cn("h-36 w-36 md:h-48 md:w-48 rounded-full border-4 flex flex-col items-center justify-center shadow-glow", aiResult.passed ? "border-primary bg-primary/10" : "border-muted-foreground/30 bg-muted/10")}>
+                <span className="speak-serif text-5xl md:text-7xl font-bold italic">{aiResult.score}</span>
+                <span className="text-xs md:text-sm font-black uppercase tracking-widest opacity-40">/ 100</span>
               </div>
-              <div className={cn("px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border", aiResult.passed ? "bg-primary/10 border-primary/30 text-primary" : "bg-muted/20 border-border text-muted-foreground")}>
+              <div className={cn("px-6 py-2 rounded-full text-xs md:text-sm font-black uppercase tracking-widest border", aiResult.passed ? "bg-primary/10 border-primary/30 text-primary" : "bg-muted/20 border-border text-muted-foreground")}>
                 {aiResult.passed ? (isTest ? "MILESTONE CLEARED ✓" : "DRILL PASSED ✓") : (isTest ? "NOT QUITE — TRY AGAIN" : "DRILL COMPLETE")}
               </div>
             </div>
 
             {/* Feedback */}
-            <div className="bg-muted/5 border border-border/60 rounded-[2rem] p-8 space-y-4">
-              <p className="text-[10px] font-black uppercase tracking-widest opacity-30 flex items-center gap-2"><Sparkles className="h-3 w-3" /> COACH'S VERDICT</p>
-              <p className="text-base leading-relaxed opacity-70 italic">"{aiResult.feedback}"</p>
+            <div className="bg-muted/5 border border-border/60 rounded-[2rem] p-8 md:p-12 space-y-6">
+              <p className="text-xs md:text-sm font-black uppercase tracking-widest opacity-30 flex items-center gap-2"><Sparkles className="h-4 w-4" /> COACH'S VERDICT</p>
+              <p className="text-lg md:text-2xl leading-relaxed opacity-70 italic font-medium">"{aiResult.feedback}"</p>
             </div>
 
             {/* Strengths */}
             {aiResult.strengths && aiResult.strengths !== "N/A" && (
-              <div className="space-y-4">
-                <p className="text-[10px] font-black uppercase tracking-widest opacity-30 flex items-center gap-2"><Award className="h-3 w-3" /> YOUR STRENGTHS</p>
-                <div className="flex flex-wrap gap-2">
+              <div className="space-y-6 px-4">
+                <p className="text-xs md:text-sm font-black uppercase tracking-widest opacity-30 flex items-center gap-2"><Award className="h-4 w-4" /> YOUR STRENGTHS</p>
+                <div className="flex flex-wrap gap-3">
                   {aiResult.strengths.split(',').map((s, i) => (
-                    <span key={i} className="px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-[10px] font-bold text-primary uppercase tracking-widest">{s.trim()}</span>
+                    <span key={i} className="px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-xs md:text-sm font-bold text-primary uppercase tracking-widest">{s.trim()}</span>
                   ))}
                 </div>
               </div>
             )}
 
             {/* Coaching Tip */}
-            <div className="bg-muted/10 border border-border rounded-[2rem] p-6 flex gap-4">
-              <div className="h-8 w-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 mt-0.5"><Brain className="h-4 w-4 text-primary" /></div>
+            <div className="bg-muted/10 border border-border rounded-[2rem] p-8 flex gap-6">
+              <div className="h-10 w-10 md:h-12 md:w-12 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 mt-0.5"><Brain className="h-5 w-5 md:h-6 md:w-6 text-primary" /></div>
               <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-primary mb-1">COACH'S TIP</p>
-                <p className="text-sm opacity-70 leading-relaxed">{aiResult.coaching}</p>
+                <p className="text-xs md:text-sm font-black uppercase tracking-widest text-primary mb-2">COACH'S TIP</p>
+                <p className="text-base md:text-lg opacity-70 leading-relaxed font-medium">{aiResult.coaching}</p>
               </div>
             </div>
 
             {/* Expert Example */}
             {aiResult.exampleSpeech && (
-              <div className="bg-primary/5 border border-primary/10 rounded-[2rem] p-8 space-y-4">
-                <p className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-2"><Mic className="h-3 w-3" /> HOW AN EXPERT WOULD SAY IT</p>
-                <p className="text-sm leading-relaxed opacity-80 italic">{aiResult.exampleSpeech}</p>
+              <div className="bg-primary/5 border border-primary/10 rounded-[2rem] p-8 md:p-12 space-y-6">
+                <p className="text-xs md:text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2"><Mic className="h-4 w-4" /> HOW AN EXPERT WOULD SAY IT</p>
+                <p className="text-base md:text-lg leading-relaxed opacity-80 italic font-medium">"{aiResult.exampleSpeech}"</p>
               </div>
             )}
 
