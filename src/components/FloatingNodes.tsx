@@ -17,7 +17,7 @@ export const FloatingNodes = () => {
   }, []);
 
   return (
-    <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+    <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden hidden md:block">
       {nodes.map((node) => (
         <motion.div
           key={node.id}

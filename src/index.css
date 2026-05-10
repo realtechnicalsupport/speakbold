@@ -241,3 +241,27 @@
   animation: drift 100s linear infinite;
 }
 
+/* Optimize mobile performance by disabling heavy animations and flashy effects */
+@media (max-width: 768px) {
+  .animate-float,
+  .animate-drift,
+  .animate-pulse-subtle,
+  .grain {
+    animation: none !important;
+    display: none !important;
+  }
+  
+  .bg-waves {
+    animation: none !important;
+  }
+
+  /* Target all large background glow elements and hide them on mobile to prevent lag */
+  [class*="blur-[80px]"],
+  [class*="blur-[100px]"],
+  [class*="blur-[120px]"],
+  [class*="blur-[130px]"],
+  [class*="blur-[140px]"],
+  [class*="blur-[150px]"] {
+    display: none !important;
+  }
+}

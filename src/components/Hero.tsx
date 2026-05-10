@@ -51,8 +51,8 @@ export const Hero = () => {
           transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
           className="mb-12 relative"
         >
-          <div className="absolute -top-20 -left-20 w-40 h-40 bg-primary/20 blur-[80px] rounded-full animate-pulse pointer-events-none" />
-          <div className="absolute -bottom-20 -right-20 w-40 h-40 bg-primary/20 blur-[80px] rounded-full animate-pulse pointer-events-none delay-700" />
+          <div className="hidden md:block absolute -top-20 -left-20 w-40 h-40 bg-primary/20 blur-[80px] rounded-full animate-pulse pointer-events-none" />
+          <div className="hidden md:block absolute -bottom-20 -right-20 w-40 h-40 bg-primary/20 blur-[80px] rounded-full animate-pulse pointer-events-none delay-700" />
           
           <h1 id="landing-hero-title" className="flex flex-col items-center select-none group">
             <span className="flex overflow-hidden">
@@ -87,7 +87,7 @@ export const Hero = () => {
                     opacity: [0.2, 0.4, 0.2, 0.3, 0.2]
                   }}
                   transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                  className="absolute inset-0 text-primary blur-[2px] pointer-events-none select-none italic"
+                  className="hidden md:block absolute inset-0 text-primary blur-[2px] pointer-events-none select-none italic"
                 >
                   Bold.
                 </motion.span>
@@ -97,7 +97,7 @@ export const Hero = () => {
                     opacity: [0.1, 0.3, 0.1, 0.2, 0.1]
                   }}
                   transition={{ duration: 5, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
-                  className="absolute inset-0 text-white blur-[4px] pointer-events-none select-none italic"
+                  className="hidden md:block absolute inset-0 text-white blur-[4px] pointer-events-none select-none italic"
                 >
                   Bold.
                 </motion.span>
