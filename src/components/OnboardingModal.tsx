@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { BookOpen, Briefcase, Zap, ArrowRight, Globe, GraduationCap, X, Mic, Sparkles, Users } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
@@ -75,7 +75,8 @@ const WEAKNESSES = [
 ];
 
 export const OnboardingModal = () => {
-  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { user, onboardingDone, tutorialDone, refreshUserStatus, statusLoading } = useAuth();
   const [visible, setVisible] = useState(false);
   const [step, setStep] = useState(0); // 0=intro, 1=why, 2=strengths, 3=weaknesses, 4=pick path
   const [selectedStrengths, setSelectedStrengths] = useState<string[]>([]);
@@ -83,109 +84,75 @@ export const OnboardingModal = () => {
 
   useEffect(() => {
     if (!user) {
-      console.log("[Onboarding] No user yet");
+      console.log("[Onboarding] No user yet, hiding modal.");
+      setVisible(false);
       return;
     }
     
-    let active = true;
-    const checkOnboarded = async () => {
-      try {
-        // 1. Check local storage first (user-specific)
-        const userOnboardingKey = `${ONBOARDING_KEY}_${user.id}`;
-        const localDone = localStorage.getItem(userOnboardingKey);
-        console.log("[Onboarding] Local status:", localDone);
-        if (localDone && active) return;
+    if (statusLoading) {
+      console.log("[Onboarding] Status still loading from DB, waiting...");
+      return;
+    }
+    
+    console.log("[Onboarding] Final Status Check:", { onboardingDone, tutorialDone });
 
-        // 2. Check DB as backup
-        const { data, error } = await supabase
-          .from("custom_prompts")
-          .select("client_id")
-          .eq("user_id", user.id)
-          .in("client_id", ["system_onboarding_done", "system_tutorial_done"]);
-
-        if (error) {
-          console.error("[Onboarding] DB check error:", error);
-        }
-
-        const hasOnboarding = data?.some(d => d.client_id === "system_onboarding_done");
-        const hasTutorial = data?.some(d => d.client_id === "system_tutorial_done");
-
-        if (hasOnboarding && !hasTutorial) {
-          localStorage.setItem(`speakbold_tutorial_pending_${user.id}`, "true");
-        }
-
-        if (hasOnboarding && active) {
-          console.log("[Onboarding] DB says already onboarded");
-          localStorage.setItem(userOnboardingKey, "true");
-          return;
-        }
-
-        // 3. Not found anywhere? Show it.
-        if (active) {
-          console.log("[Onboarding] Showing modal in 1.2s...");
-          const t = setTimeout(() => {
-            if (active) setVisible(true);
-          }, 1200);
-          return t;
-        }
-      } catch (err) {
-        console.error("[Onboarding] Unexpected error:", err);
-        // Fallback to showing it if we can't confirm they've seen it
-        if (active) setVisible(true);
-      }
-    };
-
-    let timer: NodeJS.Timeout | undefined;
-    checkOnboarded().then(t => { if (t) timer = t; });
-
-    return () => {
-      active = false;
-      if (timer) clearTimeout(timer);
-    };
-  }, [user]);
+    if (!onboardingDone) {
+      console.log("[Onboarding] User NOT onboarded. Delaying modal appearance...");
+      const timer = setTimeout(() => {
+        console.log("[Onboarding] Timer triggered, showing modal.");
+        setVisible(true);
+      }, 1200);
+      return () => {
+        console.log("[Onboarding] Cleaning up timer.");
+        clearTimeout(timer);
+      };
+    } else {
+      console.log("[Onboarding] User IS onboarded. Hiding modal.");
+      setVisible(false);
+    }
+  }, [user, onboardingDone, statusLoading]);
 
   const markDoneInDB = async (pathwaySelection?: string) => {
     if (!user) return;
+    console.log("[Onboarding] Marking done in Profiles Table...", { pathwaySelection });
     try {
-      await supabase.from("custom_prompts").upsert({
-        user_id: user.id,
-        client_id: "system_onboarding_done",
-        difficulty: "Low",
-        text: "Onboarding Complete",
-        framework: "System",
-        points: { done: true } as any
-      });
-
+      // 1. Update profile with selections AND mark onboarding as done
       const updateData: any = {
         strengths: selectedStrengths,
-        weaknesses: selectedWeaknesses
+        weaknesses: selectedWeaknesses,
+        onboarding_done: true
       };
 
       if (pathwaySelection) {
         updateData.pathway_selection = pathwaySelection;
       }
 
-      await supabase.from("profiles").update(updateData).eq("id", user.id);
+      const { error: profileError } = await supabase.from("profiles").update(updateData).eq("id", user.id);
+      if (profileError) throw profileError;
+      console.log("[Onboarding] Profile update successful (including onboarding_done: true).");
 
-      localStorage.setItem(`speakbold_tutorial_pending_${user.id}`, "true");
+      // 2. Refresh context status to sync everywhere
+      console.log("[Onboarding] Refreshing status...");
+      await refreshUserStatus();
+      
+      console.log("[Onboarding] Successfully saved and synced status.");
     } catch (e) {
       console.error("[Onboarding] Failed to save selections:", e);
     }
   };
 
   const dismiss = async () => {
-    localStorage.setItem(`${ONBOARDING_KEY}_${user?.id}`, "true");
+    console.log("[Onboarding] User dismissed modal.");
     await markDoneInDB();
     setVisible(false);
   };
 
   const selectPath = async (id: string) => {
-    localStorage.setItem(`speakbold_pathway_selection_${user?.id}`, id);
-    localStorage.setItem(`${ONBOARDING_KEY}_${user?.id}`, "true");
-    localStorage.setItem(`speakbold_tutorial_pending_${user?.id}`, "true");
+    console.log("[Onboarding] User selected path:", id);
     await markDoneInDB(id);
     setVisible(false);
-    window.location.href = "/pathway";
+    console.log("[Onboarding] Navigating to /pathway...");
+    navigate("/pathway");
   };
 
   if (!user) return null;

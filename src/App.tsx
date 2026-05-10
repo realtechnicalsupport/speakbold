@@ -51,12 +51,12 @@ const App = () => {
   useEffect(() => {
     // Console commands moved to TutorialOverlay to access Auth context
     console.log(
-      "%c SPEAKBOLD %c v1.2.4 %c\n" +
+      "%c SPEAKBOLD %c v1.2.5 %c\n" +
       "%c\n" +
       "  RECENT UPDATES:\n" +
-      "  Γ£┤ Arena Battle Archive: Fixed persistence for AI & custom duels\n" +
-      "  Γ£┤ Practice Sessions: Added synthetic duel objects for AI matches\n" +
-      "  Γ£┤ User Progress: Implemented DB-level cloud sync for Onboarding & Tutorials\n" +
+      "  Γ£┤ User Progress: Finalized robust Supabase sync for Onboarding & Tutorials\n" +
+      "  Γ£┤ Persistence: Implemented cross-device state recovery via AuthContext\n" +
+      "  Γ£┤ Arena: Fixed battle archive persistence for AI & custom duels\n" +
       "  Γ£┤ Performance: Optimized ELO calculation and database RPC calls\n" +
       "\n" +
       "  DEV TOOLS AVAILABLE:\n" +

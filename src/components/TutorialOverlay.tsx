@@ -200,7 +200,7 @@ const STEPS: Step[] = [
 export const TutorialOverlay = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user } = useAuth();
+  const { user, onboardingDone, tutorialDone, refreshUserStatus } = useAuth();
   const [currentStep, setCurrentStep] = useState<number | null>(null);
   const [isVisible, setIsVisible] = useState(false);
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
@@ -208,41 +208,36 @@ export const TutorialOverlay = () => {
   useEffect(() => {
     // Developer Utilities
     (window as any).resetOnboarding = async () => {
-      localStorage.removeItem("speakbold_onboarding_v2");
-      localStorage.removeItem("speakbold_tutorial_pending");
-      localStorage.removeItem("speakbold_pathway_selection");
-      
-      if (user) {
-        localStorage.removeItem(`speakbold_tutorial_pending_${user.id}`);
-        localStorage.removeItem(`speakbold_onboarding_v2_${user.id}`);
-        
+      if (!user) {
+        console.error("🚫 Must be logged in to reset.");
+        return;
+      }
+
+      if (confirm("Reset all onboarding and tutorial progress?")) {
         try {
           const { supabase } = await import("@/integrations/supabase/client");
-          // Clear onboarding and tutorial flags in DB
-          await supabase
-            .from("custom_prompts")
-            .delete()
-            .eq("user_id", user.id)
-            .in("client_id", ["system_onboarding_done", "system_tutorial_done"]);
-            
-          // Reset profile fields
+          
+          // Reset profiles table flags
           await supabase
             .from("profiles")
             .update({ 
-              strengths: [], 
-              weaknesses: [], 
-              pathway_selection: null,
-              pathway_progress: {} 
+              onboarding_done: false, 
+              tutorial_done: false,
+              pathway_progress: {},
+              strengths: [],
+              weaknesses: []
             })
             .eq("id", user.id);
             
-          console.log("Γ£à SpeakBold DB Records, Onboarding & Tutorial reset. Refreshing page...");
+          localStorage.clear();
+          await refreshUserStatus();
+          
+          console.log("✅ SpeakBold DB Records, Onboarding & Tutorial reset. Refreshing page...");
+          window.location.reload();
         } catch (err) {
-          console.error("Γ¥î Failed to reset DB records:", err);
+          console.error("❌ Failed to reset DB records:", err);
         }
       }
-      
-      window.location.reload();
     };
 
     (window as any).startTutorial = () => {
@@ -260,7 +255,6 @@ export const TutorialOverlay = () => {
         console.error("Γ¥î Must be logged in to start tutorial.");
         return;
       }
-      localStorage.setItem(`speakbold_tutorial_pending_${user.id}`, "true");
       setCurrentStep(9); // Index 9 is "The Arena: Live Combat"
       setIsVisible(true);
       if (window.location.pathname !== "/arena") {
@@ -289,23 +283,28 @@ export const TutorialOverlay = () => {
       delete (window as any).startArenaTutorial;
       delete (window as any).jumpToStep;
     };
-  }, [user]);
+  }, [user, refreshUserStatus]);
 
   useEffect(() => {
     if (!user) return;
-    const pending = localStorage.getItem(`speakbold_tutorial_pending_${user.id}`);
-    if (pending === "true") {
-      // Only start if we are on the pathway page
-      if (location.pathname === "/pathway" && !isVisible) {
-        const timer = setTimeout(() => {
-          console.log("Γî¼ Starting In-Depth Tutorial Flow...");
-          setCurrentStep(0);
-          setIsVisible(true);
-        }, 1500);
-        return () => clearTimeout(timer);
+    
+    // Auto-start tutorial if onboarding is done but tutorial is not
+    if (onboardingDone && !tutorialDone) {
+      const pending = localStorage.getItem(`speakbold_tutorial_pending_${user.id}`);
+      
+      // We also check a local flag to see if it's "pending" (this allows us to delay it until /pathway)
+      if (pending === "true" || !tutorialDone) {
+        if (location.pathname === "/pathway" && !isVisible && currentStep === null) {
+          const timer = setTimeout(() => {
+            console.log("Γî¼ Starting In-Depth Tutorial Flow...");
+            setCurrentStep(0);
+            setIsVisible(true);
+          }, 1500);
+          return () => clearTimeout(timer);
+        }
       }
     }
-  }, [location.pathname, isVisible, user]);
+  }, [location.pathname, isVisible, user, onboardingDone, tutorialDone, currentStep]);
 
   useEffect(() => {
     setTargetRect(null);
@@ -412,17 +411,16 @@ export const TutorialOverlay = () => {
       localStorage.removeItem(`speakbold_tutorial_pending_${user.id}`);
       try {
         const { supabase } = await import("@/integrations/supabase/client");
-        await supabase.from("custom_prompts").upsert({
-          user_id: user.id,
-          client_id: "system_tutorial_done",
-          difficulty: "Low",
-          text: "Tutorial Complete",
-          framework: "System",
-          points: { done: true } as any
-        });
-        console.log("Γ£à Tutorial completion saved to DB.");
+        // Update profile directly
+        await supabase
+          .from("profiles")
+          .update({ tutorial_done: true })
+          .eq("id", user.id);
+          
+        await refreshUserStatus();
+        console.log("Γ£à Tutorial completion saved to Profile and synced.");
       } catch (err) {
-        console.error("Failed to save tutorial completion to DB:", err);
+        console.error("Failed to save tutorial completion to Profile:", err);
       }
     }
     setCurrentStep(null);
