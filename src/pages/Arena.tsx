@@ -380,20 +380,45 @@ const DuelDrill = ({
 
       setVerdictResult(finalVerdict);
       
+      // Create a synthetic duel object for custom sessions to ensure they are saved to history
+      const syntheticDuel: Duel = duel || {
+        id: `custom-${Date.now()}`,
+        prompt: promptToUse,
+        gamemode: mode || "standard",
+        creator: { 
+          id: user?.id, 
+          name: userName, 
+          avatar: "👤", 
+          elo: profile.elo, 
+          rank: getRankFromElo(profile.elo), 
+          score: judgeResult.score 
+        },
+        challenger: { 
+          id: "ai", 
+          name: opponent?.name || "AI Debater", 
+          avatar: opponent?.avatar || "🤖", 
+          elo: 0, 
+          rank: { name: "Adaptive", tier: "AI" }, 
+          score: judgeResult.oppScore || 0 
+        },
+        status: "active",
+        winner: judgeResult.winner,
+        feedback: judgeResult.feedback,
+        timestamp: Date.now()
+      };
+
       if (duel) {
         console.log("[Judge] Broadcasting sync results to peer...");
         broadcastBattleResult(duel.id, finalVerdict);
-        // Pass the explicit winner from the judge to ensure ELO correctly reflects the outcome
-        completeDuel(duel.id, userName, judgeResult.score, judgeResult.oppScore || 0, judgeResult.feedback, duel, judgeResult.winner, {
-          strengths: judgeResult.strengths,
-          oppStrengths: judgeResult.oppStrengths,
-          oppFeedback: judgeResult.oppFeedback,
-          exampleSpeech: judgeResult.exampleSpeech
-        });
-      } else {
-        // Custom Debates do not affect ELO, but we still fire an event to advance the tutorial
-        window.dispatchEvent(new CustomEvent("elo-updated", { detail: { change: 0, newElo: 1200 } }));
       }
+      
+      // Always complete the duel to save to history, even for custom/AI sessions
+      completeDuel(syntheticDuel.id, userName, judgeResult.score, judgeResult.oppScore || 0, judgeResult.feedback, syntheticDuel, judgeResult.winner, {
+        strengths: judgeResult.strengths,
+        oppStrengths: judgeResult.oppStrengths,
+        oppFeedback: judgeResult.oppFeedback,
+        exampleSpeech: judgeResult.exampleSpeech
+      });
       
       setPhase("results");
     } catch (err: any) {

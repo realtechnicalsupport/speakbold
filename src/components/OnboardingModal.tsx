@@ -99,16 +99,22 @@ export const OnboardingModal = () => {
         // 2. Check DB as backup
         const { data, error } = await supabase
           .from("custom_prompts")
-          .select("id")
+          .select("client_id")
           .eq("user_id", user.id)
-          .eq("client_id", "system_onboarding_done")
-          .maybeSingle();
+          .in("client_id", ["system_onboarding_done", "system_tutorial_done"]);
 
         if (error) {
           console.error("[Onboarding] DB check error:", error);
         }
 
-        if (data && active) {
+        const hasOnboarding = data?.some(d => d.client_id === "system_onboarding_done");
+        const hasTutorial = data?.some(d => d.client_id === "system_tutorial_done");
+
+        if (hasOnboarding && !hasTutorial) {
+          localStorage.setItem(`speakbold_tutorial_pending_${user.id}`, "true");
+        }
+
+        if (hasOnboarding && active) {
           console.log("[Onboarding] DB says already onboarded");
           localStorage.setItem(userOnboardingKey, "true");
           return;

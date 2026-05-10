@@ -298,6 +298,7 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!user) return;
     const isChallenger = duelObj.challenger?.id === user?.id;
     const isAI = duelId.includes("ai");
+    const isCustom = duelId.includes("custom");
     const myScore = isChallenger ? challengerScore : creatorScore;
     const oppScore = isChallenger ? creatorScore : challengerScore;
 
@@ -310,10 +311,12 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const myElo = profile.elo || 0;
     const oppElo = isChallenger ? (duelObj.creator.elo || 0) : (duelObj.challenger?.elo || 0);
-    const eloChange = tie ? 0 : calculateEloChange(myElo, oppElo, won);
+    const eloChange = (tie || isCustom) ? 0 : calculateEloChange(myElo, oppElo, won);
 
     try {
-      await supabase.rpc('add_user_elo', { user_id: user.id, elo_amount: eloChange });
+      if (eloChange !== 0) {
+        await supabase.rpc('add_user_elo', { user_id: user.id, elo_amount: eloChange });
+      }
       const isUuid = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-5][0-9a-f]{3}-[089ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
       
       const payload = {

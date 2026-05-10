@@ -218,12 +218,12 @@ export const TutorialOverlay = () => {
         
         try {
           const { supabase } = await import("@/integrations/supabase/client");
-          // Clear onboarding flag in DB
+          // Clear onboarding and tutorial flags in DB
           await supabase
             .from("custom_prompts")
             .delete()
             .eq("user_id", user.id)
-            .eq("client_id", "system_onboarding_done");
+            .in("client_id", ["system_onboarding_done", "system_tutorial_done"]);
             
           // Reset profile fields
           await supabase
@@ -406,10 +406,24 @@ export const TutorialOverlay = () => {
     };
   }, [currentStep, isVisible, handleNext]);
 
-  const handleComplete = () => {
+  const handleComplete = async () => {
     setIsVisible(false);
     if (user) {
       localStorage.removeItem(`speakbold_tutorial_pending_${user.id}`);
+      try {
+        const { supabase } = await import("@/integrations/supabase/client");
+        await supabase.from("custom_prompts").upsert({
+          user_id: user.id,
+          client_id: "system_tutorial_done",
+          difficulty: "Low",
+          text: "Tutorial Complete",
+          framework: "System",
+          points: { done: true } as any
+        });
+        console.log("Γ£à Tutorial completion saved to DB.");
+      } catch (err) {
+        console.error("Failed to save tutorial completion to DB:", err);
+      }
     }
     setCurrentStep(null);
   };
