@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, X, Sparkles, Target, Mic, Trophy } from "lucide-react";
+import { ArrowRight, X, Sparkles, Target, Mic, Trophy, GripHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 
@@ -12,6 +12,10 @@ interface Step {
   icon: React.ElementType;
   position: "top" | "bottom" | "left" | "right" | "center";
   redirectTo?: string;
+  actionRequired?: boolean;
+  actionId?: string;
+  allowScroll?: boolean;
+  advanceOnAppearance?: boolean;
 }
 
 const STEPS: Step[] = [
@@ -26,6 +30,50 @@ const STEPS: Step[] = [
     targetId: "pathway-units",
     title: "The 3-Step Learning Loop",
     content: "1. LEARN the strategy. 2. DRILL the specific skill. 3. AUDIT your results. The AI won't let you progress until you demonstrate a 'Pass' score of 70% or higher.",
+    icon: Target,
+    position: "top",
+  },
+  {
+    targetId: "tutorial-current-node",
+    title: "Start Your Mission",
+    content: "This is your current focus. Click the node to open the Drill Modal and see your specific tactical objectives.",
+    icon: Target,
+    position: "top",
+    actionRequired: true,
+    actionId: "tutorial-current-node"
+  },
+  {
+    targetId: "tutorial-drill-content",
+    title: "The Point of No Return",
+    content: "Read your prompt and instructions carefully. When you're ready to speak, click BEGIN DRILL to start the timer.",
+    icon: Mic,
+    position: "top",
+    actionRequired: true,
+    actionId: "tutorial-begin-drill"
+  },
+  {
+    targetId: "tutorial-recording-content",
+    title: "Vocal Endurance",
+    content: "The timer is now running! Speak clearly and try to use the full time. Silence is where growth happens—the tutorial will advance once you finish or the timer hits zero.",
+    icon: Sparkles,
+    position: "top",
+    actionRequired: true,
+    actionId: "tutorial-finish-analyze"
+  },
+  {
+    targetId: "tutorial-audit-results",
+    title: "High-Stakes AI Audit",
+    content: "Once the timer hits zero, our AI dissects your speech. You'll get a score based on pacing, clarity, and objective fulfillment. Use the 'Model Speech' to see exactly how to level up. You can scroll through the results now. Click CONTINUE to see your progress.",
+    icon: Sparkles,
+    position: "top",
+    allowScroll: true,
+    actionRequired: true,
+    actionId: "tutorial-close-drill"
+  },
+  {
+    targetId: "pathway-progress",
+    title: "Mastery Metrics",
+    content: "This bar tracks your total progress across the units. Every successful drill adds to your XP. Reach 100% to unlock your final certification and the 'Elite Orator' status.",
     icon: Target,
     position: "top",
   },
@@ -47,24 +95,61 @@ const STEPS: Step[] = [
   {
     targetId: "nav-arena",
     title: "The Arena: Live Combat",
-    content: "The Arena is the ultimate test. This is where you put your training into practice against AI personalities or other real users in real-time.",
+    content: "The Arena is the ultimate test. This is where you put your training into practice against AI personalities or other real users in real-time. Let's head there now.",
     icon: Trophy,
     position: "bottom",
     redirectTo: "/arena"
   },
   {
-    targetId: "arena-grid",
-    title: "The Battle Flow: 4 Phases",
-    content: "Battles have 4 phases: 1. MATCHMAKING (Find a peer). 2. SYNCED RECORDING (Both answer the same prompt). 3. AI AUDIT (Dual-analysis). 4. VERDICT (Winner takes the ELO).",
-    icon: Mic,
+    targetId: "arena-gamemodes",
+    title: "Strategic Modes",
+    content: "Choose your battle format. Blitz is fast, Pitch is for persuasion, and Debate is for logic. Each has a different timer and judging criteria.",
+    icon: Sparkles,
     position: "bottom",
   },
   {
-    targetId: "arena-gamemodes",
-    title: "Strategic Modes",
-    content: "Choose Blitz for speed, Pitch for sales/persuasion, or Debate for logic. Each mode uses different AI judging criteria for the final score.",
+    targetId: "tutorial-find-partner",
+    title: "Initiate Matchmaking",
+    content: "Ready to test your skills? Click FIND PARTNER to enter the global matchmaking queue. The system will search for an opponent with a similar ELO rating.",
+    icon: Target,
+    position: "top",
+    actionRequired: true,
+    actionId: "tutorial-find-partner"
+  },
+  {
+    targetId: "tutorial-matchmaking-radar",
+    title: "Scanning the Network",
+    content: "The system is searching for an opponent. Stay here—once a match is found, the tutorial will advance automatically.",
+    icon: Mic,
+    position: "center",
+    actionRequired: true,
+    actionId: "tutorial-arena-battle-view",
+    advanceOnAppearance: true
+  },
+  {
+    targetId: "tutorial-arena-battle-view",
+    title: "Combat Synced",
+    content: "Match secured! Read the prompt and click READY UP to begin. Both of you will answer the same topic. The tutorial will continue once the results are in.",
     icon: Sparkles,
-    position: "bottom",
+    position: "center",
+    actionRequired: true,
+    actionId: "tutorial-elo-update",
+    advanceOnAppearance: true,
+    allowScroll: true
+  },
+  {
+    targetId: "tutorial-elo-update",
+    title: "Winning the ELO",
+    content: "Victory in the Arena awards you ELO points. High ELO unlocks new ranks and prestige. Be warned: forfeiting a battle results in an automatic loss and heavy point deduction.",
+    icon: Trophy,
+    position: "center",
+  },
+  {
+    targetId: "tutorial-arena-history",
+    title: "Battle Archives",
+    content: "Your previous combat data is stored here. You can review transcripts and AI scores to study your wins and losses.",
+    icon: Target,
+    position: "top",
   },
   {
     targetId: "coach-chat-trigger",
@@ -151,9 +236,9 @@ export const TutorialOverlay = () => {
             })
             .eq("id", user.id);
             
-          console.log("✅ SpeakBold DB Records, Onboarding & Tutorial reset. Refreshing page...");
+          console.log("Γ£à SpeakBold DB Records, Onboarding & Tutorial reset. Refreshing page...");
         } catch (err) {
-          console.error("❌ Failed to reset DB records:", err);
+          console.error("Γ¥î Failed to reset DB records:", err);
         }
       }
       
@@ -162,17 +247,47 @@ export const TutorialOverlay = () => {
 
     (window as any).startTutorial = () => {
       if (!user) {
-        console.error("❌ Must be logged in to start tutorial.");
+        console.error("Γ¥î Must be logged in to start tutorial.");
         return;
       }
       localStorage.setItem(`speakbold_tutorial_pending_${user.id}`, "true");
-      console.log("🎯 Tutorial queued for next visit to /pathway. Redirecting...");
+      console.log("Γî» Tutorial queued for next visit to /pathway. Redirecting...");
       window.location.href = "/pathway";
+    };
+
+    (window as any).startArenaTutorial = () => {
+      if (!user) {
+        console.error("Γ¥î Must be logged in to start tutorial.");
+        return;
+      }
+      localStorage.setItem(`speakbold_tutorial_pending_${user.id}`, "true");
+      setCurrentStep(9); // Index 9 is "The Arena: Live Combat"
+      setIsVisible(true);
+      if (window.location.pathname !== "/arena") {
+        navigate("/arena");
+      }
+      console.log("Γî» Arena Tutorial started.");
+    };
+
+    (window as any).jumpToStep = (index: number) => {
+      if (index >= 0 && index < STEPS.length) {
+        const step = STEPS[index];
+        if (step.redirectTo) {
+          navigate(step.redirectTo);
+        }
+        setCurrentStep(index);
+        setIsVisible(true);
+        console.log(`Γî» Jumped to tutorial step ${index}: ${step.title}`);
+      } else {
+        console.error("Γ¥î Invalid step index.");
+      }
     };
 
     return () => {
       delete (window as any).resetOnboarding;
       delete (window as any).startTutorial;
+      delete (window as any).startArenaTutorial;
+      delete (window as any).jumpToStep;
     };
   }, [user]);
 
@@ -183,7 +298,7 @@ export const TutorialOverlay = () => {
       // Only start if we are on the pathway page
       if (location.pathname === "/pathway" && !isVisible) {
         const timer = setTimeout(() => {
-          console.log("🎬 Starting In-Depth Tutorial Flow...");
+          console.log("Γî¼ Starting In-Depth Tutorial Flow...");
           setCurrentStep(0);
           setIsVisible(true);
         }, 1500);
@@ -228,7 +343,7 @@ export const TutorialOverlay = () => {
     }
   }, [currentStep, isVisible]);
 
-  const handleNext = () => {
+  const handleNext = React.useCallback(() => {
     if (currentStep === null) return;
     if (currentStep < STEPS.length - 1) {
       const nextStep = STEPS[currentStep + 1];
@@ -239,7 +354,57 @@ export const TutorialOverlay = () => {
     } else {
       handleComplete();
     }
-  };
+  }, [currentStep, navigate]);
+
+  // Listener for interactive actions
+  useEffect(() => {
+    if (!isVisible || currentStep === null) return;
+    const step = STEPS[currentStep];
+    if (!step.actionRequired || !step.actionId) return;
+
+    // We use a MutationObserver to watch for the element if it doesn't exist yet (e.g. in a modal)
+    const checkForElement = () => {
+      const el = document.getElementById(step.actionId!);
+      if (el) {
+        if (step.advanceOnAppearance) {
+          handleNext();
+          return true;
+        }
+        const handleAction = () => {
+          setTimeout(() => handleNext(), 300);
+        };
+        el.addEventListener("click", handleAction, { once: true });
+        
+        // Also listen for custom events (e.g. timer finished)
+        const handleCustomEvent = (e: any) => {
+          if (e.detail?.id === step.actionId) {
+             handleAction();
+          }
+        };
+        window.addEventListener("tutorial-action-complete", handleCustomEvent, { once: true });
+        
+        return () => {
+          el.removeEventListener("click", handleAction);
+          window.removeEventListener("tutorial-action-complete", handleCustomEvent);
+        };
+      }
+      return null;
+    };
+
+    let cleanup = checkForElement();
+    if (cleanup) return typeof cleanup === "function" ? cleanup : undefined;
+
+    const observer = new MutationObserver(() => {
+      cleanup = checkForElement();
+      if (cleanup) observer.disconnect();
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => {
+      observer.disconnect();
+      if (typeof cleanup === "function") cleanup();
+    };
+  }, [currentStep, isVisible, handleNext]);
 
   const handleComplete = () => {
     setIsVisible(false);
@@ -260,7 +425,10 @@ export const TutorialOverlay = () => {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="absolute inset-0 bg-background/60 backdrop-blur-sm pointer-events-auto"
+        className={cn(
+          "absolute inset-0 bg-background/60 backdrop-blur-sm",
+          step.allowScroll ? "pointer-events-none" : "pointer-events-auto"
+        )}
         style={{
           clipPath: targetRect
             ? `polygon(0% 0%, 0% 100%, ${targetRect.left - 8}px 100%, ${targetRect.left - 8}px ${targetRect.top - 8}px, ${targetRect.right + 8}px ${targetRect.top - 8}px, ${targetRect.right + 8}px ${targetRect.bottom + 8}px, ${targetRect.left - 8}px ${targetRect.bottom + 8}px, ${targetRect.left - 8}px 100%, 100% 100%, 100% 0%)`
@@ -351,7 +519,12 @@ export const TutorialOverlay = () => {
             !targetRect && "-translate-x-1/2 -translate-y-1/2"
           )}
         >
-          <div className="flex items-center justify-between">
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 flex flex-col items-center gap-0.5 opacity-20 pointer-events-none group-hover:opacity-40 transition-opacity">
+            <GripHorizontal className="h-3 w-3" />
+            <span className="text-[6px] font-black tracking-[0.2em] uppercase">DRAG TO MOVE</span>
+          </div>
+
+          <div className="flex items-center justify-between mt-2">
             <div className="h-10 w-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
               <Icon className="h-5 w-5" />
             </div>
@@ -379,13 +552,20 @@ export const TutorialOverlay = () => {
                 />
               ))}
             </div>
-            <button
-              onClick={handleNext}
-              className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-primary group"
-            >
-              {currentStep === STEPS.length - 1 ? "Finish" : "Next"}
-              <ArrowRight className="h-3 w-3 group-hover:translate-x-0.5 transition-transform" />
-            </button>
+            {!step.actionRequired && (
+              <button
+                onClick={handleNext}
+                className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-primary group"
+              >
+                {currentStep === STEPS.length - 1 ? "Finish" : "Next"}
+                <ArrowRight className="h-3 w-3 group-hover:translate-x-0.5 transition-transform" />
+              </button>
+            )}
+            {step.actionRequired && (
+               <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-primary animate-pulse">
+                  Perform Action to Continue
+               </div>
+            )}
           </div>
         </motion.div>
       </AnimatePresence>

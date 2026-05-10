@@ -116,7 +116,7 @@ export const SiteHeader = () => {
 };
 
 const DuelRequestNotification = () => {
-  const { incomingRequests, setIncomingRequests } = useArena();
+  const { incomingRequests, setIncomingRequests, acceptDuelRequest } = useArena();
   const navigate = useNavigate();
   const { pathname } = useLocation();
 
@@ -146,8 +146,8 @@ const DuelRequestNotification = () => {
             <div className="flex gap-2">
               <button
                 onClick={() => {
-                  setIncomingRequests(prev => prev.filter(r => r.id !== currentRequest.id));
-                  navigate("/arena");
+                  acceptDuelRequest(currentRequest);
+                  navigate("/arena", { state: { acceptRequest: currentRequest } });
                 }}
                 className="flex-grow py-2 bg-primary text-white text-[10px] font-black uppercase tracking-widest rounded-lg hover:scale-105 active:scale-95 transition-all"
               >

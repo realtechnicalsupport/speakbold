@@ -205,7 +205,15 @@ export async function generateAIArgument(prompt: string, durationSeconds: number
   const wordCount = Math.floor(durationSeconds * 2.2); // ~2.2 words/sec speaking pace
 
   let gamemodeInstructions = "Deliver a compelling, standalone speech";
-  if (gamemode === "debate") gamemodeInstructions = "Write a strong, argumentative opening statement for a debate IN FAVOR OF the motion";
+  if (gamemode === "debate") {
+    if (prompt.includes("Your opponent is arguing AGAINST")) {
+      gamemodeInstructions = "Write a strong, argumentative opening statement for a debate AGAINST the motion";
+    } else if (prompt.includes("Your opponent is arguing FOR")) {
+      gamemodeInstructions = "Write a strong, argumentative opening statement for a debate IN FAVOR OF the motion";
+    } else {
+      gamemodeInstructions = "Write a strong, argumentative opening statement for a debate IN FAVOR OF the motion";
+    }
+  }
   if (gamemode === "pitch") gamemodeInstructions = "Act as a strict investor/client. State a complex problem or objection in 2-3 sentences that the user must pitch a solution for";
   if (gamemode === "blitz") gamemodeInstructions = "Deliver a rapid-fire, high-energy impromptu speech";
 

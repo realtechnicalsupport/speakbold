@@ -95,8 +95,8 @@ const PathwayNode = ({
         </div>
       )}
 
-      {/* Button node */}
       <button
+        id={status === "available" ? "tutorial-current-node" : undefined}
         onClick={() => status !== "locked" && onClick()}
         disabled={status === "locked"}
         className={cn(
@@ -221,6 +221,7 @@ const LessonDrill = ({
           setRunning(false);
           recorderStopRef.current?.();
           wasRecording.current = false;
+          window.dispatchEvent(new CustomEvent("tutorial-action-complete", { detail: { id: "tutorial-finish-analyze" } }));
           return 0;
         }
         return s - 1;
@@ -394,7 +395,7 @@ const LessonDrill = ({
 
         {/* PHASE: IDLE */}
         {phase === "idle" && (
-          <div className="grid lg:grid-cols-[1fr_320px] gap-10 items-start">
+          <div id="tutorial-drill-content" className="grid lg:grid-cols-[1fr_320px] gap-10 items-start">
             <div className="space-y-8">
               <div className="bg-muted/5 border border-border/60 rounded-[2.5rem] p-8 space-y-8">
                 <p className="text-xs font-black uppercase tracking-[0.5em] opacity-30">EXECUTION STEPS</p>
@@ -420,7 +421,11 @@ const LessonDrill = ({
                   <Brain className="h-4 w-4" />
                   <span className="text-[10px] font-black uppercase tracking-widest">AI Audit Enabled</span>
                 </div>
-                <button onClick={handleStart} className="button-pill w-full py-5 bg-primary text-white shadow-glow flex items-center justify-center gap-3 group">
+                <button 
+                  id="tutorial-begin-drill"
+                  onClick={handleStart} 
+                  className="button-pill w-full py-5 bg-primary text-white shadow-glow flex items-center justify-center gap-3 group"
+                >
                   <Play className="h-5 w-5 fill-current" />
                   <span className="text-sm font-black uppercase tracking-[0.2em]">BEGIN DRILL</span>
                 </button>
@@ -431,7 +436,7 @@ const LessonDrill = ({
 
         {/* PHASE: RECORDING */}
         {phase === "recording" && (
-          <div className="max-w-lg mx-auto space-y-8">
+          <div id="tutorial-recording-content" className="max-w-lg mx-auto space-y-8">
             <div className="bg-muted/10 border border-primary/20 rounded-[2.5rem] p-10">
               <p className="text-xs font-black uppercase tracking-[0.5em] text-primary mb-6">YOUR PROMPT</p>
               <p className="speak-serif text-2xl md:text-3xl italic tracking-tight leading-tight">"{lesson.prompt}"</p>
@@ -441,13 +446,17 @@ const LessonDrill = ({
                 <motion.div className="h-full bg-primary shadow-glow" animate={{ width: `${pct}%` }} transition={{ duration: 0.5 }} />
               </div>
               <div className="text-center">
-                <div className="speak-serif text-8xl font-bold italic tabular-nums">{mins}:{String(secs).padStart(2, "0")}</div>
+                <div id="tutorial-timer-display" className="speak-serif text-8xl font-bold italic tabular-nums">{mins}:{String(secs).padStart(2, "0")}</div>
                 <div className="flex items-center justify-center gap-2 mt-2">
                   <div className="h-2 w-2 rounded-full bg-red-500 animate-ping" />
                   <span className="text-xs font-black uppercase tracking-widest text-red-500">RECORDING</span>
                 </div>
               </div>
-              <button onClick={handleStop} className="button-pill w-full py-5 border border-primary/30 text-primary flex items-center justify-center gap-3">
+              <button 
+                id="tutorial-finish-analyze"
+                onClick={handleStop} 
+                className="button-pill w-full py-5 border border-primary/30 text-primary flex items-center justify-center gap-3"
+              >
                 <Sparkles className="h-5 w-5" />
                 <span className="text-sm font-black uppercase tracking-[0.2em]">FINISH & ANALYZE</span>
               </button>
@@ -469,7 +478,7 @@ const LessonDrill = ({
 
         {/* PHASE: RESULTS */}
         {phase === "results" && aiResult && (
-          <div className="space-y-8 max-w-2xl mx-auto">
+          <div id="tutorial-audit-results" className="space-y-8 max-w-2xl mx-auto">
             {/* Score Circle */}
             <div className="flex flex-col items-center gap-4 py-8">
               <div className={cn("h-36 w-36 md:h-48 md:w-48 rounded-full border-4 flex flex-col items-center justify-center shadow-glow", aiResult.passed ? "border-primary bg-primary/10" : "border-muted-foreground/30 bg-muted/10")}>
@@ -519,7 +528,11 @@ const LessonDrill = ({
             {/* Actions */}
             <div className="flex flex-col sm:flex-row gap-4 pt-4">
               {aiResult.passed ? (
-                <button onClick={onClose} className="button-pill flex-1 py-5 bg-primary text-white shadow-glow flex items-center justify-center gap-3">
+                <button 
+                  id="tutorial-close-drill"
+                  onClick={onClose} 
+                  className="button-pill flex-1 py-5 bg-primary text-white shadow-glow flex items-center justify-center gap-3"
+                >
                   <ChevronRight className="h-4 w-4" />
                   <span className="text-sm font-black uppercase tracking-[0.2em]">CONTINUE PATH</span>
                 </button>
@@ -529,7 +542,11 @@ const LessonDrill = ({
                     <RotateCcw className="h-4 w-4" />
                     <span className="text-sm font-black uppercase tracking-[0.2em]">RETRY DRILL</span>
                   </button>
-                  <button onClick={() => { onComplete(); onClose(); }} className="button-pill flex-1 py-5 bg-muted/20 border border-border/60 flex items-center justify-center gap-3 opacity-60 hover:opacity-100 transition-all">
+                  <button 
+                    id="tutorial-close-drill"
+                    onClick={() => { onComplete(); onClose(); }} 
+                    className="button-pill flex-1 py-5 bg-muted/20 border border-border/60 flex items-center justify-center gap-3 opacity-60 hover:opacity-100 transition-all"
+                  >
                     <ChevronRight className="h-4 w-4" />
                     <span className="text-sm font-black uppercase tracking-[0.2em]">SKIP & CONTINUE</span>
                   </button>
@@ -645,7 +662,7 @@ const Pathway = () => {
           </motion.div>
 
           {/* Progress bar */}
-          <div className="space-y-6 bg-muted/5 border border-border/60 p-10 rounded-[3rem] backdrop-blur-sm shadow-soft">
+          <div id="pathway-progress" className="space-y-6 bg-muted/5 border border-border/60 p-10 rounded-[3rem] backdrop-blur-sm shadow-soft">
             <div className="flex justify-between items-end">
                <div className="space-y-1">
                   <p className="text-[10px] font-black uppercase tracking-[0.5em] opacity-30">TOTAL PROGRESS</p>

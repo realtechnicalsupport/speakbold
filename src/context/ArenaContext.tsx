@@ -340,7 +340,11 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const findMatch = async (mode: Gamemode): Promise<any> => {
-    const dynamicPrompt = await generateArenaPrompt(mode);
+    let dynamicPrompt = await generateArenaPrompt(mode);
+    if (mode === "debate") {
+      const isFor = Math.random() > 0.5;
+      dynamicPrompt = `${dynamicPrompt}\n\n(You are arguing ${isFor ? "FOR" : "AGAINST"} this topic. Your opponent is arguing ${!isFor ? "FOR" : "AGAINST"}.)`;
+    }
     return new Promise(resolve => {
       setTimeout(() => {
         const persona = AI_PERSONAS[Math.floor(Math.random() * AI_PERSONAS.length)];

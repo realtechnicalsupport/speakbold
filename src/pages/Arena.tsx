@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { useArena, type Duel, type Gamemode, GAMEMODES, getRankColor, getRankFromElo } from "@/hooks/useArena";
 import { SiteHeader } from "@/components/SiteHeader";
 import { RecorderPanel } from "@/components/RecorderPanel";
@@ -63,7 +64,9 @@ const DuelDrill = ({
   const [lastRecording, setLastRecording] = useState<{ blob: Blob; durationMs: number } | null>(null);
   const [showModelSpeech, setShowModelSpeech] = useState(false);
 
-  const opponent = duel?.creator.id === user?.id ? duel?.challenger : duel?.creator;
+  const opponent = duel?.creator.id === user?.id 
+    ? duel?.challenger 
+    : duel?.creator || (isCreating ? { name: "AI Debater", avatar: "🤖", rank: { name: "Adaptive", tier: "AI" } } : null);
 
   const [phase, setPhase] = useState<"drilling" | "ai-turn" | "analyzing" | "results">("drilling");
   const [verdictResult, setVerdictResult] = useState<{ score: number, oppScore?: number, feedback: string, won: boolean, strengths: string, oppStrengths: string, exampleSpeech?: string } | null>(null);
@@ -78,6 +81,8 @@ const DuelDrill = ({
   const [aiArgument, setAiArgument] = useState<string>("");
   const [spokenCharIndex, setSpokenCharIndex] = useState(0);
   const [generatingPrompt, setGeneratingPrompt] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const isClosingRef = useRef(false);
   
   const [draftingDone, setDraftingDone] = useState(() => {
     if (!isCreating) return true;
@@ -88,6 +93,7 @@ const DuelDrill = ({
 
   // Session persistence for battle states
   useEffect(() => {
+    if (isClosingRef.current) return;
     if (isCreating || duel) {
       if (isCreating) sessionStorage.setItem("arena_is_creating", "true");
       sessionStorage.setItem("arena_drafting_done", draftingDone.toString());
@@ -384,6 +390,9 @@ const DuelDrill = ({
           oppFeedback: judgeResult.oppFeedback,
           exampleSpeech: judgeResult.exampleSpeech
         });
+      } else {
+        // Custom Debates do not affect ELO, but we still fire an event to advance the tutorial
+        window.dispatchEvent(new CustomEvent("elo-updated", { detail: { change: 0, newElo: 1200 } }));
       }
       
       setPhase("results");
@@ -452,8 +461,25 @@ const DuelDrill = ({
 
   const pct = (seconds / duration) * 100;
 
+  if (searching) {
+    return (
+      <motion.div 
+        id="tutorial-matchmaking-radar"
+        initial={{ opacity: 0 }} 
+        animate={{ opacity: 1 }} 
+        exit={{ opacity: 0 }} 
+        className="fixed inset-0 z-[70] bg-background/95 backdrop-blur-xl flex flex-col items-center justify-center"
+      >
+        <Radar className="h-24 w-24 text-primary animate-spin-slow opacity-50 mb-8" />
+        <h2 className="speak-serif text-4xl italic tracking-tighter animate-pulse">Syncing AI Brain...</h2>
+        <p className="text-sm font-black uppercase tracking-[0.5em] text-primary mt-4">SEEKING WORTHY ADVERSARY</p>
+      </motion.div>
+    );
+  }
+
   return (
     <motion.div
+      id="tutorial-arena-battle-view"
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       className="fixed inset-0 z-[60] glass overflow-y-auto overflow-x-hidden scrollbar-hide text-foreground flex flex-col"
     >
@@ -467,7 +493,7 @@ const DuelDrill = ({
         </div>
       )}
 
-      {!isCreating && opponent && phase === "drilling" && (
+      {opponent && phase === "drilling" && (!isCreating || draftingDone) && (
         <div className="w-full bg-muted/40 border-b border-border backdrop-blur-md p-4 flex justify-between items-center relative z-10">
           <div className="flex items-center gap-4">
              <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center text-2xl border border-border">
@@ -604,15 +630,17 @@ const DuelDrill = ({
                       disabled={!customPrompt.trim()}
                       onClick={() => {
                         if (mode === "debate") {
-                          setCustomPrompt(prev => `${prev} (I am arguing ${debateStand} this topic)`);
+                          setCustomPrompt(prev => `${prev}\n\n(You are arguing ${debateStand} this topic. Your opponent is arguing ${debateStand === "FOR" ? "AGAINST" : "FOR"}.)`);
                         }
-                        setDraftingDone(true);
-                        setUserReady(true);
-                        setOpponentReady(true);
+                        setSearching(true);
+                        setTimeout(() => {
+                          setSearching(false);
+                          setDraftingDone(true);
+                        }, 2500);
                       }}
                       className="button-pill w-full py-4 bg-primary text-white shadow-glow group flex items-center justify-center gap-4 mt-4"
                     >
-                      <span className="text-sm font-black uppercase tracking-[0.3em]">START CHALLENGE</span>
+                      <span className="text-sm font-black uppercase tracking-[0.3em]">FIND MATCH</span>
                       <Sparkles className="h-4 w-4 group-hover:rotate-12 transition-transform" />
                     </button>
                   </div>
@@ -635,7 +663,7 @@ const DuelDrill = ({
                     <span className="text-sm font-black uppercase tracking-[0.3em]">READY UP ({readyTimer}s)</span>
                     <Sparkles className="h-4 w-4 group-hover:rotate-12 transition-transform" />
                   </button>
-                ) : !isCreating ? (
+                ) : opponent && (!isCreating || draftingDone) ? (
                   <div className="bg-muted/50 border border-border rounded-2xl p-4 flex flex-col gap-4">
                      <div className="flex justify-between items-center px-4">
                         <div className="flex items-center gap-3">
@@ -787,8 +815,11 @@ const DuelDrill = ({
               <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-transparent via-primary to-transparent opacity-50" />
               
               <div className="text-center mb-12 relative z-10">
-                 <h2 className={cn("text-sm font-black uppercase tracking-[1em] mb-4", verdictResult.won ? "text-green-500" : "text-red-500")}>
-                    {verdictResult.won ? "YOU WON" : "YOU LOST"}
+                 <h2 className={cn("text-sm font-black uppercase tracking-[1em] mb-4", 
+                    (verdictResult.score === 0 && (verdictResult.oppScore || 0) === 0) ? "text-yellow-500" :
+                    verdictResult.won ? "text-green-500" : "text-red-500")}>
+                    {(verdictResult.score === 0 && (verdictResult.oppScore || 0) === 0) ? "TIE" : 
+                     verdictResult.won ? "YOU WON" : "YOU LOST"}
                  </h2>
                  <div className="flex justify-center items-center gap-8">
                      <div className="text-center">
@@ -921,9 +952,15 @@ const DuelDrill = ({
               <div className="flex flex-col gap-3">
                 <button 
                   onClick={() => {
+                    isClosingRef.current = true;
                     if (duel) {
                       sendForfeit(duel.id);
                       handleForfeit(duel.id, true, duel);
+                    } else if (isCreating) {
+                      handleForfeit(`ai-forfeit-${Date.now()}`, true, {
+                        creator: { id: user?.id, elo: 0, rank: { name: "Bronze", tier: "I" } },
+                        challenger: { id: "ai", elo: 0, rank: { name: "Bronze", tier: "I" } }
+                      } as any);
                     }
                     onClose();
                   }}
@@ -955,6 +992,7 @@ const Arena = () => {
     broadcastBattleResult, broadcastAnalyzing, sendTranscript, sendForfeit, handleForfeit
   } = useArena();
   const { user } = useAuth();
+  const location = useLocation();
   
   const [activeDrill, setActiveDrill] = useState<Duel | null>(() => {
     try { const s = sessionStorage.getItem("arena_active_drill"); return s ? JSON.parse(s) : null; } catch { return null; }
@@ -1085,7 +1123,6 @@ const Arena = () => {
     setActiveDrill(duel);
   };
 
-  // Effect to handle accepted challenges for the original sender
   useEffect(() => {
     const accepted = incomingRequests.find(r => r.isAcceptedChallenge);
     if (accepted && activeDrill?.id !== accepted.id) {
@@ -1095,6 +1132,17 @@ const Arena = () => {
       setIncomingRequests(prev => prev.filter(r => r.id !== accepted.id));
     }
   }, [incomingRequests, activeDrill?.id]);
+
+  // Handle request accepted from outside the arena page
+  useEffect(() => {
+    if (location.state?.acceptRequest) {
+      const request = location.state.acceptRequest;
+      console.log("[Arena] Handling accepted request from navigation state:", request.id);
+      handleAcceptRequest(request);
+      // Clear navigation state
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state, activeDrill?.id]);
 
   const currentRank = getRankFromElo(profile.elo);
   const userName = user?.email?.split("@")[0] || "Operator";
@@ -1232,7 +1280,7 @@ const Arena = () => {
 
       <AnimatePresence>
         {matchmaking && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 bg-background/90 backdrop-blur-xl flex flex-col items-center justify-center">
+          <motion.div id="tutorial-matchmaking-radar" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 bg-background/90 backdrop-blur-xl flex flex-col items-center justify-center">
             <Radar className="h-24 w-24 text-primary animate-spin-slow opacity-50 mb-8" />
             <h2 className="speak-serif text-4xl italic tracking-tighter animate-pulse">Scanning Arena...</h2>
             <p className="text-sm font-black uppercase tracking-[0.5em] text-primary mt-4">SEEKING WORTHY OPPONENT</p>
@@ -1245,7 +1293,7 @@ const Arena = () => {
            const me = isCreator ? matchFound.creator : matchFound.challenger;
            
            return (
-             <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[55] bg-background flex flex-col items-center justify-center">
+             <motion.div id="tutorial-match-found" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[55] bg-background flex flex-col items-center justify-center">
                <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-primary/10 to-background pointer-events-none" />
                <h2 className="text-sm font-black uppercase tracking-[1em] text-primary mb-12 animate-pulse">MATCH SECURED</h2>
                <div className="flex flex-col md:flex-row items-center gap-12 z-10 px-4">
@@ -1276,6 +1324,7 @@ const Arena = () => {
       <AnimatePresence>
         {eloUpdate && (
           <motion.div 
+            id="tutorial-elo-update"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -1419,6 +1468,7 @@ const Arena = () => {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                  <button 
+                   id="tutorial-find-partner"
                    onClick={() => {
                      if (selectedMode === "debate") {
                        setIsCreating(true);
@@ -1489,7 +1539,7 @@ const Arena = () => {
                 <h2 className="text-sm font-black uppercase tracking-[0.4em] opacity-30">PRACTICE HISTORY</h2>
                 <div className="h-px bg-border flex-grow ml-8" />
               </div>
-              <div className="space-y-3">
+              <div id="tutorial-arena-history" className="space-y-3">
                 {completedDuels.map(duel => {
                    return (
                   <div 
