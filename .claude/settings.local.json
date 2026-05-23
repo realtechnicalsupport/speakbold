@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(node -e \"console.log\\(require\\('./node_modules/@mediapipe/tasks-vision/package.json'\\).version\\)\")",
+      "Bash(npx tsc *)",
+      "Bash(npm run *)",
+      "Bash(mkdir -p \"C:/Users/One can only ponder/Downloads/speakbold-main/public/mediapipe-wasm\" && cp \"C:/Users/One can only ponder/Downloads/speakbold-main/node_modules/@mediapipe/tasks-vision/wasm/\"* \"C:/Users/One can only ponder/Downloads/speakbold-main/public/mediapipe-wasm/\" && ls \"C:/Users/One can only ponder/Downloads/speakbold-main/public/mediapipe-wasm/\")"
+    ]
+  }
+}
