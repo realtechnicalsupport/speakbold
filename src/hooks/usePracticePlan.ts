@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "@/hooks/use-toast";
+import { callAI } from "@/services/geminiService";
 
 export interface PracticeActivity {
   title: string;
@@ -81,28 +82,10 @@ Return ONLY a valid JSON array with this exact structure:
 
 Make prompts specific to the user's described scenario. Don't make them generic.`;
 
-        const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${import.meta.env.VITE_GROQ_API_KEY || ""}`,
-          },
-          body: JSON.stringify({
-            model: "llama-3.3-70b-versatile",
-            messages: [{ role: "user", content: prompt }],
-            temperature: 0.8,
-            max_tokens: 1024,
-          }),
-        });
-
-        if (!response.ok) {
-          throw new Error("AI generation failed");
-        }
-
-        const data = await response.json();
-        const content = data.choices?.[0]?.message?.content || "";
+        // callAI: OpenRouter → Gemini → Groq fallback chain
+        const content = await callAI(prompt, 0, 0.8);
         const jsonMatch = content.match(/\[[\s\S]*\]/);
-        
+
         if (jsonMatch) {
           const customPrompts = JSON.parse(jsonMatch[0]);
           activities = customPrompts.map((p: any) => ({

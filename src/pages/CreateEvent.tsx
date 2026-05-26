@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { SiteHeader } from "@/components/SiteHeader";
 import { MobileNav } from "@/components/MobileNav";
@@ -113,7 +113,6 @@ const CreateEvent = () => {
             onSubmit={handleSubmit} 
             className="bg-muted/5 border border-border/60 rounded-[4rem] p-12 md:p-20 space-y-16 relative overflow-hidden shadow-soft"
           >
-            <div className="grain pointer-events-none" />
             
             {/* Title */}
             <div className="space-y-6 relative z-10">

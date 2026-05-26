@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Check, AlertTriangle, ArrowRight, ShieldCheck, Microscope, Zap, Target, Gauge } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -131,7 +131,6 @@ const PreFlightChecklist = () => {
                 transition={{ duration: 0.8, ease: "circOut" }}
                 className="bg-muted/5 border border-border/60 rounded-[4rem] p-12 md:p-20 space-y-16 relative overflow-hidden shadow-soft"
               >
-                <div className="grain pointer-events-none" />
                 <div className="flex items-center justify-between relative z-10">
                    <div className="flex items-center gap-4 text-xs font-black uppercase tracking-[0.5em] text-primary">
                       <Zap className="h-4 w-4" />

@@ -1,4 +1,4 @@
-import { Trophy, ArrowRight, Target, Sparkles } from "lucide-react";
+﻿import { Trophy, ArrowRight, Target, Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
 import { rankFor } from "@/lib/rank";

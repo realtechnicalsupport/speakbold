@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, useMemo, ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -31,7 +31,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [onboardingDone, setOnboardingDone] = useState(false);
   const [tutorialDone, setTutorialDone] = useState(false);
 
-  const refreshUserStatus = async () => {
+  const refreshUserStatus = useCallback(async () => {
     const currentUser = session?.user;
     if (!currentUser) {
       console.log("[Auth] No user for status refresh");
@@ -58,7 +58,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       setOnboardingDone(hasOnboarding);
       setTutorialDone(hasTutorial);
-      
+
       // Sync to local storage for legacy/utility support
       localStorage.setItem(`speakbold_onboarding_v2_${currentUser.id}`, hasOnboarding ? "true" : "false");
       if (hasOnboarding && !hasTutorial) {
@@ -71,7 +71,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setStatusLoading(false);
     }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.user?.id]);
 
   useEffect(() => {
     // Set up listener BEFORE getSession (per Supabase guidelines)
@@ -87,6 +88,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => sub.subscription.unsubscribe();
   }, []);
 
+  // Only re-fetch when the user ID changes (not on every token rotation)
   useEffect(() => {
     if (session?.user) {
       refreshUserStatus();
@@ -94,23 +96,28 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setOnboardingDone(false);
       setTutorialDone(false);
     }
-  }, [session]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.user?.id]);
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     await supabase.auth.signOut();
-    localStorage.clear(); // Clear all local storage on sign out to be safe
-  };
+    localStorage.clear();
+  }, []);
+
+  // Memoised value: prevents all consumers from re-rendering on unrelated state changes
+  const value = useMemo(() => ({
+    session,
+    user: session?.user ?? null,
+    loading,
+    statusLoading,
+    onboardingDone,
+    tutorialDone,
+    refreshUserStatus,
+    signOut,
+  }), [session, loading, statusLoading, onboardingDone, tutorialDone, refreshUserStatus, signOut]);
 
   return (
-    <AuthContext.Provider value={{ 
-      session, 
-      user: session?.user ?? null, 
-      loading, 
-      onboardingDone, 
-      tutorialDone, 
-      refreshUserStatus,
-      signOut 
-    }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

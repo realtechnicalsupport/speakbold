@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useState } from "react";
+﻿import { ReactNode, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft, Clipboard, ArrowRight, ShieldCheck, Microscope } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
@@ -11,9 +11,10 @@ interface TrackShellProps {
   intro: string;
   children: ReactNode;
   hideHeader?: boolean;
+  compact?: boolean;
 }
 
-export const TrackShell = ({ eyebrow, title, intro, children, hideHeader = false }: TrackShellProps) => {
+export const TrackShell = ({ eyebrow, title, intro, children, hideHeader = false, compact = false }: TrackShellProps) => {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -68,7 +69,12 @@ export const TrackShell = ({ eyebrow, title, intro, children, hideHeader = false
               <ShieldCheck className="h-4 w-4 shrink-0" />
               {eyebrow}
             </div>
-            <h1 className="speak-serif text-4xl md:text-6xl lg:text-[9rem] leading-[0.85] md:leading-[0.8] text-foreground tracking-tighter break-words hyphens-auto min-w-0">
+            <h1 className={cn(
+              "speak-serif text-foreground tracking-tighter break-words hyphens-auto min-w-0",
+              compact
+                ? "text-3xl md:text-4xl lg:text-5xl leading-[1] md:leading-[0.95]"
+                : "text-4xl md:text-6xl lg:text-[9rem] leading-[0.85] md:leading-[0.8]"
+            )}>
               {title}
             </h1>
           </motion.div>
@@ -105,7 +111,6 @@ export const TrackShell = ({ eyebrow, title, intro, children, hideHeader = false
           to="/pre-flight"
           className="group block relative bg-muted/5 border border-border/60 rounded-2xl md:rounded-[4rem] p-6 md:p-16 hover:border-primary/40 hover:bg-primary/[0.02] transition-all duration-700 overflow-hidden shadow-soft"
         >
-          <div className="grain pointer-events-none" />
           <div className="flex items-center justify-between relative z-10 gap-4">
             <div className="flex items-center gap-4 md:gap-12">
               <div className="flex items-center justify-center h-14 w-14 md:h-20 md:w-20 rounded-2xl md:rounded-[2.5rem] bg-primary/10 border border-primary/20 text-primary shrink-0 group-hover:scale-110 group-hover:rotate-6 transition-all duration-700 shadow-glow shadow-primary/5">

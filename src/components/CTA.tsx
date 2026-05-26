@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+﻿import { Link } from "react-router-dom";
 import { ArrowRight, Mic } from "lucide-react";
 import { motion, useInView } from "framer-motion";
 import { useRef } from "react";

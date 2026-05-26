@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+﻿import { useEffect, useRef, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { TrackShell } from "@/components/TrackShell";
 import { RecorderPanel } from "@/components/RecorderPanel";
@@ -86,6 +86,7 @@ const Interviews = () => {
   const [mode, setMode] = useState<"browse" | "practice">("practice");
   const [revealed, setRevealed] = useState(false);
   const [recordEnabled, setRecordEnabled] = useState(false);
+  const [autoFeedbackId, setAutoFeedbackId] = useState<string | null>(null);
   const [completedQuestions, setCompletedQuestions] = useState<Set<string>>(new Set());
 
   // AI generation state
@@ -259,7 +260,6 @@ const Interviews = () => {
                 <motion.div 
                   layout
                   className="bg-muted/10 border border-primary/20 rounded-2xl md:rounded-[4rem] p-6 md:p-16 shadow-soft relative overflow-hidden group">
-                   <div className="grain pointer-events-none" />
                    <div className="absolute top-0 right-0 p-16 opacity-5 pointer-events-none">
                       <Briefcase className="h-48 w-48 text-primary" />
                    </div>
@@ -407,7 +407,6 @@ const Interviews = () => {
           <div className="sticky top-32 space-y-8">
             {/* Timer Panel */}
             <div className="bg-muted/5 border border-border/60 rounded-2xl md:rounded-[3rem] p-6 md:p-10 space-y-6 md:space-y-10 relative overflow-hidden shadow-soft">
-              <div className="grain pointer-events-none" />
               <div className="absolute top-0 left-0 h-1 bg-primary/20 w-full">
                  <motion.div 
                    className="h-full bg-primary shadow-glow" 
@@ -489,14 +488,16 @@ const Interviews = () => {
                   recorderPauseRef={(fn) => { recorderPauseRef.current = fn; }}
                   recorderResumeRef={(fn) => { recorderResumeRef.current = fn; }}
                   recorderStopRef={(fn) => { recorderStopRef.current = fn; }}
-                  onRecorded={async ({ blob }) => {
+                  onRecorded={async ({ blob, durationMs }) => {
                     markPracticed();
                     if (user) {
-                      await uploadRecording(blob, {
+                      const result = await uploadRecording(blob, {
                         promptText: `Interview: ${current.q}`,
                         difficulty: current.difficulty,
-                        type: "drill"
+                        durationMs,
+                        targetSeconds: duration,
                       });
+                      if (result?.id) setAutoFeedbackId(result.id);
                     }
                   }}
                 />
@@ -510,6 +511,14 @@ const Interviews = () => {
           </div>
         </aside>
       </div>
+
+      {autoFeedbackId && (
+        <RecordingFeedbackModal
+          recordingId={autoFeedbackId}
+          defaultOpen={true}
+          onClose={() => setAutoFeedbackId(null)}
+        />
+      )}
     </TrackShell>
   );
 };

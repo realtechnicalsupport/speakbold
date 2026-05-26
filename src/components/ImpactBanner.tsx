@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { motion, useMotionValue, useTransform, animate } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { Globe, Mic, Sparkles, Clock, FileText, ArrowRight } from "lucide-react";
@@ -136,7 +136,6 @@ export const ImpactBanner = () => {
               transition={{ delay: i * 0.1, duration: 0.6, type: "spring" }}
               className="group relative bg-muted/5 border border-border/60 rounded-[2rem] p-8 text-center space-y-4 hover:border-primary/30 transition-all duration-700 overflow-hidden"
             >
-              <div className="grain pointer-events-none" />
               {/* Icon */}
               <div className={`h-14 w-14 rounded-[1rem] ${metric.bg} ${metric.color} flex items-center justify-center mx-auto`}>
                 <Icon className="h-7 w-7" />

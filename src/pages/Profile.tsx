@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { Flame, Trophy, Mic, Calendar, Sparkles, Target, Lock, Check, ArrowRight, Zap, Play, ShieldCheck, Microscope, FileText } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
@@ -78,14 +78,13 @@ const Profile = () => {
       <div className="absolute top-[10%] right-[-5%] w-[300px] md:w-[600px] h-[300px] md:h-[600px] bg-primary/5 rounded-full blur-[150px] animate-float opacity-30 pointer-events-none will-change-transform" />
       <div className="absolute bottom-[20%] left-[-10%] w-[250px] md:w-[500px] h-[250px] md:h-[500px] bg-accent/5 rounded-full blur-[130px] animate-float opacity-20 pointer-events-none will-change-transform" style={{ animationDelay: "-4s" }} />
 
-      <div id="profile-stats" className="container relative z-10 pt-16 md:pt-32 pb-12 md:pb-20">
+      <div id="profile-stats" className="container relative z-10 pt-20 md:pt-32 pb-32 lg:pb-20">
 
         {/* ── Hero Banner ── */}
         <div className="flex flex-col md:flex-row md:items-end gap-6 md:gap-16 mb-10 md:mb-20">
           {/* Avatar */}
           <div className="relative shrink-0">
             <div className="h-24 w-24 md:h-40 md:w-40 rounded-[2rem] md:rounded-[3.5rem] bg-muted/10 border border-border/60 flex items-center justify-center relative overflow-hidden group shadow-soft">
-              <div className="grain pointer-events-none" />
               <span className="speak-serif text-4xl md:text-7xl text-primary relative z-10 italic">{initials}</span>
               <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
             </div>
@@ -98,9 +97,9 @@ const Profile = () => {
 
           {/* Identity */}
           <div className="flex-1 min-w-0 space-y-4 md:space-y-6">
-            <div className="flex items-center gap-3 text-xs font-black uppercase tracking-[0.5em] text-primary">
+            <div className="flex items-center gap-3 text-xs font-black uppercase tracking-widest text-primary">
               <ShieldCheck className="h-4 w-4" />
-              ACTIVE MEMBER
+              Active member
             </div>
             <h1 className="speak-serif text-3xl md:text-6xl lg:text-8xl leading-[0.9] tracking-tighter">
               Hello, <span className="text-primary italic">{displayName}</span>.
@@ -129,7 +128,7 @@ const Profile = () => {
 
             {/* Utility Tools */}
             <div className="pt-6 flex flex-wrap items-center gap-4 border-t border-border/40">
-              <p className="text-[10px] font-black uppercase tracking-[0.4em] opacity-20 w-full mb-2">PLATFORM TOOLS</p>
+              <p className="text-[10px] font-black uppercase tracking-widest opacity-20 w-full mb-2">Dev tools</p>
               <button 
                 onClick={() => (window as any).resetOnboarding?.()}
                 className="text-[10px] font-black uppercase tracking-[0.2em] opacity-30 hover:opacity-100 hover:text-primary transition-all flex items-center gap-2"
@@ -160,7 +159,6 @@ const Profile = () => {
               key={s.label}
               className="glass-card rounded-2xl md:rounded-[2.5rem] p-4 md:p-8 space-y-3 md:space-y-6 group relative overflow-hidden"
             >
-              <div className="grain pointer-events-none" />
               <s.icon className={cn("h-4 w-4 md:h-5 md:w-5 opacity-20 group-hover:opacity-100 transition-all duration-500", s.color)} />
               <div className="space-y-1">
                 <div className="speak-serif text-2xl md:text-4xl font-bold tabular-nums tracking-tighter italic">
@@ -206,7 +204,6 @@ const Profile = () => {
             <div className="grid lg:grid-cols-[1fr_2fr] gap-6 md:gap-10">
               {/* Streak counter */}
               <div className="glass-card rounded-[2.5rem] p-6 md:p-12 space-y-6 md:space-y-10 relative overflow-hidden">
-                <div className="grain pointer-events-none" />
                 <div className="space-y-3">
                   <p className="text-xs font-black uppercase tracking-[0.5em] opacity-40">STREAK</p>
                   <div className="flex items-baseline gap-4">
@@ -278,7 +275,6 @@ const Profile = () => {
                       key={r.id}
                       className="glass-card rounded-2xl md:rounded-[2.5rem] p-5 md:p-8 group relative overflow-hidden"
                     >
-                      <div className="grain pointer-events-none" />
                       <div className="flex items-start justify-between gap-4 mb-4 md:mb-6">
                         <div className="space-y-2 flex-1 min-w-0">
                           <p className="speak-serif text-lg md:text-2xl italic truncate group-hover:text-primary transition-colors">
@@ -331,7 +327,6 @@ const Profile = () => {
                       done ? "border-primary/30 bg-primary/[0.03]" : "grayscale opacity-50"
                     )}
                   >
-                    <div className="grain pointer-events-none" />
                     <div className={cn(
                       "h-12 w-12 md:h-16 md:w-16 rounded-xl md:rounded-2xl flex items-center justify-center shrink-0 transition-all duration-500",
                       done ? "bg-primary text-white shadow-glow shadow-primary/20" : "bg-muted"

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { RadialBarChart, RadialBar, PolarAngleAxis, ResponsiveContainer } from "recharts";
 import { Sparkles, RotateCcw, Trophy, Eye, Smile, Hand, Activity } from "lucide-react";
@@ -137,7 +137,6 @@ export function BodyLanguageReport({ session, onReset }: Props) {
 
       {/* AI Coaching */}
       <div className="p-6 md:p-10 rounded-2xl md:rounded-[3rem] bg-muted/5 border border-border/60 space-y-6 relative overflow-hidden">
-        <div className="grain pointer-events-none" />
         <div className="flex items-center gap-3 text-xs font-black uppercase tracking-[0.4em] text-primary relative z-10">
           <Sparkles className="h-4 w-4" />
           AI COACHING REPORT

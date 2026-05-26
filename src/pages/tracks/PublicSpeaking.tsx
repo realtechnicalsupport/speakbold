@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+﻿import { useEffect, useRef, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { TrackShell } from "@/components/TrackShell";
 import { RecorderPanel } from "@/components/RecorderPanel";
@@ -215,6 +215,7 @@ const PublicSpeaking = () => {
     return saved ? new Set(JSON.parse(saved)) : new Set();
   });
   const [recordEnabled, setRecordEnabled] = useState(false);
+  const [autoFeedbackId, setAutoFeedbackId] = useState<string | null>(null);
 
   // AI generation state
   const [isGenerating, setIsGenerating] = useState(false);
@@ -569,7 +570,6 @@ const PublicSpeaking = () => {
           <div className="sticky top-32 space-y-8">
             {/* Timer Panel */}
             <div className="bg-muted/5 border border-border/60 rounded-2xl md:rounded-[3rem] p-6 md:p-10 space-y-6 md:space-y-10 relative overflow-hidden shadow-soft">
-              <div className="grain pointer-events-none" />
               <div className="absolute top-0 left-0 h-1 bg-primary/20 w-full">
                  <motion.div 
                    className="h-full bg-primary shadow-glow" 
@@ -677,39 +677,45 @@ const PublicSpeaking = () => {
                   recorderPauseRef={(fn) => { recorderPauseRef.current = fn; }}
                   recorderResumeRef={(fn) => { recorderResumeRef.current = fn; }}
                   recorderStopRef={(fn) => { recorderStopRef.current = fn; }}
-                  onRecorded={async ({ blob }) => {
+                  onRecorded={async ({ blob, durationMs }) => {
                     markPracticed();
                     if (user) {
-                      await uploadRecording(blob, {
+                      const result = await uploadRecording(blob, {
                         promptText: `Speaking Drill: ${current.title}`,
                         difficulty: "Medium",
-                        type: "drill"
+                        durationMs,
+                        targetSeconds: duration,
                       });
+                      if (result?.id) setAutoFeedbackId(result.id);
                     }
                   }}
                 />
               </div>
             )}
 
-            {/* Audit Trigger */}
+            {/* Drill complete badge */}
             <AnimatePresence>
-               {seconds === 0 && (
+               {seconds === 0 && !autoFeedbackId && (
                  <motion.div
                    initial={{ opacity: 0, y: 10 }}
                    animate={{ opacity: 1, y: 0 }}
-                   className="p-8 rounded-[2.5rem] bg-primary text-white shadow-glow flex flex-col items-center text-center gap-6"
+                   className="p-8 rounded-[2.5rem] bg-primary/10 border border-primary/30 flex flex-col items-center text-center gap-4"
                  >
-                   <Trophy className="h-10 w-10 animate-bounce" />
-                   <div className="space-y-2">
-                      <h4 className="speak-serif text-2xl italic">Drill Complete</h4>
-                      <p className="text-xs font-bold uppercase tracking-widest opacity-80">INITIALIZE PERFORMANCE AUDIT</p>
-                   </div>
-                   <button className="w-full py-4 bg-white text-primary rounded-full text-xs font-black uppercase tracking-[0.3em]">
-                      VIEW RESULTS
-                   </button>
+                   <Trophy className="h-8 w-8 text-primary animate-bounce" />
+                   <p className="text-xs font-black uppercase tracking-widest opacity-60">
+                     {recordEnabled ? "Uploading your recording…" : "Drill complete — enable recording for AI feedback"}
+                   </p>
                  </motion.div>
                )}
             </AnimatePresence>
+
+            {autoFeedbackId && (
+              <RecordingFeedbackModal
+                recordingId={autoFeedbackId}
+                defaultOpen={true}
+                onClose={() => setAutoFeedbackId(null)}
+              />
+            )}
 
             <div className="flex items-center gap-4 text-[11px] font-black uppercase tracking-[0.5em] opacity-20 justify-center">
                <ShieldCheck className="h-3 w-3" />

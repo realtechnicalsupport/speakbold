@@ -32,12 +32,12 @@ export const SiteHeader = () => {
       className="fixed top-0 inset-x-0 z-50 glass border-b border-border/60"
       id="site-navigation"
     >
-      <div className="container flex items-center justify-between py-6">
-        <Link to="/" className="flex items-center gap-3 group">
-          <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center shadow-glow transition-transform group-hover:scale-110 group-hover:rotate-6">
-            <Mic className="h-4 w-4 text-white" />
+      <div className="container flex items-center justify-between py-3 lg:py-6">
+        <Link to="/" className="flex items-center gap-2.5 group">
+          <div className="h-8 w-8 lg:h-10 lg:w-10 rounded-full bg-primary flex items-center justify-center shadow-glow transition-transform group-hover:scale-110">
+            <Mic className="h-3.5 w-3.5 lg:h-4 lg:w-4 text-white" />
           </div>
-          <span className="speak-serif text-2xl font-bold tracking-tighter">
+          <span className="speak-serif text-xl lg:text-2xl font-bold tracking-tighter">
             Speak<span className="text-primary italic">Bold</span>
           </span>
         </Link>
@@ -68,8 +68,9 @@ export const SiteHeader = () => {
           ))}
         </nav>
 
-        <div className="flex items-center gap-8">
-          <div className="hidden sm:flex items-center gap-6 pr-6 border-r border-border/60">
+        <div className="flex items-center gap-3 lg:gap-8">
+          {/* Leaderboard trophy: hide on mobile (use MobileNav), show on tablet+ */}
+          <div className="hidden lg:flex items-center gap-6 pr-6 border-r border-border/60">
             <ThemeToggle />
             <Link to="/leaderboard" id="nav-leaderboard" className={cn(
               "transition-all duration-500",
@@ -78,11 +79,12 @@ export const SiteHeader = () => {
               <Trophy className="h-5 w-5" strokeWidth={2} />
             </Link>
           </div>
-          
-          <div className="flex items-center gap-6">
+
+          <div className="flex items-center gap-3 lg:gap-6">
             {user ? (
-              <div className="flex items-center gap-6">
-                <Link to="/profile" id="nav-profile" className="flex items-center gap-4 group">
+              <div className="flex items-center gap-3 lg:gap-6">
+                {/* Profile icon: hide on mobile (in MobileNav), show on tablet+ */}
+                <Link to="/profile" id="nav-profile" className="hidden lg:flex items-center gap-4 group">
                   <div className={cn(
                     "h-10 w-10 rounded-full flex items-center justify-center transition-all duration-700",
                     pathname === "/profile" ? "bg-primary text-white shadow-glow" : "bg-primary/5 border border-primary/20 text-primary group-hover:bg-primary group-hover:text-white"
@@ -90,21 +92,24 @@ export const SiteHeader = () => {
                     <User className="h-5 w-5" strokeWidth={2} />
                   </div>
                   <div className="hidden xl:flex flex-col">
-                    <span className="text-xs font-black uppercase tracking-[0.3em] opacity-30">OPERATOR</span>
-                    <span className="text-sm font-black uppercase tracking-widest">{user.email?.split("@")[0]}</span>
+                    <span className="text-xs font-semibold opacity-40">Signed in as</span>
+                    <span className="text-sm font-semibold">{user.email?.split("@")[0]}</span>
                   </div>
                 </Link>
-                <button onClick={handleSignOut} className="opacity-20 hover:opacity-100 hover:text-destructive transition-all">
+                <button
+                  onClick={handleSignOut}
+                  aria-label="Sign out"
+                  className="p-2 -m-2 opacity-40 hover:opacity-100 hover:text-destructive transition-all"
+                >
                   <LogOut className="h-4 w-4" />
                 </button>
               </div>
             ) : (
-              <Link 
-                to="/login" 
-                className="text-sm font-black uppercase tracking-[0.4em] bg-primary text-white px-8 py-3 rounded-full shadow-glow group overflow-hidden relative"
+              <Link
+                to="/login"
+                className="text-xs lg:text-sm font-semibold bg-primary text-white px-5 py-2 lg:px-8 lg:py-3 rounded-full shadow-glow"
               >
-                <span className="relative z-10">ACCESS</span>
-                <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
+                Sign in
               </Link>
             )}
           </div>
@@ -131,7 +136,7 @@ const DuelRequestNotification = () => {
         initial={{ opacity: 0, y: -20, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        className="fixed top-24 right-4 z-[100] w-80 glass border border-primary/20 rounded-2xl p-4 shadow-glow shadow-primary/10 overflow-hidden"
+        className="fixed top-20 right-3 left-3 sm:left-auto sm:w-80 z-[100] glass border border-primary/20 rounded-2xl p-4 shadow-glow shadow-primary/10 overflow-hidden"
       >
         <div className="absolute top-0 left-0 w-1 h-full bg-primary" />
         <div className="flex items-start gap-4">

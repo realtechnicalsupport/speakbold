@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { Sparkles, Loader2, RefreshCw, Trophy, TrendingUp, AlertCircle, X, ShieldCheck, Zap, ArrowRight, Target, Microscope } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,7 +21,6 @@ const DialogContentWithoutClose = ({ className, children, ...props }: React.Comp
       )}
       {...props}
     >
-      <div className="grain pointer-events-none" />
       {children}
     </DialogPrimitive.Content>
   </DialogPrimitive.Portal>
@@ -40,13 +39,15 @@ interface RecordingFeedbackModalProps {
   recordingId: string;
   trigger?: React.ReactNode;
   onScoreCalculated?: (score: number) => void;
+  defaultOpen?: boolean;
+  onClose?: () => void;
 }
 
-export const RecordingFeedbackModal = ({ recordingId, trigger, onScoreCalculated }: RecordingFeedbackModalProps) => {
+export const RecordingFeedbackModal = ({ recordingId, trigger, onScoreCalculated, defaultOpen, onClose }: RecordingFeedbackModalProps) => {
   const [feedback, setFeedback] = useState<RecordingFeedback | null>(null);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen ?? false);
   const [showTranscript, setShowTranscript] = useState(false);
   const [isInvalid, setIsInvalid] = useState(false);
 
@@ -112,6 +113,7 @@ export const RecordingFeedbackModal = ({ recordingId, trigger, onScoreCalculated
 
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen);
+    if (!isOpen) onClose?.();
     if (isOpen && !feedback && !fetching && !isInvalid) {
       generate(false);
     }
@@ -246,7 +248,7 @@ export const RecordingFeedbackModal = ({ recordingId, trigger, onScoreCalculated
               </div>
             ) : isInvalid ? (
               <div className="text-center py-40 space-y-12">
-                <div className="h-24 w-24 rounded-[2rem] bg-destructive/5 flex items-center justify-center mx-auto border border-destructive/20 animate-float">
+                <div className="h-24 w-24 rounded-[2rem] bg-destructive/5 flex items-center justify-center mx-auto border border-destructive/20">
                   <AlertCircle className="h-10 w-10 text-destructive" />
                 </div>
                 <div className="space-y-6">
@@ -354,7 +356,6 @@ export const RecordingFeedbackModal = ({ recordingId, trigger, onScoreCalculated
                     viewport={{ once: true }}
                     className="p-12 md:p-16 rounded-[4rem] bg-primary/[0.03] border border-primary/20 space-y-8 relative overflow-hidden group shadow-soft"
                   >
-                    <div className="grain pointer-events-none" />
                     <div className="absolute top-0 right-0 p-12 opacity-5 group-hover:opacity-10 transition-opacity duration-1000">
                        <Zap className="h-32 w-32 text-primary" />
                     </div>
@@ -386,7 +387,6 @@ export const RecordingFeedbackModal = ({ recordingId, trigger, onScoreCalculated
                           transition={{ duration: 0.8, ease: "circOut" }}
                           className="text-lg font-medium opacity-40 leading-relaxed bg-muted/5 p-12 rounded-[3.5rem] italic border border-border/60 shadow-inner overflow-hidden"
                         >
-                          <div className="grain pointer-events-none" />
                           "{feedback.transcript}"
                         </motion.div>
                       )}

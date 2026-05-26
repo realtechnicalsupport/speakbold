@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { motion } from "framer-motion";
 import { TrackShell } from "@/components/TrackShell";
 import { BodyLanguageCamera } from "@/components/BodyLanguageCamera";
@@ -123,8 +123,7 @@ const BodyLanguage = () => {
 
         {/* 2 — Speaking prompt */}
         <div className="p-6 md:p-10 rounded-2xl md:rounded-[3rem] bg-gradient-to-br from-primary/[0.06] via-primary/[0.02] to-transparent border border-primary/20 relative overflow-hidden">
-          <div className="grain pointer-events-none" />
-          <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-[100px] opacity-50 pointer-events-none" />
+          <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-[100px] animate-float opacity-50 pointer-events-none" />
           <div className="flex flex-col md:flex-row md:items-center gap-6 relative z-10">
             <div className="flex-1 space-y-4 min-w-0">
               <div className="flex items-center gap-3 text-xs font-black uppercase tracking-[0.4em] text-primary">
