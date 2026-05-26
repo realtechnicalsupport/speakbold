@@ -1,138 +1,233 @@
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || "";
-const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY || "";
+import { supabase } from "@/integrations/supabase/client";
 
-// Valid production models
-const GEMINI_MODELS = ["gemini-2.0-flash", "gemini-2.0-flash-lite-preview-02-05", "gemini-1.5-flash"];
-const GROQ_MODELS = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
+// ─── Keys (add to .env to unlock each provider) ────────────────────────────
+const GEMINI_API_KEY   = import.meta.env.VITE_GEMINI_API_KEY      || "";
+const GROQ_API_KEY     = import.meta.env.VITE_GROQ_API_KEY        || "";
+const OPENROUTER_KEY   = import.meta.env.VITE_OPENROUTER_API_KEY  || "";
+const CEREBRAS_KEY     = import.meta.env.VITE_CEREBRAS_API_KEY    || "";
+const HUGGINGFACE_KEY  = import.meta.env.VITE_HUGGINGFACE_API_KEY || "";
+const SUPABASE_URL     = import.meta.env.VITE_SUPABASE_URL        || "";
 
-async function sleep(ms: number) { return new Promise(resolve => setTimeout(resolve, ms)); }
+// ─── Model lists ───────────────────────────────────────────────────────────
+// Gemini: use stable v1 endpoint — works for all 1.5 + 2.0 models
+const GEMINI_TEXT_MODELS = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash-8b"];
+const GROQ_TEXT_MODELS   = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"];
+const OPENROUTER_MODELS  = [
+  "meta-llama/llama-3.3-70b-instruct:free",
+  "mistralai/mistral-7b-instruct:free",
+  "microsoft/phi-3-mini-128k-instruct:free",
+];
 
-// --- MULTI-PROVIDER AI CALLER ---
-async function callAI(prompt: string, attempt: number = 0, temperature: number = 0.7): Promise<string> {
-  // Try Gemini first (attempt 0-2)
-  if (attempt < 3 && GEMINI_API_KEY) {
-    const model = GEMINI_MODELS[attempt % GEMINI_MODELS.length];
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
-    
+const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
+const geminiUrl = (model: string) =>
+  `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
+
+// ─── TEXT providers (each returns null on failure, string on success) ──────
+
+async function tryOpenRouter(prompt: string, temperature: number): Promise<string | null> {
+  if (!OPENROUTER_KEY) return null;
+  for (const model of OPENROUTER_MODELS) {
     try {
-      const res = await fetch(url, {
+      const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature }
-        })
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${OPENROUTER_KEY}`,
+          "HTTP-Referer": "https://speakbold.app",
+          "X-Title": "SpeakBold",
+        },
+        body: JSON.stringify({ model, messages: [{ role: "user", content: prompt }], temperature }),
       });
       if (res.ok) {
         const data = await res.json();
-        return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        const text = data.choices?.[0]?.message?.content;
+        if (text) { console.log(`[AI] ✓ OpenRouter ${model}`); return text; }
       }
-      const errorText = await res.text();
-      console.warn(`Gemini API Error (${res.status}): ${errorText.slice(0, 100)}`);
-      
-      if (res.status === 429 || res.status === 404 || res.status === 400) {
-        console.warn(`Gemini attempt ${attempt} failed. Trying next...`);
-        return callAI(prompt, attempt + 1, temperature);
-      }
-    } catch (e) { console.error("Gemini Fetch Error:", e); }
+      if (res.status === 429) await sleep(400);
+    } catch { /* try next */ }
   }
+  return null;
+}
 
-  // Fallback to Groq (attempt 3+)
-  if (GROQ_API_KEY) {
-    const model = GROQ_MODELS[(attempt - 3) % GROQ_MODELS.length] || GROQ_MODELS[0];
+async function tryCerebras(prompt: string, temperature: number): Promise<string | null> {
+  if (!CEREBRAS_KEY) return null;
+  try {
+    const res = await fetch("https://api.cerebras.ai/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${CEREBRAS_KEY}` },
+      body: JSON.stringify({
+        model: "llama-3.3-70b",
+        messages: [{ role: "user", content: prompt }],
+        temperature,
+        max_tokens: 2048,
+      }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const text = data.choices?.[0]?.message?.content;
+      if (text) { console.log("[AI] ✓ Cerebras"); return text; }
+    }
+  } catch { /* fall through */ }
+  return null;
+}
+
+async function tryGeminiText(prompt: string, temperature: number): Promise<string | null> {
+  if (!GEMINI_API_KEY) return null;
+  for (const model of GEMINI_TEXT_MODELS) {
+    try {
+      const res = await fetch(geminiUrl(model), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature },
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (text) { console.log(`[AI] ✓ Gemini ${model}`); return text; }
+      }
+      const status = res.status;
+      console.warn(`[AI] Gemini ${model} → ${status}`);
+      if (status === 400) break; // Bad request, stop trying Gemini
+      // 429 quota or 404 model gone — try next model
+    } catch { /* try next */ }
+  }
+  return null;
+}
+
+async function tryGroqText(prompt: string, temperature: number): Promise<string | null> {
+  if (!GROQ_API_KEY) return null;
+  for (const model of GROQ_TEXT_MODELS) {
     try {
       const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${GROQ_API_KEY}`
-        },
-        body: JSON.stringify({
-          model,
-          messages: [{ role: "user", content: prompt }],
-          temperature: temperature
-        })
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${GROQ_API_KEY}` },
+        body: JSON.stringify({ model, messages: [{ role: "user", content: prompt }], temperature }),
       });
       if (res.ok) {
         const data = await res.json();
-        return data.choices?.[0]?.message?.content || "";
+        const text = data.choices?.[0]?.message?.content;
+        if (text) { console.log(`[AI] ✓ Groq ${model}`); return text; }
       }
-      const errorText = await res.text();
-      console.warn(`Groq API Error (${res.status}): ${errorText.slice(0, 100)}`);
-
-      if (res.status === 429 && attempt < 5) {
-        await sleep(1000);
-        return callAI(prompt, attempt + 1, temperature);
-      }
-    } catch (e) { console.error("Groq Fetch Error:", e); }
+      const status = res.status;
+      console.warn(`[AI] Groq ${model} → ${status}`);
+      if (status === 401) break;  // Invalid key — stop trying Groq models
+      if (status === 429) await sleep(800);
+    } catch { /* try next */ }
   }
-
-  throw new Error("All AI providers (Gemini & Groq) are currently at capacity or misconfigured. Please check API keys and try again.");
+  return null;
 }
 
-// --- MULTI-PROVIDER TRANSCRIPTION ---
-export async function transcribeAudio(blob: Blob, attempt: number = 0): Promise<string> {
-  const cleanMimeType = blob.type.split(';')[0] || "audio/webm";
-  console.log(`[Transcription] Attempt ${attempt}, Blob size: ${blob.size}, MIME: ${cleanMimeType}`);
-  
-  // Try Groq Whisper FIRST for transcription as it has much higher limits and is faster
-  if (GROQ_API_KEY && attempt === 0) {
-    try {
-      const formData = new FormData();
-      formData.append("file", blob, "recording.webm");
-      formData.append("model", "whisper-large-v3-turbo");
-      
-      const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+// ─── MAIN TEXT CALLER ──────────────────────────────────────────────────────
+// Waterfall: Groq → OpenRouter (free) → Cerebras → Gemini (3 models)
+// _attempt kept for backwards-compat with call sites that pass it; ignored internally
+export async function callAI(prompt: string, _attempt = 0, temperature = 0.7): Promise<string> {
+  const result =
+    (await tryGroqText(prompt, temperature)) ??
+    (await tryOpenRouter(prompt, temperature)) ??
+    (await tryCerebras(prompt, temperature)) ??
+    (await tryGeminiText(prompt, temperature));
+
+  if (result) return result;
+  throw new Error("All AI providers exhausted. Check API keys and quota in the browser console.");
+}
+
+// ─── TRANSCRIPTION providers ───────────────────────────────────────────────
+
+async function transcribeWithGroq(blob: Blob): Promise<string | null> {
+  if (!GROQ_API_KEY) return null;
+  try {
+    const form = new FormData();
+    form.append("file", blob, "recording.webm");
+    form.append("model", "whisper-large-v3-turbo");
+    const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${GROQ_API_KEY}` },
+      body: form,
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.text) { console.log("[Transcribe] ✓ Groq Whisper"); return data.text; }
+    }
+    const err = await res.text().catch(() => "");
+    console.warn(`[Transcribe] Groq Whisper (${res.status}): ${err.slice(0, 80)}`);
+  } catch (e) { console.warn("[Transcribe] Groq exception:", e); }
+  return null;
+}
+
+async function transcribeWithHuggingFace(blob: Blob): Promise<string | null> {
+  if (!HUGGINGFACE_KEY) return null;
+  try {
+    const res = await fetch(
+      "https://api-inference.huggingface.co/models/openai/whisper-large-v3-turbo",
+      {
         method: "POST",
-        headers: { "Authorization": `Bearer ${GROQ_API_KEY}` },
-        body: formData
-      });
-      if (res.ok) {
-        const data = await res.json();
-        return data.text || "";
-      }
-      const err = await res.text();
-      console.warn(`Groq Whisper failed (${res.status}): ${err.slice(0, 100)}`);
-    } catch (e) { console.error("Groq Whisper Exception:", e); }
-  }
+        headers: { "Authorization": `Bearer ${HUGGINGFACE_KEY}` },
+        body: blob,
+      },
+    );
+    if (res.ok) {
+      const data = await res.json();
+      if (data.text) { console.log("[Transcribe] ✓ HuggingFace Whisper"); return data.text; }
+    }
+    const err = await res.text().catch(() => "");
+    console.warn(`[Transcribe] HuggingFace (${res.status}): ${err.slice(0, 80)}`);
+  } catch (e) { console.warn("[Transcribe] HuggingFace exception:", e); }
+  return null;
+}
 
-  // Fallback to Gemini Multimodal
-  if (GEMINI_API_KEY) {
-    const model = GEMINI_MODELS[attempt % GEMINI_MODELS.length];
+async function transcribeWithGemini(blob: Blob): Promise<string | null> {
+  if (!GEMINI_API_KEY) return null;
+  const mimeType = blob.type.split(";")[0] || "audio/webm";
+  const base64 = await new Promise<string>((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve((reader.result as string).split(",")[1]);
+    reader.readAsDataURL(blob);
+  });
+  for (const model of GEMINI_TEXT_MODELS) {
     try {
-      const reader = new FileReader();
-      const base64Promise = new Promise<string>((resolve) => {
-        reader.onloadend = () => resolve((reader.result as string).split(",")[1]);
-        reader.readAsDataURL(blob);
-      });
-      const base64Data = await base64Promise;
-
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`, {
+      const res = await fetch(geminiUrl(model), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contents: [{
             parts: [
-              { text: "Transcribe the audio exactly. Output only the transcript." },
-              { inline_data: { mime_type: cleanMimeType, data: base64Data } }
-            ]
-          }]
-        })
+              { text: "Transcribe the audio exactly. Output only the transcript, no commentary." },
+              { inline_data: { mime_type: mimeType, data: base64 } },
+            ],
+          }],
+        }),
       });
       if (res.ok) {
         const data = await res.json();
-        return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (text) { console.log(`[Transcribe] ✓ Gemini ${model}`); return text; }
       }
-      const err = await res.text();
-      console.warn(`Gemini Transcription failed (${res.status}) for ${model}: ${err.slice(0, 100)}`);
-    } catch (e) { console.error("Gemini Transcription Exception:", e); }
+      const status = res.status;
+      const err = await res.text().catch(() => "");
+      console.warn(`[Transcribe] Gemini ${model} (${status}): ${err.slice(0, 80)}`);
+      if (status === 400) break;
+    } catch (e) { console.warn("[Transcribe] Gemini exception:", e); }
   }
+  return null;
+}
 
-  if (attempt < 2) {
-    await sleep(1000); // Wait 1s before retrying
-    return transcribeAudio(blob, attempt + 1);
-  }
-  throw new Error("Transcription failed on all providers. Check your browser console for specific API errors (429 = Rate Limit, 401 = Invalid Key).");
+// ─── MAIN TRANSCRIPTION CALLER ─────────────────────────────────────────────
+// Waterfall: Groq Whisper → HuggingFace Whisper → Gemini (3 models, multimodal)
+// _attempt kept for backwards-compat; ignored internally
+export async function transcribeAudio(blob: Blob, _attempt = 0): Promise<string> {
+  console.log(`[Transcribe] blob=${blob.size}B mime=${blob.type}`);
+  const result =
+    (await transcribeWithGroq(blob)) ??
+    (await transcribeWithHuggingFace(blob)) ??
+    (await transcribeWithGemini(blob));
+
+  if (result?.trim()) return result;
+  throw new Error(
+    "Transcription failed on all providers. Check console (401 = bad key, 429 = quota exceeded)."
+  );
 }
 
 // --- SHARED LOGIC ---
@@ -481,4 +576,154 @@ Return JSON ONLY:
       ],
     };
   }
+}
+
+// ─── IMPROMPTU COACH ─────────────────────────────────────────────────────────
+
+export interface ImpromptuCoachReport {
+  score: number;
+  verdict: string;
+  sayMore: { quote: string; why: string }[];
+  cut: { quote: string; why: string }[];
+  shouldHaveSaid: { opening: string; closing: string; tighter: string };
+  frameworkCheck: { step: string; hit: boolean; note: string }[];
+  fillerNote: string;
+  paceNote: string;
+  nextFocus: string;
+}
+
+export async function coachImpromptu(
+  topic: { text: string; framework: string; hints: string[] },
+  transcript: string,
+  durationSeconds: number,
+  fillerCount: number,
+  wpm: number
+): Promise<ImpromptuCoachReport> {
+  const systemPrompt = `You are an elite impromptu speaking coach. A student just completed a ${durationSeconds}-second impromptu speech.
+
+TOPIC: "${topic.text}"
+FRAMEWORK: ${topic.framework} (steps: ${topic.hints.join(" → ")})
+TRANSCRIPT: """${transcript}"""
+METRICS: ${wpm} WPM, ${fillerCount} filler words detected
+
+Analyze the transcript with surgical precision. Be honest, specific, and quote actual lines from the transcript.
+
+Return JSON ONLY — no markdown, no prose outside the JSON:
+{
+  "score": (0-100, overall performance),
+  "verdict": "(2 sentences max — the single most important insight about this speech)",
+  "sayMore": [
+    { "quote": "(short exact quote or paraphrase from transcript)", "why": "(why this point had potential that was left undeveloped)" }
+  ],
+  "cut": [
+    { "quote": "(exact filler phrase, ramble, or redundant moment from transcript)", "why": "(why it hurt the speech)" }
+  ],
+  "shouldHaveSaid": {
+    "opening": "(a sharper version of how they should have opened — 1-2 sentences)",
+    "closing": "(a stronger closing line — 1-2 sentences)",
+    "tighter": "(the core argument distilled into 1 punchy sentence they should have built around)"
+  },
+  "frameworkCheck": [
+    { "step": "(framework step name)", "hit": true/false, "note": "(1 sentence: what they did well or missed)" }
+  ],
+  "fillerNote": "(1 sentence about filler word usage — skip if count is 0)",
+  "paceNote": "(1 sentence about pace — target is 120-160 WPM for conversational speaking)",
+  "nextFocus": "(1 specific drill or technique to work on next time)"
+}
+
+RULES:
+- sayMore: 1-2 items max. Only include if there's genuine depth to extract.
+- cut: 1-3 items max. Be specific — quote the actual dead weight.
+- frameworkCheck: one entry per framework step (${topic.hints.length} steps).
+- If transcript is very short (<30 words), lower the score significantly and note it.
+- Do not invent quotes. If the transcript doesn't have enough to analyze, say so in verdict.`;
+
+  try {
+    const result = await callAI(systemPrompt, 0, 0.5);
+    const jsonMatch = result.match(/\{[\s\S]*\}/);
+    const p = JSON.parse(
+      jsonMatch?.[0] ??
+        `{"score":0,"verdict":"Could not analyze speech.","sayMore":[],"cut":[],"shouldHaveSaid":{"opening":"","closing":"","tighter":""},"frameworkCheck":[],"fillerNote":"","paceNote":"","nextFocus":"Keep practicing."}`
+    );
+    return {
+      score: Math.max(0, Math.min(100, p.score ?? 0)),
+      verdict: p.verdict ?? "",
+      sayMore: Array.isArray(p.sayMore) ? p.sayMore.slice(0, 3) : [],
+      cut: Array.isArray(p.cut) ? p.cut.slice(0, 3) : [],
+      shouldHaveSaid: p.shouldHaveSaid ?? { opening: "", closing: "", tighter: "" },
+      frameworkCheck: Array.isArray(p.frameworkCheck) ? p.frameworkCheck : [],
+      fillerNote: p.fillerNote ?? "",
+      paceNote: p.paceNote ?? "",
+      nextFocus: p.nextFocus ?? "Keep practicing.",
+    };
+  } catch {
+    return {
+      score: 0,
+      verdict: "AI analysis unavailable. Your session was still recorded.",
+      sayMore: [],
+      cut: [],
+      shouldHaveSaid: { opening: "", closing: "", tighter: "" },
+      frameworkCheck: [],
+      fillerNote: "",
+      paceNote: "",
+      nextFocus: "Try again — you're building the habit.",
+    };
+  }
+}
+
+export async function generateCurveballs(topicText: string): Promise<string[]> {
+  const prompt = `Generate 2 short "curveball" twists for an impromptu speech topic. A curveball is a mid-speech pivot that forces the speaker to change angle.
+
+TOPIC: "${topicText}"
+
+Return JSON array of exactly 2 strings. Each curveball must:
+- Be 1 short sentence (max 12 words)
+- Force a genuine pivot (flip the argument, change the audience, add a constraint)
+- Be immediately actionable mid-speech
+
+Example format: ["Now argue the opposite position.", "Convince a skeptic in the room."]
+
+Return ONLY the JSON array.`;
+
+  try {
+    const result = await callAI(prompt, 0, 0.9);
+    const arrMatch = result.match(/\[[\s\S]*\]/);
+    const parsed = JSON.parse(arrMatch?.[0] ?? "[]");
+    if (Array.isArray(parsed) && parsed.length > 0) return parsed.slice(0, 2);
+  } catch { /* fall through */ }
+  return ["Now argue the opposite position.", "Convince a skeptic in the room."];
+}
+
+// ─── TTS ─────────────────────────────────────────────────────────────────────
+/**
+ * Speak text via the ai-tts Supabase Edge Function (Deepgram Aura, server-side).
+ * Returns an HTMLAudioElement ready to be played.
+ * Throws on any failure — callers should catch and fall back to SpeechSynthesis.
+ */
+export async function speakWithDeepgramTTS(
+  text: string,
+  voice: string = "aura-orion-en"
+): Promise<HTMLAudioElement> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const jwt = session?.access_token;
+  if (!jwt) throw new Error("[TTS] No auth session");
+  if (!SUPABASE_URL) throw new Error("[TTS] VITE_SUPABASE_URL not set");
+
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/ai-tts`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${jwt}`,
+    },
+    body: JSON.stringify({ text, voice }),
+  });
+
+  if (!res.ok) {
+    const err = await res.text().catch(() => res.status.toString());
+    throw new Error(`[TTS] Edge function error (${res.status}): ${err.slice(0, 120)}`);
+  }
+
+  const { audioBase64, mimeType } = await res.json() as { audioBase64: string; mimeType: string };
+  const audio = new Audio(`data:${mimeType};base64,${audioBase64}`);
+  return audio;
 }

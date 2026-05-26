@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { SiteHeader } from "@/components/SiteHeader";
 import { MobileNav } from "@/components/MobileNav";
@@ -43,7 +43,6 @@ const EventCard = ({ event, onArchive, onDelete, index = 0 }: any) => {
           isPast ? "border-border/60 opacity-60" : "border-border/60 hover:border-primary/40 hover:bg-primary/[0.02]"
         )}
       >
-        <div className="grain pointer-events-none" />
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-12 relative z-10">
           <div className="flex-1 space-y-10">
             <div className="flex items-center gap-6">
@@ -246,7 +245,7 @@ const Events = () => {
                 >
                   {upcomingEvents.length === 0 ? (
                     <div className="py-60 text-center space-y-12 border-2 border-dashed border-border/60 rounded-[4rem] relative overflow-hidden">
-                      <Calendar className="h-24 w-24 opacity-5 mx-auto animate-float" />
+                      <Calendar className="h-24 w-24 opacity-5 mx-auto" />
                       <div className="space-y-4">
                         <p className="speak-serif text-3xl italic opacity-20">No active deployments detected.</p>
                         <p className="text-xs font-black uppercase tracking-[0.5em] opacity-40">AWAITING SYSTEM INITIALIZATION</p>

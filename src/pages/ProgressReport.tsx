@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+﻿import { useMemo, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { usePathway, ALL_LESSONS } from "@/hooks/usePathway";
 import { useMyXp } from "@/hooks/useLeaderboard";
@@ -85,7 +85,6 @@ const ProgressReport = () => {
           ref={reportRef}
           className="relative bg-muted/5 border border-border/60 rounded-[4rem] p-12 md:p-20 shadow-soft overflow-hidden print:shadow-none print:border-2 print:border-black print:rounded-none print:m-0 print:p-12"
         >
-          <div className="grain pointer-events-none print:hidden" />
           
           {/* Watermark/Decor */}
           <div className="absolute top-[-10%] right-[-10%] opacity-[0.03] pointer-events-none print:hidden">

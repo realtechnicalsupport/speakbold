@@ -1,83 +1,97 @@
-import { motion } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useEffect, useRef } from "react";
 
+// Lightweight canvas-based floating nodes — zero Framer Motion, one RAF loop.
+// Replaces the previous 15-motion.div implementation that ran 15 concurrent
+// Framer Motion animation loops on every page.
 export const FloatingNodes = () => {
-  const [nodes, setNodes] = useState<{ id: number; x: number; y: number; size: number; duration: number; delay: number }[]>([]);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    const newNodes = Array.from({ length: 15 }).map((_, i) => ({
-      id: i,
-      x: Math.random() * 100,
-      y: Math.random() * 100,
-      size: Math.random() * 4 + 1,
-      duration: Math.random() * 20 + 10,
-      delay: Math.random() * 5,
-    }));
-    setNodes(newNodes);
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    // Skip entirely if user prefers reduced motion
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    let rafId: number;
+    let W = 0;
+    let H = 0;
+
+    type Node = {
+      x: number; y: number;
+      vx: number; vy: number;
+      size: number;
+      opacity: number;
+      opacityDir: number;
+    };
+
+    const nodes: Node[] = [];
+    const COUNT = 7;
+
+    function resize() {
+      W = canvas!.width  = window.innerWidth;
+      H = canvas!.height = window.innerHeight;
+    }
+
+    function init() {
+      resize();
+      nodes.length = 0;
+      for (let i = 0; i < COUNT; i++) {
+        nodes.push({
+          x: Math.random() * W,
+          y: Math.random() * H,
+          vx: (Math.random() - 0.5) * 0.3,
+          vy: (Math.random() - 0.5) * 0.3,
+          size: Math.random() * 3 + 1,
+          opacity: Math.random() * 0.1 + 0.03,
+          opacityDir: Math.random() > 0.5 ? 1 : -1,
+        });
+      }
+    }
+
+    function draw() {
+      ctx!.clearRect(0, 0, W, H);
+      for (const n of nodes) {
+        // drift
+        n.x += n.vx;
+        n.y += n.vy;
+        if (n.x < -20) n.x = W + 20;
+        if (n.x > W + 20) n.x = -20;
+        if (n.y < -20) n.y = H + 20;
+        if (n.y > H + 20) n.y = -20;
+
+        // breathe
+        n.opacity += n.opacityDir * 0.0003;
+        if (n.opacity > 0.13 || n.opacity < 0.02) n.opacityDir *= -1;
+
+        ctx!.beginPath();
+        ctx!.arc(n.x, n.y, n.size, 0, Math.PI * 2);
+        ctx!.fillStyle = `rgba(255,77,0,${n.opacity})`;
+        ctx!.fill();
+      }
+      rafId = requestAnimationFrame(draw);
+    }
+
+    init();
+    draw();
+
+    const ro = new ResizeObserver(resize);
+    ro.observe(document.body);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      ro.disconnect();
+    };
   }, []);
 
   return (
-    <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden hidden md:block">
-      {nodes.map((node) => (
-        <motion.div
-          key={node.id}
-          initial={{ 
-            x: `${node.x}%`, 
-            y: `${node.y}%`, 
-            opacity: 0,
-            scale: 0.5 
-          }}
-          animate={{
-            x: [
-              `${node.x}%`, 
-              `${(node.x + 10) % 100}%`, 
-              `${(node.x - 5) % 100}%`, 
-              `${node.x}%`
-            ],
-            y: [
-              `${node.y}%`, 
-              `${(node.y - 15) % 100}%`, 
-              `${(node.y + 10) % 100}%`, 
-              `${node.y}%`
-            ],
-            opacity: [0.05, 0.15, 0.05],
-            scale: [1, 1.5, 1],
-          }}
-          transition={{
-            duration: node.duration,
-            repeat: Infinity,
-            ease: "linear",
-            delay: node.delay,
-          }}
-          className="absolute bg-primary rounded-full blur-[1px]"
-          style={{
-            width: node.size,
-            height: node.size,
-          }}
-        />
-      ))}
-      
-      {/* Subtle background glow blobs */}
-      <motion.div
-        animate={{
-          scale: [1, 1.2, 1],
-          opacity: [0.05, 0.1, 0.05],
-          x: [0, 50, 0],
-          y: [0, 30, 0],
-        }}
-        transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
-        className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] bg-primary/10 rounded-full blur-[120px]"
-      />
-      <motion.div
-        animate={{
-          scale: [1, 1.3, 1],
-          opacity: [0.03, 0.08, 0.03],
-          x: [0, -40, 0],
-          y: [0, -50, 0],
-        }}
-        transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
-        className="absolute bottom-[-10%] right-[-5%] w-[500px] h-[500px] bg-primary/10 rounded-full blur-[100px]"
-      />
-    </div>
+    <canvas
+      ref={canvasRef}
+      className="fixed inset-0 pointer-events-none z-0 hidden md:block"
+      aria-hidden="true"
+    />
   );
 };

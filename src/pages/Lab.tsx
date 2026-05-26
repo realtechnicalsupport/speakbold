@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { Link } from "react-router-dom";
 import {
@@ -90,10 +90,10 @@ const Lab = () => {
 
   return (
     <main className="min-h-screen bg-background relative overflow-hidden">
-      <div className="absolute top-[10%] right-[-5%] w-[300px] h-[300px] md:w-[600px] md:h-[600px] bg-primary/5 rounded-full blur-[150px] opacity-30 pointer-events-none" />
+      <div className="absolute top-[10%] right-[-5%] w-[300px] h-[300px] md:w-[600px] md:h-[600px] bg-primary/5 rounded-full blur-[150px] animate-float opacity-30 pointer-events-none" />
       <SiteHeader />
 
-      <section className="px-4 md:container pt-32 md:pt-48 pb-32 relative z-10">
+      <section className="px-4 md:container pt-20 md:pt-48 pb-32 lg:pb-16 relative z-10">
         <AnimatePresence mode="wait">
           {!showBodyLanguage ? (
             <motion.div
@@ -125,7 +125,6 @@ const Lab = () => {
                   const Icon = tool.icon;
                   const inner = (
                     <>
-                      <div className="grain pointer-events-none opacity-50" />
                       <div className={`h-14 w-14 rounded-full ${tool.bg} ${tool.color} flex items-center justify-center mb-6`}>
                         <Icon className="h-7 w-7" />
                       </div>
@@ -148,14 +147,14 @@ const Lab = () => {
                       {tool.inline ? (
                         <button
                           onClick={() => setShowBodyLanguage(true)}
-                          className="group block w-full text-left p-8 rounded-[2rem] glass-card transition-all duration-300 relative overflow-hidden h-full"
+                          className="group block w-full text-left p-5 md:p-8 rounded-2xl md:rounded-[2rem] glass-card transition-all duration-300 relative overflow-hidden h-full"
                         >
                           {inner}
                         </button>
                       ) : (
                         <Link
                           to={tool.to!}
-                          className="group block p-8 rounded-[2rem] glass-card transition-all duration-300 relative overflow-hidden h-full"
+                          className="group block p-5 md:p-8 rounded-2xl md:rounded-[2rem] glass-card transition-all duration-300 relative overflow-hidden h-full"
                         >
                           {inner}
                         </Link>

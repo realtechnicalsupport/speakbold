@@ -2,25 +2,13 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 
-const LS_KEY = "speakbold.pathway.v6";
-
 export type NodeStatus = "locked" | "available" | "completed";
 export type NodeType = "lesson" | "test";
-export type UnitId = 
-  | "vocal" 
-  | "impromptu" 
-  | "rhetoric" 
-  | "interviews" 
-  | "body" 
-  | "conflict" 
-  | "executive" 
-  | "mastery"
-  | "custom";
 
 export interface PathwayLesson {
   id: string;
   type: NodeType;
-  unitId: UnitId;
+  chapterId: string;
   title: string;
   subtitle: string;
   objective: string;
@@ -31,500 +19,314 @@ export interface PathwayLesson {
   passScore?: number;
 }
 
-export interface PathwayUnit {
-  id: UnitId;
+export interface PathwayChapter {
+  id: string;
   name: string;
+  level: "Beginner" | "Intermediate" | "Advanced";
   tagline: string;
+  promise: string;
   color: string;
   lessons: PathwayLesson[];
 }
 
-// ─── Unit 1: Vocal Mastery ───────────────────────────────────────
-const VOCAL_LESSONS: PathwayLesson[] = [
+// ─── Chapter 1: Warm Up (Beginner) ──────────────────────────────
+const WARMUP_LESSONS: PathwayLesson[] = [
   {
-    id: "v-1",
-    type: "lesson",
-    unitId: "vocal",
-    title: "Filler Word Detox",
-    subtitle: "Silence is strength",
-    objective: "Eliminate confidence leaks like 'um' and 'uh'. Replace them with intentional pauses.",
+    id: "wu-1", type: "lesson", chapterId: "warmup",
+    title: "Say Hello", subtitle: "Your name, three ways",
+    objective: "Get comfortable hearing your own voice on a recording.",
     instructions: [
-      "Record yourself answering: 'Describe your last week.'",
-      "Count filler words. Answer again, replacing fillers with silence.",
+      "Say your name three times in a row.",
+      "First calm and clear. Then warmly, like greeting a friend. Then boldly, like introducing yourself on stage.",
     ],
-    prompt: "Describe your ideal career in 60 seconds. Eliminate all filler words.",
-    durationSeconds: 60,
-    selfReview: ["Did I catch the fillers?", "Did the silence feel powerful?"],
+    prompt: "Hi, I'm [your name]. Say it three different ways.",
+    durationSeconds: 20,
+    selfReview: ["Did each one sound different?"],
   },
   {
-    id: "v-2",
-    type: "lesson",
-    unitId: "vocal",
-    title: "Vocal Range Drill",
-    subtitle: "Low anchor, high energy",
-    objective: "Master pitch shifting to signal authority and engagement.",
+    id: "wu-2", type: "lesson", chapterId: "warmup",
+    title: "One Thing You Love", subtitle: "A tiny honest opinion",
+    objective: "Talk about something you actually care about — short and real.",
     instructions: [
-      "Use a low voice for serious claims, and an energized voice for exciting ones.",
+      "Pick one thing: a food, a song, a place, anything.",
+      "Tell us what it is and one reason you love it. Keep it under 30 seconds.",
     ],
-    prompt: "Tell a story where something went wrong, then right. Use pitch to show the shift.",
-    durationSeconds: 60,
-    selfReview: ["Was the contrast clear?", "Did I sound authentic?"],
+    prompt: "I love ___ because ___.",
+    durationSeconds: 30,
+    selfReview: ["Did I sound like I meant it?"],
   },
   {
-    id: "v-3",
-    type: "lesson",
-    unitId: "vocal",
-    title: "The Strategic Pause",
-    subtitle: "Commanding attention",
-    objective: "Use a 2-second pause after a key point to let it land.",
+    id: "wu-3", type: "lesson", chapterId: "warmup",
+    title: "Walk Me Through Your Morning", subtitle: "A tiny narrative",
+    objective: "Tell a small story in order — start, middle, end.",
     instructions: [
-      "Say your main claim, then stop completely for 2 seconds.",
+      "Describe your morning, from waking up to right now.",
+      "Keep the events in order. Don't worry about being interesting — just clear.",
     ],
-    prompt: "Share your opinion on a controversial topic. Use a full 2-second pause after your main point.",
-    durationSeconds: 60,
-    selfReview: ["Did I rush the pause?", "Did it feel intentional?"],
-  },
-  {
-    id: "v-4",
-    type: "lesson",
-    unitId: "vocal",
-    title: "Articulation Sprint",
-    subtitle: "Clarity under pressure",
-    objective: "Improve your diction and prevent mumbling.",
-    instructions: [
-      "Over-articulate every consonant in this drill.",
-    ],
-    prompt: "Read a complex news paragraph aloud with extreme clarity. Don't skip a single syllable.",
+    prompt: "This is how my morning went…",
     durationSeconds: 45,
-    selfReview: ["Was every word clear?", "Did I trip over my tongue?"],
+    selfReview: ["Was it easy to follow?"],
   },
   {
-    id: "v-5",
-    type: "test",
-    unitId: "vocal",
-    title: "Vocal Mastery Final",
-    subtitle: "Certification Drill",
-    objective: "Demonstrate all vocal skills in one cohesive speech.",
-    instructions: ["Use variety, pauses, and zero fillers."],
-    prompt: "Deliver a 2-minute 'Vision Speech' for a project you care about.",
+    id: "wu-4", type: "test", chapterId: "warmup",
+    title: "Introduce Yourself", subtitle: "60-second self-intro",
+    objective: "Combine name, what you love, and a moment from your life into a single intro.",
+    instructions: [
+      "Open with your name.",
+      "Share one thing you care about.",
+      "End with something memorable — a question, a quote, or a tiny story.",
+    ],
+    prompt: "Tell us who you are in 60 seconds.",
+    durationSeconds: 60,
+    passScore: 55,
+    selfReview: ["Did I sound like myself?", "Did I land the ending?"],
+  },
+];
+
+// ─── Chapter 2: Get Clear (Beginner → Intermediate) ─────────────
+const CLEAR_LESSONS: PathwayLesson[] = [
+  {
+    id: "gc-1", type: "lesson", chapterId: "clear",
+    title: "Rule of Three", subtitle: "Three reasons, neatly",
+    objective: "Organize a thought into three distinct points.",
+    instructions: [
+      "Pick a topic you know.",
+      "List three reasons. Say 'first,' 'second,' 'third.' Don't overlap them.",
+    ],
+    prompt: "Three reasons people should visit your hometown.",
+    durationSeconds: 60,
+    selfReview: ["Did I actually have three?"],
+  },
+  {
+    id: "gc-2", type: "lesson", chapterId: "clear",
+    title: "Power Pause", subtitle: "Silence is loud",
+    objective: "Use intentional pauses to land your points.",
+    instructions: [
+      "Say your most important sentence.",
+      "Then stop completely. Count to two. Then continue.",
+    ],
+    prompt: "Tell me one thing you'd change about your school or workplace.",
+    durationSeconds: 60,
+    selfReview: ["Did the silence feel powerful or awkward?"],
+  },
+  {
+    id: "gc-3", type: "lesson", chapterId: "clear",
+    title: "Teach Me a Small Thing", subtitle: "Step by step",
+    objective: "Walk someone through a simple how-to in clear steps.",
+    instructions: [
+      "Pick something tiny: making tea, tying a knot, sending a clean email.",
+      "Number your steps. Make it so a beginner could follow.",
+    ],
+    prompt: "Teach me how to make your go-to snack or drink.",
+    durationSeconds: 60,
+    selfReview: ["Could a 10-year-old follow?"],
+  },
+  {
+    id: "gc-4", type: "test", chapterId: "clear",
+    title: "Tell a Real Story", subtitle: "Beginning, middle, end",
+    objective: "Tell a true story with clear shape and a satisfying ending.",
+    instructions: [
+      "Set the scene in one sentence.",
+      "Build to a turn — what changed?",
+      "Land the resolution.",
+    ],
+    prompt: "Tell me about a moment that surprised you.",
+    durationSeconds: 90,
+    passScore: 65,
+    selfReview: ["Was there real tension?", "Did the ending pay off?"],
+  },
+];
+
+// ─── Chapter 3: Sound Confident (Intermediate) ──────────────────
+const CONFIDENT_LESSONS: PathwayLesson[] = [
+  {
+    id: "sc-1", type: "lesson", chapterId: "confident",
+    title: "Filler-Free Minute", subtitle: "Zero 'um, uh, like'",
+    objective: "Speak for 60 seconds without any filler words.",
+    instructions: [
+      "Replace every 'um' with silence. Pause if you need to think.",
+      "Silence beats filler every time.",
+    ],
+    prompt: "Describe your dream weekend — and what makes it dreamy.",
+    durationSeconds: 60,
+    selfReview: ["Did the silence feel okay?"],
+  },
+  {
+    id: "sc-2", type: "lesson", chapterId: "confident",
+    title: "Voice Range", subtitle: "Low gear, high gear",
+    objective: "Use vocal variety — lower for serious, brighter for excited.",
+    instructions: [
+      "Tell a story where something went wrong, then right.",
+      "Use a lower tone for the trouble. Raise it as things turn.",
+    ],
+    prompt: "Tell me about a time something went wrong — and then worked out.",
+    durationSeconds: 75,
+    selfReview: ["Was the contrast clear?"],
+  },
+  {
+    id: "sc-3", type: "lesson", chapterId: "confident",
+    title: "Hook 'Em Fast", subtitle: "First 10 seconds count",
+    objective: "Open with a hook strong enough that people want to keep listening.",
+    instructions: [
+      "Don't start with 'so,' 'hi,' or 'today I want to talk about.'",
+      "Start with a question, a surprising number, or a vivid image.",
+    ],
+    prompt: "Pitch your favorite hobby to someone who's never tried it.",
+    durationSeconds: 60,
+    selfReview: ["Would I have kept listening?"],
+  },
+  {
+    id: "sc-4", type: "test", chapterId: "confident",
+    title: "90-Second Pitch", subtitle: "Everything together",
+    objective: "Combine hook, structure, vocal variety, and zero filler.",
+    instructions: [
+      "Open with a hook.",
+      "Use rule of three OR a clear story.",
+      "Use at least one intentional pause.",
+      "No filler words.",
+    ],
+    prompt: "Convince me that something you love is worth my time.",
+    durationSeconds: 90,
+    passScore: 70,
+    selfReview: ["Did I sound confident?", "Was the structure obvious?"],
+  },
+];
+
+// ─── Chapter 4: Take the Stage (Advanced) ───────────────────────
+const STAGE_LESSONS: PathwayLesson[] = [
+  {
+    id: "ts-1", type: "lesson", chapterId: "stage",
+    title: "Quick Thinking", subtitle: "Cold prompt, hot answer",
+    objective: "Answer an unfamiliar question with structure under pressure.",
+    instructions: [
+      "Acknowledge the question to buy 2 seconds. ('That's a good one — let me think.')",
+      "Use rule of three to structure your answer.",
+    ],
+    prompt: "What's one rule everyone follows but nobody questions?",
+    durationSeconds: 75,
+    selfReview: ["Did I sound steady?"],
+  },
+  {
+    id: "ts-2", type: "lesson", chapterId: "stage",
+    title: "Handle the Tough One", subtitle: "Stay calm under fire",
+    objective: "Respond to a hostile or skeptical challenge without getting defensive.",
+    instructions: [
+      "Lower your volume. Slow your tempo.",
+      "Acknowledge the challenge. Then answer with one clear point.",
+    ],
+    prompt: "Someone just told you your idea is naive. Respond with grace.",
+    durationSeconds: 60,
+    selfReview: ["Did I stay composed?"],
+  },
+  {
+    id: "ts-3", type: "lesson", chapterId: "stage",
+    title: "Persuade With a Story", subtitle: "Story + fact + ask",
+    objective: "Move someone using a personal story, one piece of evidence, and a clear ask.",
+    instructions: [
+      "Open with a 20-second story.",
+      "Drop one fact or number that backs up your point.",
+      "End with a specific call to action.",
+    ],
+    prompt: "Persuade me to care about something you care about.",
+    durationSeconds: 90,
+    selfReview: ["Did the story land?", "Was the ask specific?"],
+  },
+  {
+    id: "ts-4", type: "test", chapterId: "stage",
+    title: "The Keynote", subtitle: "Final capstone",
+    objective: "Deliver a 2-minute keynote on something that matters. Use everything you've learned.",
+    instructions: [
+      "Hook → story → main point → call to action.",
+      "Zero filler. Intentional pauses. Vocal variety.",
+      "Own the moment.",
+    ],
+    prompt: "Give a 2-minute talk on 'the one thing I wish more people understood.'",
     durationSeconds: 120,
     passScore: 80,
-    selfReview: ["Was my voice grounded?", "Did I own the room?"],
-  }
+    selfReview: ["Was this my best work?", "Did I feel in command?"],
+  },
 ];
 
-// ─── Unit 2: Quick Thinking ─────────────────────────────────────
-const IMPROMPTU_LESSONS: PathwayLesson[] = [
+const CHAPTERS: PathwayChapter[] = [
   {
-    id: "i-1",
-    type: "lesson",
-    unitId: "impromptu",
-    title: "The Prep-Step",
-    subtitle: "Buying thinking time",
-    objective: "Acknowledge the question to buy 3 seconds of calm.",
-    instructions: [
-      "Repeat the question thoughtfully before starting your answer.",
-    ],
-    prompt: "Question: 'What is the most important invention of all time?' Start with a prep-step.",
-    durationSeconds: 60,
-    selfReview: ["Did I look panicked?", "Did the start feel smooth?"],
+    id: "warmup",
+    name: "Warm Up",
+    level: "Beginner",
+    tagline: "Just make some sounds.",
+    promise: "Hear your own voice on tape and get comfortable. Each drill is under a minute.",
+    color: "#22C55E",
+    lessons: WARMUP_LESSONS,
   },
   {
-    id: "i-2",
-    type: "lesson",
-    unitId: "impromptu",
-    title: "The Rule of Three",
-    subtitle: "Instant structure",
-    objective: "Organize any thought into three distinct points.",
-    instructions: [
-      "Start with 'I think there are three main factors here...'",
-    ],
-    prompt: "Explain why your favorite book is worth reading using the Rule of Three.",
-    durationSeconds: 90,
-    selfReview: ["Did I find 3 points?", "Was it easy to follow?"],
+    id: "clear",
+    name: "Get Clear",
+    level: "Beginner",
+    tagline: "Sound organized, on demand.",
+    promise: "Add structure so people can follow you — even when you haven't prepared.",
+    color: "#3B82F6",
+    lessons: CLEAR_LESSONS,
   },
   {
-    id: "i-3",
-    type: "lesson",
-    unitId: "impromptu",
-    title: "PREP Framework",
-    subtitle: "Point, Reason, Example, Point",
-    objective: "A universal formula for structured impromptu answers.",
-    instructions: [
-      "State your point, give a reason, an example, and restate your point.",
-    ],
-    prompt: "Should high schools teach financial literacy? Use the PREP framework.",
-    durationSeconds: 90,
-    selfReview: ["Did I follow the structure?", "Was the example vivid?"],
+    id: "confident",
+    name: "Sound Confident",
+    level: "Intermediate",
+    tagline: "Like you actually mean it.",
+    promise: "Drop fillers, vary your voice, and hook attention from the first sentence.",
+    color: "#8B5CF6",
+    lessons: CONFIDENT_LESSONS,
   },
   {
-    id: "i-4",
-    type: "lesson",
-    unitId: "impromptu",
-    title: "Bridging Techniques",
-    subtitle: "Pivoting with grace",
-    objective: "Learn to pivot from a question you don't know to a topic you do.",
-    instructions: [
-      "Acknowledge the question and bridge to a related area of expertise.",
-    ],
-    prompt: "You're asked about the technical details of quantum computing. Bridge to the importance of education.",
-    durationSeconds: 60,
-    selfReview: ["Was the pivot subtle?", "Did I sound knowledgeable?"],
+    id: "stage",
+    name: "Take the Stage",
+    level: "Advanced",
+    tagline: "Command the room.",
+    promise: "Handle pressure, persuade with story, and deliver a keynote worth remembering.",
+    color: "#F97316",
+    lessons: STAGE_LESSONS,
   },
-  {
-    id: "i-5",
-    type: "test",
-    unitId: "impromptu",
-    title: "Impromptu Gauntlet",
-    subtitle: "Thinking on your feet",
-    objective: "Handle a series of random prompts with zero prep.",
-    instructions: ["Switch prompts every 30 seconds."],
-    prompt: "Respond to 3 random 'What If' scenarios in 90 seconds.",
-    durationSeconds: 90,
-    passScore: 75,
-    selfReview: ["Did I maintain flow?", "Was my structure consistent?"],
-  }
 ];
 
-// ─── Unit 3: The Art of Persuasion ──────────────────────────────
-const RHETORIC_LESSONS: PathwayLesson[] = [
-  {
-    id: "r-1",
-    type: "lesson",
-    unitId: "rhetoric",
-    title: "The Hook",
-    subtitle: "Instant engagement",
-    objective: "Start with a vivid image, a shock, or a question.",
-    instructions: ["Never start with 'Hello'. Dive straight into the value."],
-    prompt: "Start a pitch for a product that saves time. The first 10 seconds must be a killer hook.",
-    durationSeconds: 45,
-    selfReview: ["Would they keep listening?", "Was it unique?"],
-  },
-  {
-    id: "r-2",
-    type: "lesson",
-    unitId: "rhetoric",
-    title: "Storytelling Architecture",
-    subtitle: "Narrative tension",
-    objective: "Build a story with a clear conflict and resolution.",
-    instructions: ["Define the 'Inciting Incident' clearly."],
-    prompt: "Tell a story about the biggest hurdle you overcame last year.",
-    durationSeconds: 90,
-    selfReview: ["Was there real tension?", "Was the resolution satisfying?"],
-  },
-  {
-    id: "r-3",
-    type: "lesson",
-    unitId: "rhetoric",
-    title: "Ethos, Pathos, Logos",
-    subtitle: "The persuasion triad",
-    objective: "Balance credibility, emotion, and logic in one pitch.",
-    instructions: ["Use one data point and one personal story."],
-    prompt: "Persuade an audience to donate to a cause. Use all three rhetorical pillars.",
-    durationSeconds: 120,
-    selfReview: ["Did I use data?", "Did I connect emotionally?"],
-  },
-  {
-    id: "r-4",
-    type: "lesson",
-    unitId: "rhetoric",
-    title: "The Call to Action",
-    subtitle: "Closing with intent",
-    objective: "Never leave an audience wondering what to do next.",
-    instructions: ["End with a specific, actionable request."],
-    prompt: "Finish a presentation on a new workflow. The closing must be a clear call to action.",
-    durationSeconds: 60,
-    selfReview: ["Was it specific?", "Was it easy to do?"],
-  }
-];
-
-// ─── Unit 4: Interview Mastery ──────────────────────────────────
-const INTERVIEW_LESSONS: PathwayLesson[] = [
-  {
-    id: "im-1",
-    type: "lesson",
-    unitId: "interviews",
-    title: "The STAR Method",
-    subtitle: "Results-driven answers",
-    objective: "Structure behavioral answers around Actions and Results.",
-    instructions: ["Spend 50% of your time on the 'Action'."],
-    prompt: "Tell me about a time you handled a significant failure.",
-    durationSeconds: 120,
-    selfReview: ["Was the result quantified?", "Was the action specific?"],
-  },
-  {
-    id: "im-2",
-    type: "lesson",
-    unitId: "interviews",
-    title: "The Weakness Pivot",
-    subtitle: "Authenticity vs Strategy",
-    objective: "Discuss a real weakness and how you're actively fixing it.",
-    instructions: ["Avoid 'perfectionism'. Pick a real skill gap."],
-    prompt: "What is your greatest weakness?",
-    durationSeconds: 90,
-    selfReview: ["Did I sound defensive?", "Was the fix convincing?"],
-  },
-  {
-    id: "im-3",
-    type: "lesson",
-    unitId: "interviews",
-    title: "Cultural Fit Storytelling",
-    subtitle: "Values in action",
-    objective: "Demonstrate you share the company's core values.",
-    instructions: ["Pick a story where you embodied a specific value."],
-    prompt: "Why should we hire you over other candidates?",
-    durationSeconds: 120,
-    selfReview: ["Did I sound like part of the team?", "Was I too arrogant?"],
-  },
-  {
-    id: "im-4",
-    type: "test",
-    unitId: "interviews",
-    title: "The Mock Interview",
-    subtitle: "Final Simulation",
-    objective: "Handle a 3-question sequence without breaking character.",
-    instructions: ["Treat this like the real thing."],
-    prompt: "Answer: (1) Why us? (2) Conflict story. (3) Goal story.",
-    durationSeconds: 180,
-    passScore: 85,
-    selfReview: ["Did I maintain eye contact?", "Were my answers crisp?"],
-  }
-];
-
-// ─── Unit 5: Body Language & Presence ──────────────────────────
-const BODY_LESSONS: PathwayLesson[] = [
-  {
-    id: "bl-1",
-    type: "lesson",
-    unitId: "body",
-    title: "The Silent Signal",
-    subtitle: "Posture and non-verbals",
-    objective: "Master the 'Power Stance' and open body language to signal confidence.",
-    instructions: ["Stand tall, keep hands visible, and avoid crossing arms."],
-    prompt: "Give a 60-second introduction. Focus exclusively on your posture and hand positioning.",
-    durationSeconds: 60,
-    selfReview: ["Were my hands visible?", "Did I look defensive?"],
-  },
-  {
-    id: "bl-2",
-    type: "lesson",
-    unitId: "body",
-    title: "The Eye Contact Pattern",
-    subtitle: "Connecting through the lens",
-    objective: "Learn the 5-second rule for meaningful eye contact.",
-    instructions: ["Look directly at the camera/eyes for 5 seconds per point."],
-    prompt: "Explain a complex concept. Practice switching your 'focus' every two sentences.",
-    durationSeconds: 90,
-    selfReview: ["Did I stare too long?", "Did I look away too much?"],
-  }
-];
-
-// ─── Unit 6: Conflict & Difficult Conversations ────────────────
-const CONFLICT_LESSONS: PathwayLesson[] = [
-  {
-    id: "cc-1",
-    type: "lesson",
-    unitId: "conflict",
-    title: "Delivering Bad News",
-    subtitle: "Empathy with Clarity",
-    objective: "Deliver critical feedback or bad news without damaging the relationship.",
-    instructions: ["Be direct with the news, then follow with a path forward."],
-    prompt: "You have to tell a teammate their part of the project isn't up to standard.",
-    durationSeconds: 90,
-    selfReview: ["Was I too blunt?", "Was the solution clear?"],
-  },
-  {
-    id: "cc-2",
-    type: "lesson",
-    unitId: "conflict",
-    title: "Handling Aggression",
-    subtitle: "The De-escalation Loop",
-    objective: "Stay calm when faced with an aggressive or skeptical questioner.",
-    instructions: ["Lower your volume, slow your tempo, and acknowledge their emotion."],
-    prompt: "Someone just insulted your proposal. Respond calmly and professionally.",
-    durationSeconds: 60,
-    selfReview: ["Did I get defensive?", "Did I maintain my composure?"],
-  }
-];
-
-// ─── Unit 7: Executive Speaking ────────────────────────────────
-const EXECUTIVE_LESSONS: PathwayLesson[] = [
-  {
-    id: "ex-1",
-    type: "lesson",
-    unitId: "executive",
-    title: "The Analogy Bridge",
-    subtitle: "Technical Translation",
-    objective: "Explain a highly technical concept to a non-technical stakeholder.",
-    instructions: ["Use a household object as an analogy for a complex system."],
-    prompt: "Explain how a blockchain or cloud database works to a CEO.",
-    durationSeconds: 90,
-    selfReview: ["Was the analogy accurate?", "Was it simple enough?"],
-  },
-  {
-    id: "ex-2",
-    type: "lesson",
-    unitId: "executive",
-    title: "Data Storytelling",
-    subtitle: "Beyond the Spreadsheet",
-    objective: "Make numbers meaningful by attaching them to a human outcome.",
-    instructions: ["State the number, then state why it matters to a person."],
-    prompt: "Present a 5% increase in efficiency. Why should the team care?",
-    durationSeconds: 60,
-    selfReview: ["Did I focus only on numbers?", "Was the 'why' clear?"],
-  }
-];
-
-// ─── Unit 8: Mastery Capstone ──────────────────────────────────
-const MASTERY_LESSONS: PathwayLesson[] = [
-  {
-    id: "mc-1",
-    type: "test",
-    unitId: "mastery",
-    title: "The Visionary Keynote",
-    subtitle: "The Final Gauntlet",
-    objective: "Combine all skills (Vocal, Rhetoric, Body, Executive) into one masterpiece.",
-    instructions: ["Use a hook, a STAR story, and a clear call to action."],
-    prompt: "Deliver a 3-minute keynote on 'The Future of Human Connection'.",
-    durationSeconds: 180,
-    passScore: 90,
-    selfReview: ["Was this my best work?", "Did I feel truly in command?"],
-  }
-];
-
-export const ALL_LESSONS = [
-  ...VOCAL_LESSONS,
-  ...IMPROMPTU_LESSONS,
-  ...RHETORIC_LESSONS,
-  ...INTERVIEW_LESSONS,
-  ...BODY_LESSONS,
-  ...CONFLICT_LESSONS,
-  ...EXECUTIVE_LESSONS,
-  ...MASTERY_LESSONS,
-];
-
-// Use hex colors for direct style usage
-const BASE_PATHWAY_UNITS: PathwayUnit[] = [
-  { id: "vocal", name: "Vocal Mastery", tagline: "Foundations of Sound", color: "#3B82F6", lessons: VOCAL_LESSONS },
-  { id: "impromptu", name: "Quick Thinking", tagline: "Impromptu Mastery", color: "#F43F5E", lessons: IMPROMPTU_LESSONS },
-  { id: "rhetoric", name: "The Art of Persuasion", tagline: "Rhetoric & Influence", color: "#8B5CF6", lessons: RHETORIC_LESSONS },
-  { id: "interviews", name: "Interview Mastery", tagline: "Professional Stakes", color: "#10B981", lessons: INTERVIEW_LESSONS },
-  { id: "body", name: "The Silent Signal", tagline: "Presence & Body Language", color: "#F59E0B", lessons: BODY_LESSONS },
-  { id: "conflict", name: "High Stakes", tagline: "Conflict & Difficult Talks", color: "#EF4444", lessons: CONFLICT_LESSONS },
-  { id: "executive", name: "Executive Speaking", tagline: "Technical & Data Influence", color: "#06B6D4", lessons: EXECUTIVE_LESSONS },
-  { id: "mastery", name: "Mastery Capstone", tagline: "The Visionary Keynote", color: "#6366F1", lessons: MASTERY_LESSONS },
-];
+export const ALL_LESSONS = CHAPTERS.flatMap(c => c.lessons);
 
 export const usePathway = () => {
   const { user } = useAuth();
-  const [units, setUnits] = useState<PathwayUnit[]>(BASE_PATHWAY_UNITS);
+  const [chapters] = useState<PathwayChapter[]>(CHAPTERS);
   const [progress, setProgress] = useState<Record<string, NodeStatus>>({});
   const [loading, setLoading] = useState(true);
-  const [selection, setSelection] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
 
     const fetchProgress = async () => {
       try {
-        const localSelection = localStorage.getItem(`speakbold_pathway_selection_${user.id}`) || localStorage.getItem("speakbold_pathway_selection");
-        
         const { data, error } = await supabase
           .from("profiles")
-          .select("pathway_progress, pathway_selection, strengths, weaknesses")
+          .select("pathway_progress")
           .eq("id", user.id)
           .single();
 
-        if (error && error.code !== '42703') throw error;
+        if (error && error.code !== "42703") throw error;
 
-        const sel = data?.pathway_selection || localSelection;
-        setSelection(sel);
-
-        let reorderedUnits = [...BASE_PATHWAY_UNITS];
-
-        if (sel === "vocal") {
-          const order: UnitId[] = ["vocal", "impromptu", "body", "rhetoric", "conflict", "interviews", "executive", "mastery"];
-          reorderedUnits = order.map(id => reorderedUnits.find(u => u.id === id)!).filter(Boolean);
-        } else if (sel === "interviews") {
-          const order: UnitId[] = ["interviews", "vocal", "executive", "conflict", "rhetoric", "impromptu", "body", "mastery"];
-          reorderedUnits = order.map(id => reorderedUnits.find(u => u.id === id)!).filter(Boolean);
-        } else if (sel === "impromptu") {
-          const order: UnitId[] = ["impromptu", "vocal", "conflict", "rhetoric", "body", "executive", "interviews", "mastery"];
-          reorderedUnits = order.map(id => reorderedUnits.find(u => u.id === id)!).filter(Boolean);
+        const stored = (data?.pathway_progress as Record<string, NodeStatus>) || {};
+        // Drop any orphaned ids from old pathway content
+        const validIds = new Set(ALL_LESSONS.map(l => l.id));
+        const cleaned: Record<string, NodeStatus> = {};
+        for (const [id, status] of Object.entries(stored)) {
+          if (validIds.has(id)) cleaned[id] = status;
         }
 
-        // --- DYNAMIC CUSTOM PLAN GENERATION ---
-        const weaknesses = (data?.weaknesses as string[]) || [];
-        if (weaknesses.length > 0) {
-          console.log("[Pathway] Generating custom unit for weaknesses:", weaknesses);
-          const customLessons: PathwayLesson[] = [];
-          
-          const mapping: Record<string, PathwayLesson> = {
-            "Filler Words (um, uh)": VOCAL_LESSONS[0],
-            "Speaking Too Fast": VOCAL_LESSONS[2],
-            "Monotone Voice": VOCAL_LESSONS[1],
-            "Freezing Under Pressure": IMPROMPTU_LESSONS[0],
-            "Lack of Eye Contact": BODY_LESSONS[1],
-            "Vague Answers": IMPROMPTU_LESSONS[2]
-          };
-
-          weaknesses.forEach((w, idx) => {
-            if (mapping[w]) {
-              customLessons.push({
-                ...mapping[w],
-                id: `custom-${mapping[w].id}-${idx}`
-              });
-            } else {
-              // Create a generic drill for custom weaknesses
-              customLessons.push({
-                id: `custom-generic-${idx}`,
-                type: "lesson",
-                unitId: "vocal",
-                title: `Mastery: ${w}`,
-                subtitle: "Personalized focus area",
-                objective: `Practice and improve your skills specifically related to: ${w}.`,
-                instructions: [
-                  `Record a 60-second speech on a topic of your choice.`,
-                  `Focus exclusively on improving: ${w}.`,
-                  `Listen back and grade yourself on how well you handled this specific challenge.`
-                ],
-                prompt: `Deliver a 60-second introduction while focusing on: ${w}.`,
-                durationSeconds: 60,
-                selfReview: [`Did I improve on ${w}?`, "Did I feel more confident?"]
-              });
-            }
-          });
-
-          if (customLessons.length > 0) {
-            const customUnit: PathwayUnit = {
-              id: "custom", 
-              name: "Personalized Focus",
-              tagline: "Targeting your unique goals",
-              color: "#F59E0B", 
-              lessons: customLessons,
-            };
-
-            reorderedUnits = [customUnit, ...reorderedUnits];
-          }
-        }
-        // --------------------------------------
-
-        setUnits(reorderedUnits);
-        
-        let currentProgress = (data?.pathway_progress as Record<string, NodeStatus>) || {};
-        
-        // Ensure the first lesson of the entire path is available if not completed
-        if (reorderedUnits.length > 0 && reorderedUnits[0].lessons.length > 0) {
-          const firstId = reorderedUnits[0].lessons[0].id;
-          if (!currentProgress[firstId]) {
-            currentProgress[firstId] = "available";
-          }
+        // Always unlock the first lesson
+        const firstId = CHAPTERS[0].lessons[0].id;
+        if (cleaned[firstId] !== "completed") {
+          cleaned[firstId] = "available";
         }
 
-        console.log("[Pathway] Loaded progress:", currentProgress);
-        setProgress(currentProgress);
+        setProgress(cleaned);
       } catch (err) {
-        console.error("Error fetching progress:", err);
+        console.error("[Pathway] fetch error:", err);
       } finally {
         setLoading(false);
       }
@@ -533,108 +335,76 @@ export const usePathway = () => {
     fetchProgress();
   }, [user]);
 
-  // Sync progress to DB whenever it changes
+  // Sync progress to DB
   useEffect(() => {
     if (!user || loading) return;
-    
-    const syncProgress = async () => {
-      console.log("[Pathway] Syncing progress to DB:", progress);
+    if (Object.keys(progress).length === 0) return;
+
+    const sync = async () => {
       const { error } = await supabase
         .from("profiles")
         .update({ pathway_progress: progress })
         .eq("id", user.id);
-        
-      if (error) {
-        console.error("[Pathway] Progress sync failed:", error);
-      } else {
-        console.log("[Pathway] Progress sync successful");
-      }
+      if (error) console.error("[Pathway] sync error:", error);
     };
-
-    // We only sync if there is actually progress (to avoid overwriting with {} on initial load)
-    if (Object.keys(progress).length > 0) {
-      syncProgress();
-    }
+    sync();
   }, [progress, user, loading]);
 
-  const completeLesson = useCallback((lessonId: string) => {
-    if (!user) return;
+  const getNodeStatus = useCallback(
+    (id: string): NodeStatus => progress[id] || "locked",
+    [progress]
+  );
 
-    setProgress(prev => {
-      const newProgress = { ...prev, [lessonId]: "completed" as NodeStatus };
-      
-      let found = false;
-      for (const unit of units) {
-        for (let i = 0; i < unit.lessons.length; i++) {
-          if (unit.lessons[i].id === lessonId) {
-            // Unlock next lesson in current unit
-            if (i + 1 < unit.lessons.length) {
-              const nextId = unit.lessons[i + 1].id;
-              if (newProgress[nextId] !== "completed") {
-                newProgress[nextId] = "available";
-              }
-            } 
-            // Or unlock first lesson of next unit
-            else {
-              const unitIdx = units.indexOf(unit);
-              if (unitIdx + 1 < units.length) {
-                const nextUnitLessonId = units[unitIdx + 1].lessons[0].id;
-                if (newProgress[nextUnitLessonId] !== "completed") {
-                  newProgress[nextUnitLessonId] = "available";
+  const completeLesson = useCallback(
+    (id: string) => {
+      if (!user) return;
+      setProgress(prev => {
+        const next = { ...prev, [id]: "completed" as NodeStatus };
+        outer: for (const ch of CHAPTERS) {
+          for (let i = 0; i < ch.lessons.length; i++) {
+            if (ch.lessons[i].id === id) {
+              // Unlock next in chapter
+              if (i + 1 < ch.lessons.length) {
+                const nextId = ch.lessons[i + 1].id;
+                if (next[nextId] !== "completed") next[nextId] = "available";
+              } else {
+                // Unlock first lesson of next chapter
+                const chIdx = CHAPTERS.indexOf(ch);
+                if (chIdx + 1 < CHAPTERS.length) {
+                  const nextId = CHAPTERS[chIdx + 1].lessons[0].id;
+                  if (next[nextId] !== "completed") next[nextId] = "available";
                 }
               }
+              break outer;
             }
-            found = true;
-            break;
           }
         }
-        if (found) break;
-      }
+        return next;
+      });
+    },
+    [user]
+  );
 
-      return newProgress;
-    });
-  }, [user, units]);
-
-  const getNodeStatus = useCallback((nodeId: string): NodeStatus => {
-    return progress[nodeId] || "locked";
-  }, [progress]);
-
-  const getAttemptsLeft = useCallback((lessonId: string) => {
-    return 3;
-  }, []);
-
-  const recordAttempt = useCallback((lessonId: string) => {
-    console.log(`[Pathway] Recording attempt for ${lessonId}`);
-  }, []);
-
-  const recordTestScore = useCallback((lessonId: string, score: number) => {
-    if (score >= 70) {
-      completeLesson(lessonId);
-    }
-  }, [completeLesson]);
-
-  const totalLessons = units.reduce((acc, u) => acc + u.lessons.length, 0);
+  const totalLessons = ALL_LESSONS.length;
   const completedLessons = Object.entries(progress)
-    .filter(([_, status]) => status === "completed")
-    .map(([id, _]) => id);
+    .filter(([_, s]) => s === "completed")
+    .map(([id]) => id);
   const completedCount = completedLessons.length;
   const progressPercent = totalLessons > 0 ? Math.round((completedCount / totalLessons) * 100) : 0;
 
+  // state object kept for ProgressReport compatibility
   const state = {
     completedLessons,
-    testScores: {}, 
+    testScores: {} as Record<string, number>,
   };
 
   return {
-    state,
-    units,
+    chapters,
+    units: chapters, // alias for ProgressReport
     loading,
-    selection,
+    state,
     getNodeStatus,
-    getAttemptsLeft,
-    recordAttempt,
     completeLesson,
-    recordTestScore,
     progressPercent,
     completedCount,
     totalLessons,

@@ -5,7 +5,23 @@
       "Bash(node -e \"console.log\\(require\\('./node_modules/@mediapipe/tasks-vision/package.json'\\).version\\)\")",
       "Bash(npx tsc *)",
       "Bash(npm run *)",
-      "Bash(mkdir -p \"C:/Users/One can only ponder/Downloads/speakbold-main/public/mediapipe-wasm\" && cp \"C:/Users/One can only ponder/Downloads/speakbold-main/node_modules/@mediapipe/tasks-vision/wasm/\"* \"C:/Users/One can only ponder/Downloads/speakbold-main/public/mediapipe-wasm/\" && ls \"C:/Users/One can only ponder/Downloads/speakbold-main/public/mediapipe-wasm/\")"
+      "Bash(mkdir -p \"C:/Users/One can only ponder/Downloads/speakbold-main/public/mediapipe-wasm\" && cp \"C:/Users/One can only ponder/Downloads/speakbold-main/node_modules/@mediapipe/tasks-vision/wasm/\"* \"C:/Users/One can only ponder/Downloads/speakbold-main/public/mediapipe-wasm/\" && ls \"C:/Users/One can only ponder/Downloads/speakbold-main/public/mediapipe-wasm/\")",
+      "Bash(grep -r \"onboarding_done\\\\|tutorial_done\" \"C:\\\\Users\\\\One can only ponder\\\\Downloads\\\\speakbold-main\\\\supabase\\\\migrations\" 2>nul)",
+      "Bash(grep -r \"alter.*profiles\" \"C:\\\\Users\\\\One can only ponder\\\\Downloads\\\\speakbold-main\\\\supabase\\\\migrations\" -i 2>nul | head -20)",
+      "Bash(grep -h \"ADD COLUMN\" \"C:\\\\Users\\\\One can only ponder\\\\Downloads\\\\speakbold-main\\\\supabase\\\\migrations\\\\*.sql\" 2>nul | sort)",
+      "Bash(xargs grep -l \"useAuth\\\\|AuthContext\")",
+      "Bash(npx vite *)",
+      "WebSearch",
+      "Bash(cat .env)",
+      "Bash(cat .env.local)",
+      "Bash(git checkout *)",
+      "Bash(supabase --version)",
+      "Bash(npx supabase *)",
+      "Bash(dir \"C:\\\\Users\\\\One can only ponder\\\\Downloads\\\\speakbold-main\\\\supabase\\\\functions\\\\ai-tts\\\\\")",
+      "Bash(node -e \"require\\('./node_modules/mitt/dist/mitt.cjs'\\); console.log\\('mitt ok'\\)\")",
+      "Bash(node -e ' *)",
+      "PowerShell($base = \"C:\\\\Users\\\\One can only ponder\\\\.claude\\\\plugins\\\\cache\\\\ui-ux-pro-max-skill\\\\ui-ux-pro-max\\\\2.5.0\\\\.claude\\\\skills\\\\ui-ux-pro-max\"; python \"$base\\\\scripts\\\\search.py\" \"AI public speaking practice education SaaS premium dark\" --design-system -p \"SpeakBold\")",
+      "PowerShell(Get-ChildItem *)"
     ]
   }
 }

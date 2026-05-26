@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+﻿import { Link } from "react-router-dom";
 import { Briefcase, Sparkles, MessageSquareOff, Users, ArrowUpRight, Target, Zap, Mic, ShieldCheck } from "lucide-react";
 import { motion } from "framer-motion";
 import { useRef } from "react";
@@ -110,10 +110,10 @@ export const PickYourGoal = () => {
               
               <div className="relative z-10 space-y-10">
                 <div className="flex items-start justify-between">
-                  <div className="flex items-center justify-center h-20 w-20 rounded-[1.5rem] bg-background border border-border/50 shadow-sm group-hover:scale-110 group-hover:rotate-3 transition-all duration-500 animate-float" style={{ animationDelay: `${i * 0.5}s`, animationDuration: '6s' }}>
+                  <div className="flex items-center justify-center h-20 w-20 rounded-[1.5rem] bg-background border border-border/50 shadow-sm group-hover:scale-110 group-hover:rotate-3 transition-all duration-500" style={{ animationDelay: `${i * 0.5}s`, animationDuration: '6s' }}>
                     <g.icon className="h-8 w-8 text-foreground group-hover:text-primary transition-colors" strokeWidth={1.5} />
                   </div>
-                  <div className="h-10 w-10 rounded-full border border-border/60 flex items-center justify-center opacity-20 group-hover:opacity-100 group-hover:bg-primary group-hover:border-primary transition-all duration-500">
+                  <div className="h-10 w-10 rounded-full border border-border/60 flex items-center justify-center opacity-20 group-hover:opacity-100 group-hover:bg-primary group-hover:border-primary transition-all duration-500 animate-float">
                     <ArrowUpRight className="h-5 w-5 group-hover:text-white transition-colors" />
                   </div>
                 </div>
@@ -131,7 +131,7 @@ export const PickYourGoal = () => {
                 </div>
 
                 <div className="pt-4">
-                  <div className="inline-flex items-center gap-4 px-8 py-3 rounded-full border border-border/50 text-xs font-black uppercase tracking-widest group-hover:bg-primary group-hover:text-white group-hover:border-primary transition-all duration-500">
+                  <div className="inline-flex items-center gap-4 px-8 py-3 rounded-full border border-border/50 text-xs font-black uppercase tracking-widest group-hover:bg-primary group-hover:text-white group-hover:border-primary transition-all duration-500 animate-float">
                     {g.cta}
                   </div>
                 </div>

@@ -15,7 +15,7 @@ export interface BodyLanguageSession {
 
 export type BodyStatus = "idle" | "loading" | "live" | "recording" | "done" | "error" | "denied";
 
-const DEFAULT_METRICS: BodyMetrics = { posture: 50, eyeContact: 50, expression: 50, gesture: 50, overall: 50 };
+const DEFAULT_METRICS: BodyMetrics = { posture: 0, eyeContact: 0, expression: 0, gesture: 0, overall: 0 };
 
 // WASM served locally from public/mediapipe-wasm (copied from node_modules at install time)
 const WASM_CDN = "/mediapipe-wasm";
@@ -27,7 +27,7 @@ const FACE_MODEL =
 const ROLLING = 20;
 
 function rollingAvg(buf: number[]): number {
-  return buf.length === 0 ? 50 : Math.round(buf.reduce((a, b) => a + b, 0) / buf.length);
+  return buf.length === 0 ? 0 : Math.round(buf.reduce((a, b) => a + b, 0) / buf.length);
 }
 
 function pushRolling(buf: number[], val: number) {
@@ -119,6 +119,7 @@ export function useBodyLanguage() {
   const [error, setError] = useState<string | null>(null);
   const [nudge, setNudge] = useState("");
   const [elapsedMs, setElapsedMs] = useState(0);
+  const [inFrame, setInFrame] = useState(false);
 
   const streamRef = useRef<MediaStream | null>(null);
   const poseLMRef = useRef<any>(null);
@@ -135,6 +136,7 @@ export function useBodyLanguage() {
   const isRecRef = useRef(false);
   const recStartRef = useRef(0);
   const recBufferRef = useRef<BodyMetrics[]>([]);
+  const inFrameRef = useRef(false);
 
   // Store rAF callback in a ref so it always reads latest refs without stale closure issues
   const frameCallbackRef = useRef<(t: number) => void>();
@@ -163,16 +165,26 @@ export function useBodyLanguage() {
       const pLM: any[] = poseR.landmarks?.[0] ?? [];
       const blends: any[] = faceR.faceBlendshapes ?? [];
 
-      const posture = computePosture(pLM);
-      const eyeContact = computeEyeContact(blends);
-      const expression = computeExpression(blends);
-      const gesture = computeGesture(pLM, prevPoseRef.current);
-      if (pLM.length > 0) prevPoseRef.current = pLM;
+      const detected = pLM.length > 0;
+      inFrameRef.current = detected;
 
-      pushRolling(postBuf.current, posture);
-      pushRolling(eyeBuf.current, eyeContact);
-      pushRolling(exprBuf.current, expression);
-      pushRolling(gestBuf.current, gesture);
+      if (!detected) {
+        pushRolling(postBuf.current, 0);
+        pushRolling(eyeBuf.current, 0);
+        pushRolling(exprBuf.current, 0);
+        pushRolling(gestBuf.current, 0);
+      } else {
+        const posture = computePosture(pLM);
+        const eyeContact = computeEyeContact(blends);
+        const expression = computeExpression(blends);
+        const gesture = computeGesture(pLM, prevPoseRef.current);
+        prevPoseRef.current = pLM;
+
+        pushRolling(postBuf.current, posture);
+        pushRolling(eyeBuf.current, eyeContact);
+        pushRolling(exprBuf.current, expression);
+        pushRolling(gestBuf.current, gesture);
+      }
 
       const sm: BodyMetrics = {
         posture: rollingAvg(postBuf.current),
@@ -211,6 +223,7 @@ export function useBodyLanguage() {
     const id = setInterval(() => {
       setLiveMetrics({ ...metricsRef.current });
       setNudge(getNudge(metricsRef.current));
+      setInFrame(inFrameRef.current);
     }, 200);
     return () => clearInterval(id);
   }, []);
@@ -352,6 +365,7 @@ export function useBodyLanguage() {
     nudge,
     error,
     elapsedMs,
+    inFrame,
     activate,
     startRecording,
     stopRecording,

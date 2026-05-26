@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Play, Pause, RotateCcw, Flame, CheckCircle2, Sparkles, ShieldCheck, Target, Microscope, Zap, Clock } from "lucide-react";
 import { useStreak } from "@/hooks/useStreak";

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+﻿import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import {
   Play,
@@ -310,7 +310,6 @@ export const DailyChallenges = () => {
 
       {/* Global Progress */}
       <div className="bg-muted/5 border border-border/50 rounded-[4rem] p-12 space-y-10 relative overflow-hidden shadow-soft">
-        <div className="grain pointer-events-none" />
         <div className="flex items-center justify-between relative z-10">
           <span className="text-xs font-black uppercase tracking-[0.4em] opacity-40">
             {completedCount} OF {DAILY_CHALLENGES.length} CHALLENGES DONE
@@ -348,7 +347,6 @@ export const DailyChallenges = () => {
                 completed ? "border-primary/30 opacity-60" : isActive ? "border-primary shadow-glow shadow-primary/5" : "border-border/60 hover:border-primary/20"
               )}
             >
-              <div className="grain pointer-events-none" />
               
               {/* Challenge Top Bar */}
               <button
@@ -504,7 +502,6 @@ export const DailyChallenges = () => {
 
       {/* Track Upgrade Card */}
       <div className="bg-muted/5 border border-dashed border-primary/40 rounded-[4rem] p-12 md:p-20 relative overflow-hidden group">
-        <div className="grain pointer-events-none" />
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-12 relative z-10">
           <div className="flex items-center gap-8">
             <div className="h-20 w-20 rounded-[2.5rem] bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 group-hover:scale-110 group-hover:rotate-6 transition-all duration-700">

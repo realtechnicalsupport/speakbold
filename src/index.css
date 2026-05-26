@@ -73,7 +73,7 @@
 @layer utilities {
   .font-serif { font-family: "Outfit", sans-serif; }
   .font-sans-bold { font-family: "Plus Jakarta Sans", sans-serif; font-weight: 900; }
-  
+
   .shadow-glow {
     box-shadow: 0 0 20px hsl(var(--primary) / 0.3);
   }
@@ -94,14 +94,14 @@
 
   .bg-grid {
     background-size: 50px 50px;
-    background-image: 
+    background-image:
       linear-gradient(to right, hsl(var(--border) / 0.3) 1px, transparent 1px),
       linear-gradient(to bottom, hsl(var(--border) / 0.3) 1px, transparent 1px);
     mask-image: radial-gradient(ellipse at center, black, transparent 80%);
   }
-  
+
   .dark .bg-grid {
-    background-image: 
+    background-image:
       linear-gradient(to right, hsla(var(--border) / 0.15) 1px, transparent 1px),
       linear-gradient(to bottom, hsla(var(--border) / 0.15) 1px, transparent 1px);
   }
@@ -241,6 +241,16 @@
   animation: drift 100s linear infinite;
 }
 
+/* Respect user's motion preference — disable all animations when requested */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* Optimize mobile performance by disabling heavy animations and flashy effects */
 @media (max-width: 768px) {
   .animate-float,
@@ -250,7 +260,7 @@
     animation: none !important;
     display: none !important;
   }
-  
+
   .bg-waves {
     animation: none !important;
   }

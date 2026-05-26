@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Mic, MessageSquare, Briefcase, BookOpen, Lightbulb, Trophy, Sparkles, ArrowRight, Globe, Users, TrendingUp, ShieldCheck, Target, Zap, GraduationCap, Heart, BarChart3, FileText, CheckCircle2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";

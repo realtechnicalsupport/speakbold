@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { SiteHeader } from "@/components/SiteHeader";
 import { MobileNav } from "@/components/MobileNav";
@@ -195,7 +195,6 @@ const EventDetail = () => {
               {/* Core Momentum Display */}
               <div className="grid lg:grid-cols-[1.5fr_1fr] gap-8">
                 <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="bg-muted/5 border border-border/60 rounded-[4rem] p-12 md:p-20 space-y-16 relative overflow-hidden shadow-soft">
-                  <div className="grain pointer-events-none" />
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-12 relative z-10">
                     <div className="space-y-6">
                       <div className="flex items-center gap-4 text-xs font-black uppercase tracking-[0.5em] text-primary">
@@ -218,7 +217,6 @@ const EventDetail = () => {
                 </motion.div>
 
                 <div className="bg-primary shadow-glow shadow-primary/10 rounded-[4rem] p-12 md:p-16 text-white space-y-12 relative overflow-hidden group">
-                   <div className="grain pointer-events-none" />
                    <div className="absolute top-0 right-0 p-16 opacity-10 group-hover:opacity-20 transition-all duration-1000">
                       <Zap className="h-48 w-48" />
                    </div>
@@ -303,7 +301,6 @@ const EventDetail = () => {
                   ) : (
                     <motion.div key="overview" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="grid md:grid-cols-[1.5fr_1fr] gap-12">
                       <div className="bg-muted/5 border border-border/60 rounded-[4rem] p-12 md:p-20 space-y-10 relative overflow-hidden">
-                        <div className="grain pointer-events-none" />
                         <p className="text-xs font-black uppercase tracking-[0.5em] text-primary">OPERATIONAL BRIEF</p>
                         <p className="speak-serif text-4xl md:text-5xl leading-tight italic opacity-80">"{event.description || 'No strategic overview provided for this event.'}"</p>
                       </div>
@@ -328,7 +325,7 @@ const EventDetail = () => {
 
           {isPast && (
             <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="py-60 text-center space-y-12 border-2 border-dashed border-border/60 rounded-[4rem] relative overflow-hidden">
-              <ArchiveRestore className="h-24 w-24 mx-auto opacity-5 animate-float" />
+              <ArchiveRestore className="h-24 w-24 mx-auto opacity-5" />
               <div className="space-y-4">
                 <p className="speak-serif text-3xl italic opacity-20">Deployment cycle completed.</p>
                 <p className="text-xs font-black uppercase tracking-[0.5em] opacity-40">OPERATIONAL WINDOW CLOSED</p>

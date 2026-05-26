@@ -1,4 +1,4 @@
-import { motion } from "framer-motion";
+﻿import { motion } from "framer-motion";
 import { GraduationCap, Target, Users, TrendingUp, ShieldCheck, Heart } from "lucide-react";
 
 export const WhyItMatters = () => {
@@ -90,7 +90,6 @@ export const WhyItMatters = () => {
               className="absolute inset-0 bg-primary/20 rounded-[4rem] blur-[100px] pointer-events-none" 
             />
             <div className="relative bg-muted/5 border border-border/60 rounded-[4rem] p-12 md:p-20 shadow-soft overflow-hidden text-center space-y-12 backdrop-blur-sm group/card hover:border-primary/40 transition-all duration-700">
-               <div className="grain pointer-events-none" />
                <div className="space-y-4">
                   <p className="text-xs font-black uppercase tracking-[0.6em] text-primary">THE SDG 4 CHALLENGE</p>
                   <blockquote className="speak-serif text-3xl md:text-4xl italic leading-tight tracking-tight group-hover:scale-[1.02] transition-transform duration-700">

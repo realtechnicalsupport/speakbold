@@ -1,17 +1,8 @@
-// Gemini AI Service for generating training content
-
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent";
-
-interface GenerateContentResponse {
-  candidates: {
-    content: {
-      parts: {
-        text: string;
-      }[];
-    };
-  }[];
-}
+// AI Service for generating Lab content.
+// All calls go through the shared multi-provider callAI chain:
+//   OpenRouter (6 free models) → Gemini (3 models) → Groq (2 models)
+// No hardcoded single-provider calls — if one provider is down the rest pick up.
+import { callAI } from "@/services/geminiService";
 
 export interface InterviewQuestion {
   id: string;
@@ -38,44 +29,6 @@ export interface ImpromptuPrompt {
   category: string;
   framework: string;
   frameworkSteps: string[];
-}
-
-async function callGemini(prompt: string): Promise<string> {
-  if (!GEMINI_API_KEY) {
-    throw new Error("Gemini API key not configured");
-  }
-
-  const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      contents: [
-        {
-          parts: [
-            {
-              text: prompt,
-            },
-          ],
-        },
-      ],
-      generationConfig: {
-        temperature: 0.8,
-        topK: 40,
-        topP: 0.95,
-        maxOutputTokens: 2048,
-      },
-    }),
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Gemini API error: ${error}`);
-  }
-
-  const data: GenerateContentResponse = await response.json();
-  return data.candidates[0]?.content?.parts[0]?.text || "";
 }
 
 export async function generateInterviewQuestions(
@@ -105,11 +58,9 @@ Return ONLY a valid JSON array with this exact structure, no markdown or extra t
 Make the questions realistic and commonly asked in professional interviews. Key points should be actionable tips for answering well.`;
 
   try {
-    const response = await callGemini(prompt);
+    const response = await callAI(prompt, 0, 0.8);
     const jsonMatch = response.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) {
-      throw new Error("Invalid response format");
-    }
+    if (!jsonMatch) throw new Error("Invalid response format");
     const questions = JSON.parse(jsonMatch[0]);
     return questions.map((q: Omit<InterviewQuestion, "id">, index: number) => ({
       ...q,
@@ -142,11 +93,9 @@ Return ONLY a valid JSON array with this exact structure, no markdown or extra t
 Make drills practical and focused on real-world speaking scenarios. Duration should be 60, 90, or 120 seconds.`;
 
   try {
-    const response = await callGemini(prompt);
+    const response = await callAI(prompt, 0, 0.8);
     const jsonMatch = response.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) {
-      throw new Error("Invalid response format");
-    }
+    if (!jsonMatch) throw new Error("Invalid response format");
     const drills = JSON.parse(jsonMatch[0]);
     return drills.map((d: Omit<SpeakingDrill, "id">, index: number) => ({
       ...d,
@@ -181,11 +130,9 @@ Return ONLY a valid JSON array with this exact structure, no markdown or extra t
 Topics should be thought-provoking and suitable for 60-90 second impromptu speeches.`;
 
   try {
-    const response = await callGemini(prompt);
+    const response = await callAI(prompt, 0, 0.8);
     const jsonMatch = response.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) {
-      throw new Error("Invalid response format");
-    }
+    if (!jsonMatch) throw new Error("Invalid response format");
     const topics = JSON.parse(jsonMatch[0]);
     return topics.map((t: { topic: string; category: string }, index: number) => {
       const framework = frameworks[index % frameworks.length];
@@ -217,7 +164,7 @@ export async function generateCustomContent(
 Provide helpful, actionable advice or content. Be concise and practical.`;
 
   try {
-    return await callGemini(prompt);
+    return await callAI(prompt, 0, 0.8);
   } catch (error) {
     console.error("Failed to generate custom content:", error);
     throw error;

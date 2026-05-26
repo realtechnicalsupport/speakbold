@@ -1,6 +1,7 @@
-import React, { useEffect, useRef, useState } from "react";
-import { Mic, Square, RotateCcw, AlertCircle, Play, ShieldCheck, Microscope, Zap, Target } from "lucide-react";
+﻿import React, { useEffect, useRef, useState } from "react";
+import { Mic, MicOff, Square, RotateCcw, AlertCircle, Play } from "lucide-react";
 import { useRecorder } from "@/hooks/useRecorder";
+import { useMicPermission } from "@/hooks/useMicPermission";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -24,8 +25,8 @@ interface RecorderPanelProps {
 }
 
 export const RecorderPanel = React.forwardRef(({
-  label = "SENSORY CAPTURE PROTOCOL",
-  hint = "Initialize recording to begin the authority audit. Every syllable is a data point.",
+  label = "Recording",
+  hint = "Hit record when you're ready. Speak naturally — every attempt makes you better.",
   targetSeconds,
   recorderStartRef,
   recorderPauseRef,
@@ -34,7 +35,15 @@ export const RecorderPanel = React.forwardRef(({
   onRecorded,
 }: RecorderPanelProps, ref) => {
   const { state, recording, elapsedMs, error, start, stop, pause, resume, reset } = useRecorder();
+  const { permission, requestPermission } = useMicPermission();
   const externallyControlled = !!(recorderStartRef && recorderPauseRef && recorderResumeRef && recorderStopRef);
+
+  // Pre-request permission on mount for externally-driven recorders (hidden in Arena/Pathway)
+  // so the browser prompt fires before the user hits the start button.
+  useEffect(() => {
+    if (recorderStartRef && permission === "prompt") requestPermission();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const lastReportedRef = useRef<number | null>(null);
   const prevStateRef = useRef<string>("idle");
@@ -61,6 +70,8 @@ export const RecorderPanel = React.forwardRef(({
     if (recording && recording.createdAt !== lastReportedRef.current) {
       lastReportedRef.current = recording.createdAt;
       onRecorded?.({ blob: recording.blob, durationMs: recording.durationMs });
+      // Notify TutorialOverlay that a drill was completed
+      window.dispatchEvent(new CustomEvent("speakbold:drill-complete"));
     }
   }, [recording, onRecorded]);
 
@@ -70,23 +81,29 @@ export const RecorderPanel = React.forwardRef(({
   return (
     <div className="bg-muted/5 rounded-[3rem] border border-border/60 p-10 md:p-16 relative overflow-hidden shadow-soft">
       <div className="grain pointer-events-none" />
+
+      {permission === "denied" && (
+        <div className="mb-8 flex items-center gap-3 p-4 rounded-2xl bg-red-500/8 border border-red-500/20 text-sm text-red-500 relative z-10">
+          <MicOff className="h-4 w-4 shrink-0" />
+          Microphone access is blocked. Enable it in your browser settings to record.
+        </div>
+      )}
       
       <div className="flex flex-col md:flex-row md:items-start justify-between gap-12 relative z-10 mb-16">
-        <div className="space-y-6">
-          <div className="flex items-center gap-4 text-xs font-black uppercase tracking-[0.5em] text-primary">
-            <Microscope className="h-4 w-4" />
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 text-sm font-semibold text-primary">
+            <Mic className="h-4 w-4" />
             {label}
           </div>
-          <p className="speak-serif text-2xl md:text-3xl italic opacity-40 leading-relaxed max-w-lg">{hint}</p>
+          <p className="text-lg md:text-xl opacity-60 leading-relaxed max-w-lg">{hint}</p>
         </div>
-        
+
         <div className="flex flex-col items-end">
-           <div className="speak-serif text-7xl md:text-9xl font-bold tabular-nums tracking-tighter italic leading-none">
+           <div className="text-6xl md:text-7xl font-bold tabular-nums leading-none">
              {formatTime(elapsedMs)}
            </div>
-           <div className="flex items-center gap-2 mt-4 text-[11px] font-black uppercase tracking-[0.3em] opacity-20">
-             <Clock className="h-3 w-3" />
-             ELAPSED PROTOCOL TIME
+           <div className="text-xs font-medium opacity-40 mt-2">
+             Time
            </div>
         </div>
       </div>
@@ -96,24 +113,24 @@ export const RecorderPanel = React.forwardRef(({
           <div className="flex items-center gap-10">
             <AnimatePresence mode="wait">
               {isRecording ? (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-4">
-                  <div className="h-3 w-3 rounded-full bg-primary animate-ping" />
-                  <span className="text-xs font-black uppercase tracking-[0.4em] text-primary">AUDIT IN PROGRESS</span>
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-3">
+                  <div className="h-2.5 w-2.5 rounded-full bg-primary animate-ping" />
+                  <span className="text-sm font-semibold text-primary">Recording…</span>
                 </motion.div>
               ) : isPaused ? (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-4 opacity-40">
-                  <div className="h-3 w-3 rounded-full bg-foreground" />
-                  <span className="text-xs font-black uppercase tracking-[0.4em]">SYSTEM PAUSED</span>
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-3 opacity-60">
+                  <div className="h-2.5 w-2.5 rounded-full bg-foreground" />
+                  <span className="text-sm font-medium">Paused</span>
                 </motion.div>
               ) : recording ? (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-4">
-                  <div className="h-3 w-3 rounded-full bg-primary shadow-glow shadow-primary/20" />
-                  <span className="text-xs font-black uppercase tracking-[0.4em] text-primary opacity-60">ANALYSIS FINALIZED</span>
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-3">
+                  <div className="h-2.5 w-2.5 rounded-full bg-primary" />
+                  <span className="text-sm font-medium text-primary">Done</span>
                 </motion.div>
               ) : (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-4 opacity-20">
-                  <div className="h-3 w-3 rounded-full bg-foreground" />
-                  <span className="text-xs font-black uppercase tracking-[0.4em]">AWAITING EXTERNAL COMMAND</span>
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-3 opacity-40">
+                  <div className="h-2.5 w-2.5 rounded-full bg-foreground" />
+                  <span className="text-sm font-medium">Ready</span>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -121,20 +138,20 @@ export const RecorderPanel = React.forwardRef(({
         ) : (
           <div className="flex flex-wrap items-center gap-10">
             {!isRecording ? (
-              <button 
-                onClick={start} 
-                className="button-pill px-12 py-5 bg-primary text-white shadow-glow group"
+              <button
+                onClick={start}
+                className="button-pill px-10 py-4 bg-primary text-white shadow-glow group"
               >
                 <Mic className="h-5 w-5 group-hover:scale-110 transition-transform" />
-                <span className="text-xs font-black uppercase tracking-[0.2em]">{recording ? "INITIALIZE RE-CAPTURE" : "BEGIN CAPTURE"}</span>
+                <span className="text-sm font-semibold">{recording ? "Record again" : "Start recording"}</span>
               </button>
             ) : (
-              <button 
-                onClick={stop} 
-                className="button-pill bg-white text-primary border-white px-12 py-5 shadow-xl group"
+              <button
+                onClick={stop}
+                className="button-pill bg-white text-primary border-white px-10 py-4 shadow-xl group"
               >
                 <Square className="h-5 w-5 fill-primary group-hover:scale-90 transition-transform" />
-                <span className="text-xs font-black uppercase tracking-[0.2em]">TERMINATE SESSION</span>
+                <span className="text-sm font-semibold">Stop</span>
               </button>
             )}
             {recording && !isRecording && !isPaused && (
@@ -156,8 +173,8 @@ export const RecorderPanel = React.forwardRef(({
         >
           <AlertCircle className="h-6 w-6 text-destructive shrink-0 mt-0.5" />
           <div className="space-y-1">
-             <p className="text-xs font-black uppercase tracking-[0.3em] text-destructive">INTERFACE ERROR</p>
-             <p className="text-sm font-medium opacity-60 leading-relaxed">{error}</p>
+             <p className="text-sm font-semibold text-destructive">Something went wrong</p>
+             <p className="text-sm opacity-70 leading-relaxed">{error}</p>
           </div>
         </motion.div>
       )}
@@ -169,22 +186,15 @@ export const RecorderPanel = React.forwardRef(({
           className="mt-16 pt-16 border-t border-border/60 space-y-12 relative z-10"
         >
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4 text-xs font-black uppercase tracking-[0.4em] text-primary">
+            <div className="flex items-center gap-3 text-sm font-semibold text-primary">
               <Play className="h-4 w-4" fill="currentColor" />
-              ACOUSTIC FEEDBACK
+              Playback
             </div>
-            <span className="speak-serif text-2xl font-bold italic opacity-20 tabular-nums">{formatTime(recording.durationMs)}</span>
+            <span className="text-xl font-bold opacity-40 tabular-nums">{formatTime(recording.durationMs)}</span>
           </div>
-          
-          <div className="bg-muted/10 rounded-[2rem] p-4 border border-border/60 group-hover:border-primary/20 transition-all">
-            <audio controls src={recording.url} className="w-full h-12 filter brightness-75 contrast-125" />
-          </div>
-          
-          <div className="flex justify-center items-center gap-6 opacity-10">
-             <div className="h-[1px] w-12 bg-foreground" />
-             <ShieldCheck className="h-4 w-4" />
-             <span className="text-[11px] font-black uppercase tracking-[0.6em]">SECURE LOCAL ENCRYPTED DATA</span>
-             <div className="h-[1px] w-12 bg-foreground" />
+
+          <div className="bg-muted/10 rounded-2xl p-4 border border-border/60">
+            <audio controls src={recording.url} className="w-full h-12" />
           </div>
         </motion.div>
       )}
@@ -192,8 +202,3 @@ export const RecorderPanel = React.forwardRef(({
   );
 });
 
-const Clock = ({ className }: { className?: string }) => (
-  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-  </svg>
-);

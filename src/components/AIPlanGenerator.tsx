@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Sparkles, X, Brain, Target, Clock as ClockIcon, Zap, ChevronRight, ShieldCheck, Microscope } from "lucide-react";
@@ -87,7 +87,6 @@ export function AIPlanGenerator({ isOpen, onClose, onGenerate, daysUntilEvent, e
         className="relative bg-background border border-border/60 rounded-[3rem] md:rounded-[4rem] shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col mx-4"
       >
         {/* Background Grain & Glow */}
-        <div className="grain pointer-events-none" />
         <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-primary/5 rounded-full blur-[100px] animate-pulse-subtle pointer-events-none" />
 
         {/* Header */}
