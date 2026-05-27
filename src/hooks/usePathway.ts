@@ -2,8 +2,16 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 
-export type NodeStatus = "locked" | "available" | "completed";
-export type NodeType = "lesson" | "test";
+export type NodeStatus = "locked" | "available" | "completed" | "tested-out";
+export type NodeType = "lesson" | "test" | "debate" | "duel";
+export type TierId = "beginner" | "intermediate" | "orator";
+
+export interface PathwayTier {
+  id: TierId;
+  name: string;
+  tagline: string;
+  description: string;
+}
 
 export interface PathwayLesson {
   id: string;
@@ -17,10 +25,15 @@ export interface PathwayLesson {
   durationSeconds: number;
   selfReview: string[];
   passScore?: number;
+  // Arena-backed Orator drills — read when type is "debate" | "duel".
+  gamemode?: "blitz" | "standard" | "debate" | "pitch";
+  stance?: "FOR" | "AGAINST";
+  personaSkill?: string;
 }
 
 export interface PathwayChapter {
   id: string;
+  tier: TierId;
   name: string;
   level: "Beginner" | "Intermediate" | "Advanced";
   tagline: string;
@@ -192,10 +205,10 @@ const CONFIDENT_LESSONS: PathwayLesson[] = [
   },
 ];
 
-// ─── Chapter 4: Take the Stage (Advanced) ───────────────────────
-const STAGE_LESSONS: PathwayLesson[] = [
+// ─── Chapter 4: Think & Persuade (Intermediate) ─────────────────
+const THINK_LESSONS: PathwayLesson[] = [
   {
-    id: "ts-1", type: "lesson", chapterId: "stage",
+    id: "ts-1", type: "lesson", chapterId: "think",
     title: "Quick Thinking", subtitle: "Cold prompt, hot answer",
     objective: "Answer an unfamiliar question with structure under pressure.",
     instructions: [
@@ -206,6 +219,23 @@ const STAGE_LESSONS: PathwayLesson[] = [
     durationSeconds: 75,
     selfReview: ["Did I sound steady?"],
   },
+  {
+    id: "ts-3", type: "lesson", chapterId: "think",
+    title: "Persuade With a Story", subtitle: "Story + fact + ask",
+    objective: "Move someone using a personal story, one piece of evidence, and a clear ask.",
+    instructions: [
+      "Open with a 20-second story.",
+      "Drop one fact or number that backs up your point.",
+      "End with a specific call to action.",
+    ],
+    prompt: "Persuade me to care about something you care about.",
+    durationSeconds: 90,
+    selfReview: ["Did the story land?", "Was the ask specific?"],
+  },
+];
+
+// ─── Chapter 5: Take the Stage (Orator) ─────────────────────────
+const STAGE_LESSONS: PathwayLesson[] = [
   {
     id: "ts-2", type: "lesson", chapterId: "stage",
     title: "Handle the Tough One", subtitle: "Stay calm under fire",
@@ -219,17 +249,52 @@ const STAGE_LESSONS: PathwayLesson[] = [
     selfReview: ["Did I stay composed?"],
   },
   {
-    id: "ts-3", type: "lesson", chapterId: "stage",
-    title: "Persuade With a Story", subtitle: "Story + fact + ask",
-    objective: "Move someone using a personal story, one piece of evidence, and a clear ask.",
+    id: "or-debate-1", type: "debate", chapterId: "stage",
+    title: "Hold Your Ground", subtitle: "Defend a motion vs a live opponent",
+    objective: "Open with a clear claim, then defend it under rebuttal against an AI debater.",
     instructions: [
-      "Open with a 20-second story.",
-      "Drop one fact or number that backs up your point.",
-      "End with a specific call to action.",
+      "Open with one bold, direct claim.",
+      "Back it with two tight reasons.",
+      "In the rebuttal, answer their strongest point head-on.",
     ],
-    prompt: "Persuade me to care about something you care about.",
-    durationSeconds: 90,
-    selfReview: ["Did the story land?", "Was the ask specific?"],
+    prompt: "This house believes everyone should be required to learn public speaking.",
+    stance: "FOR",
+    gamemode: "debate",
+    personaSkill: "Intermediate",
+    durationSeconds: 150,
+    selfReview: ["Did I defend my claim, or just repeat it?"],
+  },
+  {
+    id: "or-debate-2", type: "debate", chapterId: "stage",
+    title: "Take the Harder Side", subtitle: "Argue the unpopular position",
+    objective: "Argue a position you may not personally hold — and make it land.",
+    instructions: [
+      "Steelman your own side before the clock starts.",
+      "Concede nothing without a counter.",
+      "Reframe their strongest point as your opening.",
+    ],
+    prompt: "This house believes social media has done more good than harm.",
+    stance: "AGAINST",
+    gamemode: "debate",
+    personaSkill: "Advanced",
+    durationSeconds: 150,
+    selfReview: ["Did I sound convinced, even on the hard side?"],
+  },
+  {
+    id: "or-debate-3", type: "debate", chapterId: "stage",
+    title: "Beat the Expert", subtitle: "Full debate vs the toughest AI",
+    objective: "Hold your own against an expert-level opponent across opening and rebuttal.",
+    instructions: [
+      "Match their structure, then out-specific them.",
+      "Use one vivid example they can't dismiss.",
+      "Close the rebuttal on your strongest ground, not theirs.",
+    ],
+    prompt: "This house believes ambition matters more than talent.",
+    stance: "FOR",
+    gamemode: "debate",
+    personaSkill: "Expert",
+    durationSeconds: 150,
+    selfReview: ["Did I win the exchange, or just survive it?"],
   },
   {
     id: "ts-4", type: "test", chapterId: "stage",
@@ -247,9 +312,31 @@ const STAGE_LESSONS: PathwayLesson[] = [
   },
 ];
 
+export const TIERS: PathwayTier[] = [
+  {
+    id: "beginner",
+    name: "Beginner",
+    tagline: "Find your voice.",
+    description: "Get comfortable on the mic and learn to organize a thought on demand.",
+  },
+  {
+    id: "intermediate",
+    name: "Intermediate",
+    tagline: "Sharpen your craft.",
+    description: "Drop fillers, vary your voice, think on your feet, and persuade with intent.",
+  },
+  {
+    id: "orator",
+    name: "Orator",
+    tagline: "Command the room.",
+    description: "Go adversarial — handle pressure, debate live opponents, and deliver the keynote.",
+  },
+];
+
 const CHAPTERS: PathwayChapter[] = [
   {
     id: "warmup",
+    tier: "beginner",
     name: "Warm Up",
     level: "Beginner",
     tagline: "Just make some sounds.",
@@ -259,6 +346,7 @@ const CHAPTERS: PathwayChapter[] = [
   },
   {
     id: "clear",
+    tier: "beginner",
     name: "Get Clear",
     level: "Beginner",
     tagline: "Sound organized, on demand.",
@@ -268,6 +356,7 @@ const CHAPTERS: PathwayChapter[] = [
   },
   {
     id: "confident",
+    tier: "intermediate",
     name: "Sound Confident",
     level: "Intermediate",
     tagline: "Like you actually mean it.",
@@ -276,7 +365,18 @@ const CHAPTERS: PathwayChapter[] = [
     lessons: CONFIDENT_LESSONS,
   },
   {
+    id: "think",
+    tier: "intermediate",
+    name: "Think & Persuade",
+    level: "Intermediate",
+    tagline: "Sharp on your feet.",
+    promise: "Answer cold prompts with structure, and move people with story, evidence, and a clear ask.",
+    color: "#EC4899",
+    lessons: THINK_LESSONS,
+  },
+  {
     id: "stage",
+    tier: "orator",
     name: "Take the Stage",
     level: "Advanced",
     tagline: "Command the room.",
@@ -292,6 +392,7 @@ export const usePathway = () => {
   const { user } = useAuth();
   const [chapters] = useState<PathwayChapter[]>(CHAPTERS);
   const [progress, setProgress] = useState<Record<string, NodeStatus>>({});
+  const [drillScores, setDrillScores] = useState<Record<string, number[]>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -304,13 +405,15 @@ export const usePathway = () => {
       try {
         const { data, error } = await supabase
           .from("profiles")
-          .select("pathway_progress")
+          .select("pathway_progress, drill_scores")
           .eq("id", user.id)
           .single();
 
         if (error && error.code !== "42703") throw error;
 
         const stored = (data?.pathway_progress as Record<string, NodeStatus>) || {};
+        const storedScores = (data?.drill_scores as Record<string, number[]>) || {};
+        setDrillScores(storedScores);
         // Drop any orphaned ids from old pathway content
         const validIds = new Set(ALL_LESSONS.map(l => l.id));
         const cleaned: Record<string, NodeStatus> = {};
@@ -318,11 +421,11 @@ export const usePathway = () => {
           if (validIds.has(id)) cleaned[id] = status;
         }
 
-        // Always unlock the first lesson
+        // Unlock the very first lesson only for brand-new users (no stored
+        // progress). Otherwise we'd clobber a placement that tested past it.
         const firstId = CHAPTERS[0].lessons[0].id;
-        if (cleaned[firstId] !== "completed") {
-          cleaned[firstId] = "available";
-        }
+        const hasProgress = Object.values(cleaned).some(s => s !== "locked");
+        if (!hasProgress) cleaned[firstId] = "available";
 
         setProgress(cleaned);
       } catch (err) {
@@ -335,7 +438,7 @@ export const usePathway = () => {
     fetchProgress();
   }, [user]);
 
-  // Sync progress to DB
+  // Sync progress + drill scores to DB
   useEffect(() => {
     if (!user || loading) return;
     if (Object.keys(progress).length === 0) return;
@@ -343,12 +446,12 @@ export const usePathway = () => {
     const sync = async () => {
       const { error } = await supabase
         .from("profiles")
-        .update({ pathway_progress: progress })
+        .update({ pathway_progress: progress, drill_scores: drillScores } as any)
         .eq("id", user.id);
       if (error) console.error("[Pathway] sync error:", error);
     };
     sync();
-  }, [progress, user, loading]);
+  }, [progress, drillScores, user, loading]);
 
   const getNodeStatus = useCallback(
     (id: string): NodeStatus => progress[id] || "locked",
@@ -356,8 +459,11 @@ export const usePathway = () => {
   );
 
   const completeLesson = useCallback(
-    (id: string) => {
+    (id: string, score?: number) => {
       if (!user) return;
+      if (score !== undefined) {
+        setDrillScores(prev => ({ ...prev, [id]: [...(prev[id] ?? []), score] }));
+      }
       setProgress(prev => {
         const next = { ...prev, [id]: "completed" as NodeStatus };
         outer: for (const ch of CHAPTERS) {
@@ -385,6 +491,24 @@ export const usePathway = () => {
     [user]
   );
 
+  // Placement: jump the user to the entry of a tier. Lessons before the entry
+  // become "tested-out" (accessible, replayable, but NOT counted as completed —
+  // keeps the official transcript honest). The entry lesson is unlocked.
+  const applyPlacement = useCallback(
+    (tier: TierId) => {
+      if (!user) return;
+      const firstChapter = CHAPTERS.find(c => c.tier === tier) ?? CHAPTERS[0];
+      const entryId = firstChapter.lessons[0].id;
+      const entryIndex = ALL_LESSONS.findIndex(l => l.id === entryId);
+      const next: Record<string, NodeStatus> = {};
+      ALL_LESSONS.forEach((l, i) => {
+        next[l.id] = i < entryIndex ? "tested-out" : i === entryIndex ? "available" : "locked";
+      });
+      setProgress(next);
+    },
+    [user]
+  );
+
   const totalLessons = ALL_LESSONS.length;
   const completedLessons = Object.entries(progress)
     .filter(([_, s]) => s === "completed")
@@ -403,8 +527,12 @@ export const usePathway = () => {
     units: chapters, // alias for ProgressReport
     loading,
     state,
+    progress,
+    drillScores,
     getNodeStatus,
     completeLesson,
+    applyPlacement,
+    debugSetProgress: setProgress,
     progressPercent,
     completedCount,
     totalLessons,

@@ -17,11 +17,11 @@ export const Progress = () => {
   const topFive = rows.slice(0, 5);
 
   return (
-    <section id="progress" className="container py-32 md:py-60 border-t border-border/60 relative overflow-hidden" ref={ref}>
+    <section id="progress" className="container py-16 md:py-60 border-t border-border/60 relative overflow-hidden" ref={ref}>
       {/* Background Decorative Element */}
       <div className="absolute top-1/2 left-0 w-[500px] h-[500px] bg-primary/5 rounded-full blur-[150px] animate-pulse-subtle pointer-events-none" />
 
-      <div className="grid lg:grid-cols-2 gap-24 items-center relative z-10">
+      <div className="grid lg:grid-cols-2 gap-10 lg:gap-24 items-center relative z-10">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
@@ -31,7 +31,7 @@ export const Progress = () => {
             <span className="h-px w-8 bg-foreground/20" />
             GLOBAL HIERARCHY
           </div>
-          <h2 className="speak-serif text-5xl md:text-8xl leading-[0.9] text-foreground mb-12 tracking-tighter">
+          <h2 className="speak-serif text-4xl md:text-8xl leading-[0.9] text-foreground mb-8 md:mb-12 tracking-tighter">
             See how you <br />
             <span className="text-primary italic">rank</span> globally.
           </h2>
@@ -49,7 +49,7 @@ export const Progress = () => {
           animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 40 }}
           transition={{ duration: 0.8, delay: 0.2 }}
         >
-          <div className="rounded-[3.5rem] border border-border/60 bg-muted/5 overflow-hidden p-8 md:p-14 shadow-soft relative group hover:border-primary/20 transition-all duration-700">
+          <div className="rounded-[2rem] md:rounded-[3.5rem] border border-border/60 bg-muted/5 overflow-hidden p-5 md:p-14 shadow-soft relative group hover:border-primary/20 transition-all duration-700">
              {/* Inner Glow */}
              <div className="absolute top-0 right-0 p-10 opacity-5 group-hover:opacity-10 transition-opacity">
                <Trophy className="h-32 w-32" />

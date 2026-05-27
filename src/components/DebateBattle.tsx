@@ -28,6 +28,7 @@ const getSpeechRecognition = () => {
 
 // ─── Phase machine ───────────────────────────────────────────────────────────
 type DebatePhase =
+  | "prep"
   | "opening-user"
   | "opening-ai"
   | "rebuttal-user"
@@ -36,6 +37,7 @@ type DebatePhase =
   | "results";
 
 const PHASE_CONFIG: Record<DebatePhase, { duration: number; label: string; speaker: "user" | "ai"; round: string; }> = {
+  "prep":          { duration: 5,  label: "GET READY", speaker: "user", round: "PREP" },
   "opening-user":  { duration: 45, label: "OPENING ARGUMENT", speaker: "user", round: "ROUND 1 · 1 of 4" },
   "opening-ai":    { duration: 45, label: "OPPONENT'S OPENING", speaker: "ai",  round: "ROUND 1 · 2 of 4" },
   "rebuttal-user": { duration: 30, label: "YOUR REBUTTAL", speaker: "user", round: "ROUND 2 · 3 of 4" },
@@ -45,8 +47,8 @@ const PHASE_CONFIG: Record<DebatePhase, { duration: number; label: string; speak
 };
 
 // FOR: user opens first; AGAINST: AI (who argues FOR) opens first
-const PHASE_ORDER_FOR: DebatePhase[]     = ["opening-user", "opening-ai", "rebuttal-user", "rebuttal-ai", "judging", "results"];
-const PHASE_ORDER_AGAINST: DebatePhase[] = ["opening-ai", "opening-user", "rebuttal-ai", "rebuttal-user", "judging", "results"];
+const PHASE_ORDER_FOR: DebatePhase[]     = ["prep", "opening-user", "opening-ai", "rebuttal-user", "rebuttal-ai", "judging", "results"];
+const PHASE_ORDER_AGAINST: DebatePhase[] = ["prep", "opening-ai", "opening-user", "rebuttal-ai", "rebuttal-user", "judging", "results"];
 
 interface DebateBattleProps {
   prompt: string;
@@ -100,7 +102,8 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
     _savedPhaseRaw !== null &&
     _savedPhaseRaw in PHASE_CONFIG &&
     _savedPhaseRaw !== "results" &&
-    _savedPhaseRaw !== "judging"
+    _savedPhaseRaw !== "judging" &&
+    _savedPhaseRaw !== "prep"
   );
 
   const [phase, setPhase] = useState<DebatePhase>(
@@ -223,7 +226,7 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
 
   // ── Mark recording state globally for UI border ───────────────────────────
   useEffect(() => {
-    const userTurn = PHASE_CONFIG[phase].speaker === "user" && phase !== "judging" && phase !== "results";
+    const userTurn = PHASE_CONFIG[phase].speaker === "user" && phase !== "judging" && phase !== "results" && phase !== "prep";
     setRecordingActive(userTurn);
     return () => setRecordingActive(false);
   }, [phase]);
@@ -231,7 +234,7 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
   // ── Start user recording when user turn starts ────────────────────────────
   useEffect(() => {
     const cfg = PHASE_CONFIG[phase];
-    if (cfg.speaker === "user" && phase !== "judging" && phase !== "results") {
+    if (cfg.speaker === "user" && phase !== "judging" && phase !== "results" && phase !== "prep") {
       if (!wasRecording.current) {
         recorderStartRef.current?.();
         wasRecording.current = true;
@@ -247,7 +250,7 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
   useEffect(() => {
     if (!speechSupported) return;
     const cfg = PHASE_CONFIG[phase];
-    if (cfg.speaker !== "user" || phase === "judging" || phase === "results") return;
+    if (cfg.speaker !== "user" || phase === "judging" || phase === "results" || phase === "prep") return;
 
     const SpeechRecognition = getSpeechRecognition();
     const recognition = new SpeechRecognition();
@@ -351,7 +354,7 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
   useEffect(() => {
     if (phase === "judging") {
       sfx.judgingStart();
-    } else if (phase !== "results") {
+    } else if (phase !== "results" && phase !== "prep") {
       sfx.phaseStart(PHASE_CONFIG[phase].speaker);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -700,7 +703,7 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
       className="fixed inset-0 z-[60] glass overflow-y-auto overflow-x-hidden scrollbar-hide text-foreground flex flex-col"
     >
       {/* Top progress bar (per phase) */}
-      {!showResults && !showJudging && cfg.duration > 0 && (
+      {!showResults && !showJudging && phase !== "prep" && cfg.duration > 0 && (
         <div className="absolute top-0 left-0 right-0 h-1 bg-muted z-20">
           <motion.div
             className={cn("h-full transition-colors", secondsLeft <= 5 ? "bg-red-500 shadow-[0_0_20px_rgba(239,68,68,0.8)]" : "bg-primary shadow-[0_0_20px_rgba(var(--primary),0.6)]")}
@@ -737,6 +740,44 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
         <p className="text-[10px] lg:text-xs font-semibold text-primary/60 mb-2 lg:mb-3">Topic</p>
         <p className="speak-serif text-lg md:text-3xl italic leading-snug tracking-tight">"{prompt}"</p>
       </div>
+
+      {/* PREP SCREEN */}
+      {phase === "prep" && (
+        <div className="flex-1 flex flex-col items-center justify-center px-4 py-10 gap-8">
+          <div className="text-center space-y-3">
+            <p className="text-[10px] font-black uppercase tracking-widest text-primary/50">Your stance</p>
+            <div className={cn(
+              "inline-flex items-center gap-2 px-5 py-2 rounded-full border text-xs font-black uppercase tracking-widest",
+              userStand === "FOR"
+                ? "text-green-500 border-green-500/30 bg-green-500/10"
+                : "text-red-500 border-red-500/30 bg-red-500/10"
+            )}>
+              {userStand === "FOR" ? "Arguing FOR" : "Arguing AGAINST"}
+            </div>
+          </div>
+
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={secondsLeft}
+              initial={{ scale: 1.5, opacity: 0, y: -8 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.5, opacity: 0, y: 8 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="speak-serif leading-none font-black tabular-nums text-foreground"
+              style={{ fontSize: "9rem" }}
+            >
+              {secondsLeft}
+            </motion.div>
+          </AnimatePresence>
+
+          <button
+            onClick={() => advancePhaseRef.current()}
+            className="button-pill px-8 py-3 bg-primary text-white shadow-glow hover:scale-[1.02] active:scale-95 transition-all text-xs font-black uppercase tracking-widest flex items-center gap-2"
+          >
+            I&apos;m ready <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {/* JUDGING SCREEN */}
       {showJudging && (
@@ -810,7 +851,7 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
       )}
 
       {/* DEBATE STAGE — two podiums */}
-      {!showResults && !showJudging && (
+      {!showResults && !showJudging && phase !== "prep" && (
         <div className="flex-1 px-3 md:px-12 py-3 md:py-6 max-w-6xl mx-auto w-full flex flex-col">
           <div className="grid md:grid-cols-2 gap-3 md:gap-6 flex-1">
             {/* USER PODIUM */}

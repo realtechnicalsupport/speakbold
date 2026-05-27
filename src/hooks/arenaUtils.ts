@@ -34,10 +34,6 @@ export const TIER_SPAN = 200;
 export const RANK_SPAN = TIER_SPAN * 3; // 600
 /** Flat penalty applied when the user self-forfeits. */
 export const FORFEIT_PENALTY = 30;
-/** Bo3 ranked-series multiplier (was 3x in v1; eased to 2x). */
-export const BO3_MULTIPLIER = 2.0;
-/** Legacy alias — older callers still import this name. */
-export const BO3_ELO_MULTIPLIER = BO3_MULTIPLIER;
 
 // ── Rank thresholds ─────────────────────────────────────────────────────────
 // With STARTING_ELO = 1000 a new player begins inside Silver (II).
@@ -152,7 +148,6 @@ export interface EloComputationInput {
   matchesPlayed: number;
   mode: Gamemode;
   isAi?: boolean;
-  bo3?: boolean;
   isTie?: boolean;
   /** "self" = user forfeited; "opponent" = other side forfeited. */
   isForfeit?: "self" | "opponent" | null;
@@ -185,7 +180,7 @@ const LOW_SCORE_PENALTY_CAP = 8; // a sub-30 score loses at most 8 ELO
 export function computeEloChange(input: EloComputationInput): number {
   const {
     myElo, oppElo, myScore, oppScore,
-    matchesPlayed, mode, isAi, bo3, isTie, isForfeit,
+    matchesPlayed, mode, isAi, isTie, isForfeit,
   } = input;
 
   // ── Forfeit short-circuit ─────────────────────────────────────────────
@@ -195,7 +190,7 @@ export function computeEloChange(input: EloComputationInput): number {
     return computeEloChange({
       myElo, oppElo,
       myScore: 80, oppScore: 20,
-      matchesPlayed, mode, isAi, bo3,
+      matchesPlayed, mode, isAi,
     });
   }
 
@@ -226,7 +221,6 @@ export function computeEloChange(input: EloComputationInput): number {
   // ── Multipliers ─────────────────────────────────────────────────────
   delta *= MODE_MULTIPLIERS[mode] ?? 1.0;
   if (isAi) delta *= AI_DAMPING;
-  if (bo3)  delta *= BO3_MULTIPLIER;
 
   // ── Single-match swing cap ──────────────────────────────────────────
   delta = Math.max(-MAX_SINGLE_LOSS, Math.min(MAX_SINGLE_GAIN, delta));
@@ -254,13 +248,12 @@ export function computeEloChange(input: EloComputationInput): number {
 export const estimateEloAtStake = (
   myElo: number,
   oppElo: number = myElo,
-  bo3: boolean = false,
   mode: Gamemode = "standard",
   matchesPlayed: number = PLACEMENT_MATCHES_REQUIRED, // assume past placement by default
 ): number => {
   return Math.max(1, computeEloChange({
     myElo, oppElo,
     myScore: 75, oppScore: 50,
-    matchesPlayed, mode, isAi: false, bo3,
+    matchesPlayed, mode, isAi: false,
   }));
 };

@@ -35,7 +35,7 @@ export const CTA = () => {
       {/* Background Decorative Element */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-primary/5 rounded-full blur-[150px] animate-pulse-subtle pointer-events-none" />
 
-      <div className="container py-40 md:py-60 text-center relative z-10">
+      <div className="container py-20 md:py-60 text-center relative z-10">
         <motion.div
           className="max-w-5xl mx-auto"
           variants={containerVariants}
@@ -48,21 +48,21 @@ export const CTA = () => {
           
           <motion.div variants={itemVariants} className="mb-20 select-none">
              <h2 className="flex flex-col items-center animate-float" style={{ animationDuration: '12s' }}>
-              <span className="font-sans-bold text-6xl md:text-[180px] leading-[0.8] text-foreground">READY</span>
-              <span className="speak-serif text-7xl md:text-[200px] leading-[0.8] text-primary italic translate-y-[-10px] md:translate-y-[-40px]">
+              <span className="font-sans-bold text-[clamp(3.5rem,18vw,180px)] leading-[0.85] text-foreground">READY</span>
+              <span className="speak-serif text-[clamp(4rem,20vw,200px)] leading-[0.8] text-primary italic -translate-y-2 md:-translate-y-10">
                 You?
               </span>
             </h2>
           </motion.div>
 
-          <motion.div variants={itemVariants} className="flex flex-col items-center gap-8">
-            <p className="text-lg md:text-2xl font-medium tracking-tight max-w-xl opacity-60">
+          <motion.div variants={itemVariants} className="flex flex-col items-center gap-6 md:gap-8 px-4 sm:px-0">
+            <p className="text-base md:text-2xl font-medium tracking-tight max-w-xl opacity-60">
               Your next room is waiting. The only difference is how you enter it.
             </p>
-            
-            <Link 
+
+            <Link
               to={user ? "/pathway" : "/login"}
-              className="button-pill px-16 py-5 flex items-center gap-6 group hover:scale-105 transition-transform"
+              className="button-pill w-full sm:w-auto px-10 md:px-16 py-5 flex items-center justify-center gap-6 group hover:scale-105 active:scale-95 transition-transform"
             >
               <span className="text-2xl font-serif animate-pulse-subtle">✱</span>
               <span className="text-sm font-black uppercase tracking-[0.3em]">{user ? "THE JOURNEY" : "ENTER TRAINING"}</span>
@@ -78,7 +78,7 @@ export const CTA = () => {
             <span className="speak-serif text-xl text-foreground">SPEAK</span>
             <span className="bold-sans text-xl">Bold</span>
           </Link>
-          <div className="flex gap-8 text-xs font-bold uppercase tracking-[0.2em] opacity-40">
+          <div className="flex flex-wrap justify-center gap-4 md:gap-8 text-xs font-bold uppercase tracking-[0.2em] opacity-40">
             <Link to="/tracks/public-speaking" className="hover:text-primary transition-colors">Public Speaking</Link>
             <Link to="/tracks/impromptu" className="hover:text-primary transition-colors">Impromptu</Link>
             <Link to="/tracks/interviews" className="hover:text-primary transition-colors">Interviews</Link>

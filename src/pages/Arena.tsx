@@ -11,7 +11,7 @@ import { toast } from "@/hooks/use-toast";
 import { motion, AnimatePresence, animate } from "framer-motion";
 import { cn } from "@/lib/utils";
 import {
-  Swords, Trophy, Zap, Flame, Sparkles, Loader2, Radar, Target, Mic, X, Users, Calendar, Lock, ShieldCheck
+  Swords, Trophy, Zap, Flame, Sparkles, Loader2, Radar, Target, Mic, X, Users, Calendar, Lock, ArrowRight
 } from "lucide-react";
 import { generateArenaPrompt } from "@/services/geminiService";
 import { useSoundEffects } from "@/hooks/useSoundEffects";
@@ -57,7 +57,6 @@ const Arena = () => {
     sessionStorage.setItem("arena_is_creating", isCreating.toString());
   }, [isCreating]);
   const [selectedMode, setSelectedMode] = useState<Gamemode>("standard");
-  const [bo3Enabled, setBo3Enabled] = useState(false); // Phase 3: high-stakes ranked toggle
 
   // Turn-based debate flow (replaces parallel debate in DuelDrill)
   const [debateSetupOpen, setDebateSetupOpen] = useState(false);
@@ -97,7 +96,7 @@ const Arena = () => {
         pendingUpdate.current = { change, newElo };
       } else {
         setEloUpdate({ change, newElo });
-        setTimeout(() => setEloUpdate(null), 5500);
+        setTimeout(() => setEloUpdate(null), 8000);
       }
     };
     arenaEmitter.on("elo:updated", handleEloUpdate);
@@ -229,7 +228,7 @@ const Arena = () => {
   const season = getSeasonInfo();
   // Pre-match preview: pass the selected gamemode + matchesPlayed so the estimate
   // reflects the real mode multiplier and placement K-factor boost.
-  const eloAtStake = estimateEloAtStake(profile.elo, profile.elo, bo3Enabled, selectedMode, matchesPlayed);
+  const eloAtStake = estimateEloAtStake(profile.elo, profile.elo, selectedMode, matchesPlayed);
 
   // Compute current win/loss streak from completedDuels (newest first).
   // Primary source: winner_id column (set by completeDuel / handleForfeit).
@@ -263,8 +262,6 @@ const Arena = () => {
   })();
 
   const handleFindMatch = async (mode: Gamemode) => {
-    // Phase 3: write bo3 flag for ArenaContext.completeDuel to read
-    sessionStorage.setItem("arena_bo3_active", bo3Enabled ? "true" : "false");
     setMatchmaking(true);
     const match = await findMatch(mode);
     setMatchmaking(false);
@@ -441,40 +438,121 @@ const Arena = () => {
         })()}
       </AnimatePresence>
 
-      {/* ── ELO change floating card (minimal) ──────────────────────────── */}
+      {/* ── ELO Result Screen ──────────────────────────────────────────────── */}
       <AnimatePresence>
         {eloUpdate && (() => {
-          const gained  = eloUpdate.change > 0;
-          const lost    = eloUpdate.change < 0;
+          const gained = eloUpdate.change > 0;
+          const lost   = eloUpdate.change < 0;
           const oldRank = getRankFromElo(eloUpdate.newElo - eloUpdate.change);
           const newRank = getRankFromElo(eloUpdate.newElo);
-          const rankChanged = (newRank.name !== oldRank.name || newRank.tier !== oldRank.tier);
+          const rankChanged = newRank.name !== oldRank.name || newRank.tier !== oldRank.tier;
+          const rankUp   = gained && rankChanged;
+          const rankDown = lost   && rankChanged;
+
+          const accent = gained ? "#22c55e" : lost ? "#ef4444" : "#eab308";
 
           return (
             <motion.div
               id="tutorial-elo-update"
-              key="elo-card"
-              initial={{ opacity: 0, x: 40 }}
-              animate={{ opacity: 1, x: 0  }}
-              exit={{   opacity: 0, x: 40 }}
-              transition={{ type: "spring", stiffness: 320, damping: 28 }}
-              className={cn(
-                "fixed bottom-6 right-6 z-[110] pointer-events-none",
-                "rounded-2xl border shadow-xl px-5 py-4",
-                gained ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-100"
-                : lost  ? "bg-red-500/10    border-red-500/40    text-red-100"
-                        : "bg-muted         border-border         text-foreground",
-              )}
+              key="elo-overlay"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.35 }}
+              className="fixed inset-0 z-[110] flex items-center justify-center p-4 cursor-pointer"
+              style={{ backgroundColor: "rgba(0,0,0,0.82)", backdropFilter: "blur(18px)", WebkitBackdropFilter: "blur(18px)" }}
+              onClick={() => setEloUpdate(null)}
             >
-              <div className="text-2xl font-bold tabular-nums leading-tight">
-                {gained ? "+" : ""}{eloUpdate.change} ELO
-              </div>
-              <div className="text-sm opacity-70 tabular-nums">
-                {eloUpdate.newElo - eloUpdate.change} → {eloUpdate.newElo}
+              {/* Ambient radial glow */}
+              <div
+                className="absolute inset-0 pointer-events-none"
+                style={{ background: `radial-gradient(ellipse at center, ${accent}1a 0%, transparent 65%)` }}
+              />
+
+              <motion.div
+                initial={{ scale: 0.82, opacity: 0, y: 32 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.92, opacity: 0 }}
+                transition={{ type: "spring", stiffness: 230, damping: 22 }}
+                onClick={e => e.stopPropagation()}
+                className="relative w-full max-w-sm rounded-[2.5rem] border-2 p-10 flex flex-col items-center text-center overflow-hidden"
+                style={{ borderColor: `${accent}50`, backgroundColor: `${accent}08` }}
+              >
+                {/* Pulsing shimmer */}
+                <motion.div
+                  animate={{ opacity: [0, 0.07, 0] }}
+                  transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+                  className="absolute inset-0 rounded-[2.5rem] pointer-events-none"
+                  style={{ backgroundColor: accent }}
+                />
+
+                {/* VICTORY / DEFEAT / DRAW */}
+                <motion.p
+                  initial={{ opacity: 0, y: -12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.08 }}
+                  className="relative z-10 text-[11px] font-black uppercase tracking-[0.5em] mb-8"
+                  style={{ color: accent }}
+                >
+                  {gained ? "VICTORY" : lost ? "DEFEAT" : "DRAW"}
+                </motion.p>
+
+                {/* Big ELO delta */}
+                <motion.div
+                  initial={{ scale: 0.4, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ delay: 0.14, type: "spring", stiffness: 260, damping: 18 }}
+                  className="relative z-10 speak-serif font-black italic leading-none tabular-nums"
+                  style={{ fontSize: "clamp(5rem, 22vw, 9rem)", color: accent }}
+                >
+                  {gained ? "+" : ""}{eloUpdate.change}
+                </motion.div>
+
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 0.3 }}
+                  transition={{ delay: 0.22 }}
+                  className="relative z-10 text-[10px] font-black uppercase tracking-[0.5em] mt-2 mb-8"
+                >
+                  ELO
+                </motion.p>
+
+                {/* Old → New ELO */}
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.28 }}
+                  className="relative z-10 flex items-center gap-3 text-sm font-black tabular-nums text-foreground/50"
+                >
+                  <span>{eloUpdate.newElo - eloUpdate.change}</span>
+                  <ArrowRight className="h-4 w-4 opacity-30" />
+                  <span style={{ color: accent }}>{eloUpdate.newElo}</span>
+                </motion.div>
+
+                {/* Rank change badge */}
                 {rankChanged && (
-                  <span className="ml-2 opacity-90">· {newRank.name} {newRank.tier}</span>
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.42, type: "spring", stiffness: 300 }}
+                    className="relative z-10 mt-6 px-5 py-2 rounded-full border text-[11px] font-black uppercase tracking-widest"
+                    style={{ borderColor: `${accent}40`, backgroundColor: `${accent}12`, color: accent }}
+                  >
+                    {rankUp ? "↑ Rank Up" : "↓ Rank Down"} · {newRank.name} {newRank.tier}
+                  </motion.div>
                 )}
-              </div>
+
+                {/* Dismiss hint */}
+                <motion.button
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.55 }}
+                  onClick={() => setEloUpdate(null)}
+                  className="relative z-10 mt-10 text-[10px] font-black uppercase tracking-[0.4em] opacity-25 hover:opacity-60 transition-opacity"
+                >
+                  Tap to continue
+                </motion.button>
+              </motion.div>
             </motion.div>
           );
         })()}
@@ -704,54 +782,6 @@ const Arena = () => {
                 ))}
               </div>
 
-              {/* Phase 3: Bo3 / High-stakes ranked toggle */}
-              <motion.button
-                onClick={() => setBo3Enabled(prev => !prev)}
-                whileTap={{ scale: 0.98 }}
-                animate={bo3Enabled ? {
-                  boxShadow: ["0 0 0 0 rgba(245,158,11,0)", "0 0 0 4px rgba(245,158,11,0.12)", "0 0 0 0 rgba(245,158,11,0)"],
-                } : { boxShadow: "0 0 0 0 rgba(0,0,0,0)" }}
-                transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
-                className={cn(
-                  "w-full p-4 rounded-2xl border transition-colors flex items-center justify-between group",
-                  bo3Enabled
-                    ? "bg-amber-500/10 border-amber-500/50 text-amber-600 dark:text-amber-400"
-                    : "bg-background border-border text-foreground/50 hover:border-amber-500/30"
-                )}
-              >
-                <div className="flex items-center gap-3">
-                  <motion.div
-                    animate={bo3Enabled ? { rotate: [0, -8, 8, 0] } : {}}
-                    transition={{ duration: 0.4, ease: "easeOut" }}
-                    className={cn(
-                      "h-9 w-9 rounded-xl flex items-center justify-center transition-colors",
-                      bo3Enabled ? "bg-amber-500 text-white" : "bg-muted/30"
-                    )}
-                  >
-                    <ShieldCheck className="h-4 w-4" />
-                  </motion.div>
-                  <div className="text-left">
-                    <p className="text-xs font-black uppercase tracking-[0.3em]">
-                      BO3 RANKED SERIES
-                    </p>
-                    <p className="text-[10px] font-medium opacity-60 mt-0.5">
-                      Triple ELO at stake · For confident climbers
-                    </p>
-                  </div>
-                </div>
-                <div className={cn(
-                  "h-5 w-9 rounded-full transition-colors relative",
-                  bo3Enabled ? "bg-amber-500" : "bg-muted"
-                )}>
-                  <motion.div
-                    layout
-                    className="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow"
-                    animate={{ left: bo3Enabled ? 18 : 2, scale: bo3Enabled ? [1, 1.25, 1] : [1, 1.25, 1] }}
-                    transition={{ left: { type: "spring", stiffness: 500, damping: 30 }, scale: { duration: 0.25 } }}
-                  />
-                </div>
-              </motion.button>
-
               {/* ELO at stake indicator */}
               {!inPlacement && (
                 <div className="flex items-center justify-between px-2">
@@ -760,19 +790,6 @@ const Arena = () => {
                     <span className="text-green-500">+<AnimatedNumber value={eloAtStake} /></span>
                     <span className="opacity-20">/</span>
                     <span className="text-red-500">−<AnimatedNumber value={eloAtStake} /></span>
-                    <AnimatePresence>
-                      {bo3Enabled && (
-                        <motion.span
-                          initial={{ opacity: 0, x: -8, scale: 0.8 }}
-                          animate={{ opacity: 1, x: 0, scale: 1 }}
-                          exit={{ opacity: 0, x: -8, scale: 0.8 }}
-                          transition={{ type: "spring", stiffness: 500, damping: 25 }}
-                          className="text-amber-500 text-[10px] uppercase tracking-widest"
-                        >
-                          ·BO3 STAKES
-                        </motion.span>
-                      )}
-                    </AnimatePresence>
                   </div>
                 </div>
               )}
@@ -1101,7 +1118,6 @@ const Arena = () => {
                     score: null,
                     persona,
                   };
-                  sessionStorage.setItem("arena_bo3_active", bo3Enabled ? "true" : "false");
                   setDebateConfig({ prompt: draftPrompt.trim(), stand: draftStand, opponent });
                   setDebateSetupOpen(false);
                 }}

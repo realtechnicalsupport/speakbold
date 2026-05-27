@@ -10,6 +10,7 @@ import {
   Dialog,
 } from "@/components/ui/dialog";
 import type { RecordingFeedback } from "@/integrations/supabase/types";
+import { FEEDBACK_SAVED_EVENT } from "@/hooks/useSkillProfile";
 
 const DialogContentWithoutClose = ({ className, children, ...props }: React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>) => (
   <DialogPrimitive.Portal>
@@ -100,6 +101,8 @@ export const RecordingFeedbackModal = ({ recordingId, trigger, onScoreCalculated
         const fb = data.feedback;
         const overallScore = fb.scores?.overall || Object.values(fb.scores || {}).reduce((a: any, b: any) => a + b, 0) / (Object.keys(fb.scores || {}).length || 1);
         if (onScoreCalculated) onScoreCalculated(Math.round(overallScore));
+        // New analysis changes the skill profile — notify the adaptive plan to recompute.
+        if (!data.cached) window.dispatchEvent(new Event(FEEDBACK_SAVED_EVENT));
         toast.success(data.cached ? "Audit Result Retrieved" : "Analysis Protocol Complete");
       } else if (data?.error) {
         toast.error(data.error);

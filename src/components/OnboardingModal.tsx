@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+﻿import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -119,16 +119,27 @@ export const OnboardingModal = () => {
   const [selectedStrengths, setSelectedStrengths] = useState<string[]>([]);
   const [selectedWeaknesses, setSelectedWeaknesses] = useState<string[]>([]);
 
+  // Tracks whether the user has already dismissed this session — prevents the
+  // modal from popping back up if Supabase fires a new auth event (session
+  // object churn) while the DB write / status-refresh is still in flight.
+  const dismissedRef = useRef(false);
+
   useEffect(() => {
     if (!user) { setVisible(false); return; }
     if (statusLoading) return;
+    // Once dismissed this session, never re-show (even if onboardingDone
+    // hasn't propagated yet due to a concurrent auth-state change).
+    if (dismissedRef.current) { setVisible(false); return; }
     if (!onboardingDone) {
       const timer = setTimeout(() => setVisible(true), 1200);
       return () => clearTimeout(timer);
     } else {
       setVisible(false);
     }
-  }, [user, onboardingDone, statusLoading]);
+  // Use user?.id (a primitive) instead of the user object so that session
+  // object churn from Supabase token events doesn't spuriously re-run the
+  // effect and restart the show-timer while onboardingDone is still false.
+  }, [user?.id, onboardingDone, statusLoading]);
 
   const markDoneInDB = async (goalSelection?: string) => {
     if (!user) return;
@@ -148,14 +159,20 @@ export const OnboardingModal = () => {
   };
 
   const dismiss = async () => {
-    await markDoneInDB();
+    // Mark dismissed immediately — before any async work — so the effect
+    // guard fires even if an auth event races the DB write.
+    dismissedRef.current = true;
     setVisible(false);
+    await markDoneInDB();
   };
 
   const selectGoal = async (id: string) => {
-    await markDoneInDB(id);
+    dismissedRef.current = true;
     setVisible(false);
     navigate("/pathway");
+    // DB write happens after navigation; OnboardingModal stays mounted
+    // outside <Routes> so this is safe.
+    await markDoneInDB(id);
   };
 
   if (!user) return null;
