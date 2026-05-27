@@ -8,6 +8,7 @@ import { useSyncedStreak, useRecordings } from "@/hooks/useRecordings";
 import { useMyXp } from "@/hooks/useLeaderboard";
 import { cn } from "@/lib/utils";
 import { DailyChallenges } from "@/components/DailyChallenges";
+import { TailoredPlanCard } from "@/components/TailoredPlanCard";
 
 type Challenge = {
   id: string;
@@ -170,6 +171,9 @@ const Profile = () => {
             </div>
           ))}
         </div>
+
+        {/* ── Tailored plan (performance-based) ── */}
+        <TailoredPlanCard />
 
         {/* ── Tabs ── */}
         <Tabs defaultValue="daily" className="w-full">

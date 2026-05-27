@@ -1,4 +1,12 @@
 import { supabase } from "@/integrations/supabase/client";
+import {
+  DIMENSION_LABELS,
+  DIMENSION_TRACK,
+  type AdaptiveDrill,
+  type AdaptivePlan,
+  type Dimension,
+  type SkillProfile,
+} from "@/lib/skillProfile";
 
 // ─── Keys (add to .env to unlock each provider) ────────────────────────────
 const GEMINI_API_KEY   = import.meta.env.VITE_GEMINI_API_KEY      || "";
@@ -726,4 +734,117 @@ export async function speakWithDeepgramTTS(
   const { audioBase64, mimeType } = await res.json() as { audioBase64: string; mimeType: string };
   const audio = new Audio(`data:${mimeType};base64,${audioBase64}`);
   return audio;
+}
+
+// ─── ADAPTIVE PLAN ───────────────────────────────────────────────────────────
+
+const ALL_DIMENSIONS = Object.keys(DIMENSION_LABELS) as Dimension[];
+
+/** Attach track routing + label to a drill, validating the AI's dimension choice. */
+function hydrateDrill(raw: any, fallback: Dimension): AdaptiveDrill {
+  const dim: Dimension = ALL_DIMENSIONS.includes(raw?.targetDimension) ? raw.targetDimension : fallback;
+  const route = DIMENSION_TRACK[dim];
+  return {
+    title: String(raw?.title ?? "Practice drill").slice(0, 60),
+    prompt: String(raw?.prompt ?? "").trim() || "Speak for 60 seconds on a topic of your choice.",
+    targetDimension: dim,
+    targetLabel: DIMENSION_LABELS[dim],
+    track: route.track,
+    trackUrl: route.url,
+    durationSeconds: Math.min(180, Math.max(30, Number(raw?.durationSeconds) || 60)),
+    rationale: String(raw?.rationale ?? "").slice(0, 160),
+  };
+}
+
+/** Deterministic fallback plan used when the AI call fails or returns garbage. */
+function fallbackPlan(profile: SkillProfile): AdaptivePlan {
+  const focus = profile.weakest[0] ?? null;
+  const focusLabel = focus ? DIMENSION_LABELS[focus] : "Your foundations";
+  const targets = profile.weakest.length ? profile.weakest : (["confidence", "structure"] as Dimension[]);
+  const drills: AdaptiveDrill[] = targets.slice(0, 2).flatMap((dim) => [
+    hydrateDrill(
+      { title: `${DIMENSION_LABELS[dim]} warm-up`, prompt: "Introduce yourself and your topic in 60 seconds.", targetDimension: dim, durationSeconds: 60, rationale: `Targets your ${DIMENSION_LABELS[dim].toLowerCase()}.` },
+      dim
+    ),
+    hydrateDrill(
+      { title: `${DIMENSION_LABELS[dim]} push`, prompt: "Argue one side of: remote work is better than office work.", targetDimension: dim, durationSeconds: 90, rationale: `Stretches your ${DIMENSION_LABELS[dim].toLowerCase()} under pressure.` },
+      dim
+    ),
+  ]);
+  return {
+    focusDimension: focus,
+    focusLabel,
+    headline: focus ? `Build your ${focusLabel.toLowerCase()}` : "Build your foundations",
+    rationale: profile.coldStart
+      ? "Record a few drills so we can measure your skills — here's a starter set in the meantime."
+      : `Your ${focusLabel.toLowerCase()} is your lowest-scoring skill right now. These drills target it directly.`,
+    drills,
+    generatedAt: new Date().toISOString(),
+    basedOnCount: profile.basedOnCount,
+  };
+}
+
+/**
+ * Generate a performance-tailored practice plan from a computed SkillProfile.
+ * Targets the user's weakest dimensions; track routing is applied in code
+ * (not trusted to the AI). Falls back to a deterministic plan on any failure.
+ */
+export async function generateAdaptivePlan(profile: SkillProfile): Promise<AdaptivePlan> {
+  const focus = profile.weakest[0] ?? null;
+  const focusLabel = focus ? DIMENSION_LABELS[focus] : "Your foundations";
+
+  const scoreLines = profile.dimensions
+    .filter((d) => d.sampleCount > 0)
+    .map((d) => `- ${d.label}: ${d.average}/100 (${d.trend})`)
+    .join("\n");
+
+  const weakLabels = profile.weakest.map((d) => DIMENSION_LABELS[d]).join(", ") || "general fundamentals";
+
+  const prompt = `You are an expert speaking coach building a targeted practice plan.
+
+${profile.coldStart
+    ? `The student is new — limited measured data. Their self-identified focus areas: ${weakLabels}.`
+    : `The student's measured skill profile (0-100 per dimension, recent trend):\n${scoreLines}`}
+
+PRIORITY: improve their weakest skills: ${weakLabels}.
+
+Generate exactly 4 short practice drills that specifically target these weak areas. Each drill must be a concrete speaking prompt the student records an answer to in under 2 minutes.
+
+Return JSON ONLY:
+{
+  "headline": "punchy headline naming the #1 focus (max 6 words)",
+  "rationale": "2 sentences addressed to the student explaining what to work on and why, referencing their scores",
+  "drills": [
+    {
+      "title": "3-5 word title",
+      "prompt": "the actual speaking prompt to practice",
+      "targetDimension": "one of: content_quality | structure | clarity | pace | delivery | confidence",
+      "durationSeconds": 60,
+      "rationale": "1 short sentence: why this drill helps"
+    }
+  ]
+}`;
+
+  try {
+    const result = await callAI(prompt, 0, 0.7);
+    const jsonMatch = result.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return fallbackPlan(profile);
+    const parsed = JSON.parse(jsonMatch[0]);
+    const drills: AdaptiveDrill[] = Array.isArray(parsed.drills)
+      ? parsed.drills.slice(0, 5).map((d: any) => hydrateDrill(d, focus ?? "confidence"))
+      : [];
+    if (drills.length === 0) return fallbackPlan(profile);
+    return {
+      focusDimension: focus,
+      focusLabel,
+      headline: String(parsed.headline ?? `Build your ${focusLabel.toLowerCase()}`).slice(0, 60),
+      rationale: String(parsed.rationale ?? "").slice(0, 320) || fallbackPlan(profile).rationale,
+      drills,
+      generatedAt: new Date().toISOString(),
+      basedOnCount: profile.basedOnCount,
+    };
+  } catch (err) {
+    console.error("[generateAdaptivePlan] error", err);
+    return fallbackPlan(profile);
+  }
 }

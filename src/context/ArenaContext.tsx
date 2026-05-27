@@ -345,10 +345,6 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const myElo = profile.elo ?? STARTING_ELO;
     const oppElo = isChallenger ? (duelObj.creator.elo ?? STARTING_ELO) : (duelObj.challenger?.elo ?? STARTING_ELO);
 
-    // Bo3 ranked series doubles ELO swing (v2: down from 3x). Flag set in Arena.tsx via sessionStorage.
-    const bo3Active = sessionStorage.getItem("arena_bo3_active") === "true";
-    if (bo3Active) sessionStorage.removeItem("arena_bo3_active");
-
     // Custom solo sessions and ties don't move ELO.
     // Ties are "not counted" — no W/L change and no rating movement.
     const eloChange = (isCustom || tie) ? 0 : computeEloChange({
@@ -359,7 +355,6 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       matchesPlayed: profile.wins + profile.losses,
       mode: duelObj.gamemode,
       isAi: isAI,
-      bo3: bo3Active,
       isTie: false,
     });
 

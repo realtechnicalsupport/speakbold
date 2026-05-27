@@ -109,13 +109,13 @@ export const ImpactBanner = () => {
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
         transition={{ duration: 0.8 }}
-        className="text-center mb-16 space-y-4"
+        className="text-center mb-8 md:mb-16 space-y-3 md:space-y-4"
       >
         <div className="inline-flex items-center gap-3 text-xs font-black uppercase tracking-[0.6em] text-primary">
           <div className="h-1.5 w-1.5 rounded-full bg-primary animate-ping" />
           SDG 4 · LIVE PLATFORM IMPACT
         </div>
-        <h2 className="speak-serif text-4xl md:text-6xl tracking-tighter leading-none">
+        <h2 className="speak-serif text-3xl md:text-6xl tracking-tighter leading-none">
           Real learners. <span className="text-primary italic">Real growth.</span>
         </h2>
         <p className="text-sm font-medium opacity-40 max-w-lg mx-auto leading-relaxed">
@@ -124,7 +124,7 @@ export const ImpactBanner = () => {
       </motion.div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-6xl mx-auto">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6 max-w-6xl mx-auto">
         {metrics.map((metric, i) => {
           const Icon = metric.icon;
           return (
@@ -134,18 +134,18 @@ export const ImpactBanner = () => {
               whileInView={{ opacity: 1, scale: 1 }}
               viewport={{ once: true }}
               transition={{ delay: i * 0.1, duration: 0.6, type: "spring" }}
-              className="group relative bg-muted/5 border border-border/60 rounded-[2rem] p-8 text-center space-y-4 hover:border-primary/30 transition-all duration-700 overflow-hidden"
+              className="group relative bg-muted/5 border border-border/60 rounded-[1.5rem] md:rounded-[2rem] p-5 md:p-8 text-center space-y-3 md:space-y-4 hover:border-primary/30 transition-all duration-700 overflow-hidden"
             >
               {/* Icon */}
-              <div className={`h-14 w-14 rounded-[1rem] ${metric.bg} ${metric.color} flex items-center justify-center mx-auto`}>
-                <Icon className="h-7 w-7" />
+              <div className={`h-10 w-10 md:h-14 md:w-14 rounded-[0.75rem] md:rounded-[1rem] ${metric.bg} ${metric.color} flex items-center justify-center mx-auto`}>
+                <Icon className="h-5 w-5 md:h-7 md:w-7" />
               </div>
               {/* Animated number */}
-              <div className={`speak-serif text-4xl md:text-5xl font-bold italic ${metric.color} tabular-nums leading-none`}>
+              <div className={`speak-serif text-3xl md:text-5xl font-bold italic ${metric.color} tabular-nums leading-none`}>
                 <AnimatedNumber value={metric.value} suffix={metric.suffix} />
               </div>
               {/* Label */}
-              <p className="text-[11px] font-black uppercase tracking-[0.3em] opacity-30 leading-snug group-hover:opacity-60 transition-opacity">
+              <p className="text-[10px] md:text-[11px] font-black uppercase tracking-[0.2em] md:tracking-[0.3em] opacity-30 leading-snug group-hover:opacity-60 transition-opacity">
                 {metric.label}
               </p>
             </motion.div>

@@ -1,6 +1,7 @@
-﻿import { useState, useRef, useEffect, useMemo } from "react";
+﻿import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { usePathway, type PathwayLesson, type NodeStatus, type PathwayChapter } from "@/hooks/usePathway";
+import { usePathway, TIERS, ALL_LESSONS, type PathwayLesson, type NodeStatus, type PathwayChapter, type PathwayTier, type TierId } from "@/hooks/usePathway";
+import { PlacementTest } from "@/components/PlacementTest";
 import { SiteHeader } from "@/components/SiteHeader";
 import { RecorderPanel } from "@/components/RecorderPanel";
 import { useRecordings, useSyncedStreak } from "@/hooks/useRecordings";
@@ -9,14 +10,55 @@ import { toast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import {
-  Check, Lock, Trophy, Play, RotateCcw, Mic, MicOff,
+  Check, Lock, Trophy, Play, Pause, RotateCcw, Mic, MicOff,
   ArrowLeft, ShieldCheck, Target, Sparkles,
-  Award, Brain, ChevronRight, ArrowRight, Flame, Clock
+  Award, Brain, ChevronDown, ChevronRight, ArrowRight, Flame, Clock, Swords, Volume2
 } from "lucide-react";
-import { transcribeAudio, judgePathwayDrill } from "@/services/geminiService";
+import { transcribeAudio, judgePathwayDrill, speakWithDeepgramTTS } from "@/services/geminiService";
+import { DebateBattle } from "@/components/DebateBattle";
+import { useArena, AI_PERSONAS } from "@/hooks/useArena";
+import { STARTING_ELO } from "@/hooks/arenaUtils";
+
+/** Build an AI opponent for an Orator debate drill from its personaSkill. */
+const makeDebateOpponent = (personaSkill?: string): any => {
+  const persona = AI_PERSONAS.find(p => p.skill === personaSkill) ?? AI_PERSONAS[1];
+  return {
+    id: "ai",
+    name: `${persona.name} (AI)`,
+    avatar: persona.avatar,
+    rank: { name: "Adaptive", tier: "AI" },
+    elo: 0,
+    score: null,
+    persona,
+  };
+};
 
 /* ── Helpers ────────────────────────────────────────────── */
 const formatSeconds = (s: number) => s < 60 ? `${s} sec` : `${Math.round(s / 60 * 10) / 10} min`;
+
+/* ── Score sparkline ─────────────────────────────────────── */
+const Sparkline = ({ scores }: { scores: number[] }) => {
+  const pts = scores.slice(-6);
+  if (pts.length < 2) return null;
+  const lo = Math.min(...pts), hi = Math.max(...pts);
+  const span = (hi - lo) || 10;
+  const W = 52, H = 14;
+  const path = pts.map((s, i) => {
+    const x = (i / (pts.length - 1)) * W;
+    const y = H - 1 - ((s - lo) / span) * (H - 2);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+  const delta = pts[pts.length - 1] - pts[0];
+  const stroke = delta > 4 ? "#22c55e" : delta < -4 ? "#f87171" : "hsl(var(--primary))";
+  return (
+    <div className="flex items-center gap-1.5 mt-1">
+      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="opacity-60">
+        <polyline points={path} fill="none" stroke={stroke} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      <span className="text-[9px] font-black tabular-nums opacity-50">{pts[pts.length - 1]}</span>
+    </div>
+  );
+};
 
 const zigzagOffset = (i: number) => {
   // Gentle left-center-right-center pattern; small enough to read cleanly on mobile
@@ -26,16 +68,19 @@ const zigzagOffset = (i: number) => {
 
 /* ── Drill Node (chunky Duolingo-style button) ──────────── */
 const DrillNode = ({
-  lesson, status, index, chapterColor, isCurrent, onClick
+  lesson, status, index, chapterColor, isCurrent, scoreHistory, onClick
 }: {
   lesson: PathwayLesson;
   status: NodeStatus;
   index: number;
   chapterColor: string;
   isCurrent: boolean;
+  scoreHistory: number[];
   onClick: () => void;
 }) => {
   const isTest = lesson.type === "test";
+  const isBattle = lesson.type === "debate" || lesson.type === "duel";
+  const isTestedOut = status === "tested-out";
 
   return (
     <motion.div
@@ -79,6 +124,7 @@ const DrillNode = ({
           status === "locked"
             ? "bg-muted/20 text-muted-foreground border-b-[8px] border-black/5 cursor-not-allowed"
             : "border-b-[8px] border-black/25 shadow-xl hover:brightness-110 active:border-b-0 active:translate-y-[8px]",
+          isTestedOut && "opacity-50",
           isCurrent && "ring-4 ring-primary/30"
         )}
         style={{
@@ -87,10 +133,12 @@ const DrillNode = ({
         }}
       >
         <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
-        {status === "completed" ? (
+        {status === "completed" || isTestedOut ? (
           <Check className={cn("stroke-[4] relative z-10", isTest ? "h-10 w-10" : "h-8 w-8")} />
         ) : status === "locked" ? (
           <Lock className={cn("stroke-[3] relative z-10", isTest ? "h-8 w-8" : "h-6 w-6")} />
+        ) : isBattle ? (
+          <Swords className="h-9 w-9 stroke-[3] relative z-10" />
         ) : isTest ? (
           <Trophy className="h-10 w-10 stroke-[3] relative z-10" />
         ) : (
@@ -104,7 +152,7 @@ const DrillNode = ({
         status === "locked" ? "opacity-30" : "opacity-100"
       )}>
         <p className="text-[9px] font-black uppercase tracking-[0.3em] text-primary mb-1">
-          {isTest ? "MILESTONE" : `DRILL ${index + 1}`}
+          {isTestedOut ? "TESTED PAST" : isBattle ? "BATTLE" : isTest ? "MILESTONE" : `DRILL ${index + 1}`}
         </p>
         <h3 className="speak-serif text-base md:text-lg tracking-tight leading-tight">
           {lesson.title}
@@ -113,6 +161,11 @@ const DrillNode = ({
           <Clock className="h-3 w-3" />
           {formatSeconds(lesson.durationSeconds)}
         </div>
+        {status === "completed" && scoreHistory.length >= 2 && (
+          <div className="flex justify-center">
+            <Sparkline scores={scoreHistory} />
+          </div>
+        )}
       </div>
     </motion.div>
   );
@@ -120,7 +173,7 @@ const DrillNode = ({
 
 /* ── Chapter Card (current/completed = expanded with nodes) ─ */
 const ChapterCard = ({
-  chapter, index, isCurrent, isComplete, isLocked, currentDrillId, getNodeStatus, onNodeClick
+  chapter, index, isCurrent, isComplete, isLocked, currentDrillId, getNodeStatus, getScoreHistory, onNodeClick
 }: {
   chapter: PathwayChapter;
   index: number;
@@ -129,9 +182,15 @@ const ChapterCard = ({
   isLocked: boolean;
   currentDrillId: string | null;
   getNodeStatus: (id: string) => NodeStatus;
+  getScoreHistory: (id: string) => number[];
   onNodeClick: (lesson: PathwayLesson) => void;
 }) => {
-  const completed = chapter.lessons.filter(l => getNodeStatus(l.id) === "completed").length;
+  const [collapsed, setCollapsed] = useState(isComplete);
+
+  const completed = chapter.lessons.filter(l => {
+    const s = getNodeStatus(l.id);
+    return s === "completed" || s === "tested-out";
+  }).length;
   const total = chapter.lessons.length;
   const pct = Math.round((completed / total) * 100);
   const totalSeconds = chapter.lessons.reduce((s, l) => s + l.durationSeconds, 0);
@@ -151,9 +210,10 @@ const ChapterCard = ({
           isLocked
             ? "bg-muted/5 border-border/40 opacity-60"
             : isComplete
-            ? "bg-primary/5 border-primary/30"
+            ? "bg-primary/5 border-primary/30 cursor-pointer select-none hover:border-primary/50"
             : "bg-muted/5 border-border/60"
         )}
+        onClick={isComplete ? () => setCollapsed(c => !c) : undefined}
       >
         {!isLocked && (
           <div
@@ -187,8 +247,11 @@ const ChapterCard = ({
                 CHAPTER {index + 1} · {chapter.level.toUpperCase()}
               </p>
               {isComplete && (
-                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-primary px-2 py-0.5 rounded-full bg-primary/10 border border-primary/20">
+                <span className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.3em] text-primary px-2 py-0.5 rounded-full bg-primary/10 border border-primary/20">
                   ✓ DONE
+                  <motion.div animate={{ rotate: collapsed ? 0 : 180 }} transition={{ duration: 0.25 }}>
+                    <ChevronDown className="h-3 w-3" />
+                  </motion.div>
                 </span>
               )}
             </div>
@@ -229,35 +292,47 @@ const ChapterCard = ({
         </div>
       </div>
 
-      {/* Drill nodes — only render for non-locked chapters */}
-      {!isLocked && (
-        <div className="relative mt-8 pb-8">
-          {/* dashed path line behind nodes */}
-          <svg className="absolute inset-0 w-full h-full pointer-events-none z-0" preserveAspectRatio="none">
-            <line
-              x1="50%" y1="0" x2="50%" y2="100%"
-              stroke={chapter.color}
-              strokeOpacity="0.25"
-              strokeWidth="3"
-              strokeDasharray="2 14"
-              strokeLinecap="round"
-            />
-          </svg>
-          <div className="relative z-10 flex flex-col items-center">
-            {chapter.lessons.map((lesson, li) => (
-              <DrillNode
-                key={lesson.id}
-                lesson={lesson}
-                status={getNodeStatus(lesson.id)}
-                index={li}
-                chapterColor={chapter.color}
-                isCurrent={lesson.id === currentDrillId}
-                onClick={() => onNodeClick(lesson)}
-              />
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Drill nodes — collapsible for completed chapters */}
+      <AnimatePresence initial={false}>
+        {!isLocked && (!isComplete || !collapsed) && (
+          <motion.div
+            key="nodes"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.3, ease: "easeInOut" }}
+            style={{ overflow: "hidden" }}
+          >
+            <div className="relative mt-8 pb-8">
+              {/* dashed path line behind nodes */}
+              <svg className="absolute inset-0 w-full h-full pointer-events-none z-0" preserveAspectRatio="none">
+                <line
+                  x1="50%" y1="0" x2="50%" y2="100%"
+                  stroke={chapter.color}
+                  strokeOpacity="0.25"
+                  strokeWidth="3"
+                  strokeDasharray="2 14"
+                  strokeLinecap="round"
+                />
+              </svg>
+              <div className="relative z-10 flex flex-col items-center">
+                {chapter.lessons.map((lesson, li) => (
+                  <DrillNode
+                    key={lesson.id}
+                    lesson={lesson}
+                    status={getNodeStatus(lesson.id)}
+                    index={li}
+                    chapterColor={chapter.color}
+                    isCurrent={lesson.id === currentDrillId}
+                    scoreHistory={getScoreHistory(lesson.id)}
+                    onClick={() => onNodeClick(lesson)}
+                  />
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.section>
   );
 };
@@ -399,7 +474,7 @@ const NextDrillHero = ({
 const LessonDrill = ({
   lesson, onComplete, onClose
 }: {
-  lesson: PathwayLesson; onComplete: () => void; onClose: () => void;
+  lesson: PathwayLesson; onComplete: (score?: number) => void; onClose: () => void;
 }) => {
   const { user } = useAuth();
   const { upload } = useRecordings("pathway");
@@ -407,12 +482,17 @@ const LessonDrill = ({
   const [phase, setPhase] = useState<"idle" | "recording" | "analyzing" | "results">("idle");
   const [seconds, setSeconds] = useState(lesson.durationSeconds);
   const [running, setRunning] = useState(false);
-  const [, setAudioBlob] = useState<Blob | null>(null);
   const [aiResult, setAiResult] = useState<{ score: number; feedback: string; strengths: string; coaching: string; exampleSpeech: string; passed: boolean } | null>(null);
   const idRef = useRef<number | null>(null);
   const recorderStartRef = useRef<() => void>(() => {});
   const recorderStopRef = useRef<() => void>(() => {});
   const wasRecording = useRef(false);
+  const audioUrlRef = useRef<string | null>(null);
+  const playbackAudioRef = useRef<HTMLAudioElement | null>(null);
+  const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
+  const [playbackPlaying, setPlaybackPlaying] = useState(false);
+  const [ttsLoading, setTtsLoading] = useState(false);
+  const [ttsPlaying, setTtsPlaying] = useState(false);
   const isTest = lesson.type === "test";
   const passScore = lesson.passScore || 70;
   const userName = user?.email?.split("@")[0] || "Student";
@@ -421,7 +501,7 @@ const LessonDrill = ({
   // DEV CHEAT: window.passDrill()
   useEffect(() => {
     (window as any).passDrill = () => {
-      onComplete();
+      onComplete(100);
       setAiResult({
         score: 100,
         feedback: "Manual pass triggered via console.",
@@ -437,6 +517,83 @@ const LessonDrill = ({
 
   const phaseRef = useRef(phase);
   useEffect(() => { phaseRef.current = phase; }, [phase]);
+
+  // Revoke blob URL and stop audio on unmount
+  useEffect(() => {
+    return () => {
+      if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
+      playbackAudioRef.current?.pause();
+      ttsAudioRef.current?.pause();
+    };
+  }, []);
+
+  // Fetch TTS coach voice when results appear
+  useEffect(() => {
+    if (phase !== "results" || !aiResult?.feedback) return;
+    let cancelled = false;
+    const go = async () => {
+      setTtsLoading(true);
+      try {
+        const text = aiResult.feedback.length > 200
+          ? aiResult.feedback.slice(0, aiResult.feedback.lastIndexOf(" ", 200)) + "…"
+          : aiResult.feedback;
+        const audio = await speakWithDeepgramTTS(text);
+        if (cancelled) { audio.pause(); return; }
+        audio.onended = () => setTtsPlaying(false);
+        ttsAudioRef.current = audio;
+      } catch { /* TTS unavailable — button stays hidden */ }
+      finally { if (!cancelled) setTtsLoading(false); }
+    };
+    go();
+    return () => { cancelled = true; };
+  }, [phase, aiResult]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const togglePlayback = () => {
+    if (!audioUrlRef.current) return;
+    if (!playbackAudioRef.current) {
+      playbackAudioRef.current = new Audio(audioUrlRef.current);
+      playbackAudioRef.current.onended = () => setPlaybackPlaying(false);
+    }
+    if (playbackPlaying) {
+      playbackAudioRef.current.pause();
+      setPlaybackPlaying(false);
+    } else {
+      if (ttsAudioRef.current && !ttsAudioRef.current.paused) {
+        ttsAudioRef.current.pause();
+        setTtsPlaying(false);
+      }
+      playbackAudioRef.current.play().catch(() => {});
+      setPlaybackPlaying(true);
+    }
+  };
+
+  const toggleTts = () => {
+    const audio = ttsAudioRef.current;
+    if (!audio) return;
+    if (ttsPlaying) {
+      audio.pause();
+      setTtsPlaying(false);
+    } else {
+      if (playbackAudioRef.current && !playbackAudioRef.current.paused) {
+        playbackAudioRef.current.pause();
+        setPlaybackPlaying(false);
+      }
+      if (audio.ended) audio.currentTime = 0;
+      audio.play().catch(() => {});
+      setTtsPlaying(true);
+    }
+  };
+
+  const handleRetry = () => {
+    playbackAudioRef.current?.pause();
+    ttsAudioRef.current?.pause();
+    setPlaybackPlaying(false);
+    setTtsPlaying(false);
+    setTtsLoading(false);
+    setPhase("idle");
+    setAiResult(null);
+    setSeconds(lesson.durationSeconds);
+  };
 
   useEffect(() => {
     const checkMic = async () => {
@@ -507,7 +664,9 @@ const LessonDrill = ({
   };
 
   const analyzeRecording = async (blob: Blob) => {
-    setAudioBlob(blob);
+    if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
+    audioUrlRef.current = URL.createObjectURL(blob);
+    playbackAudioRef.current = null; // reset so next play uses fresh URL
     setPhase("analyzing");
 
     if (blob.size < 100) {
@@ -560,7 +719,7 @@ const LessonDrill = ({
       setPhase("results");
 
       if (result.passed) {
-        onComplete();
+        onComplete(result.score);
         toast({ title: isTest ? "Milestone Cleared! 🏆" : "Drill Passed! ✓", description: `Score: ${result.score}. ${isTest ? "Next chapter unlocked!" : "Keep it up!"}` });
       }
     } catch (err) {
@@ -575,7 +734,7 @@ const LessonDrill = ({
         passed: false
       });
       setPhase("results");
-      if (!isTest) onComplete();
+      if (!isTest) onComplete(0);
     }
   };
 
@@ -719,8 +878,45 @@ const LessonDrill = ({
               </div>
             </div>
 
+            {/* Playback your recording */}
+            {audioUrlRef.current && (
+              <div className="flex items-center gap-4 px-5 py-4 rounded-2xl bg-muted/5 border border-border/60">
+                <button
+                  onClick={togglePlayback}
+                  className="h-10 w-10 rounded-full bg-muted/20 border border-border flex items-center justify-center hover:bg-muted/40 transition-colors shrink-0"
+                >
+                  {playbackPlaying
+                    ? <Pause className="h-4 w-4" />
+                    : <Play className="h-4 w-4 fill-current" />}
+                </button>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">YOUR RECORDING</p>
+                  <p className="text-xs font-medium opacity-50">{playbackPlaying ? "Playing…" : "Tap to hear yourself"}</p>
+                </div>
+              </div>
+            )}
+
             <div className="bg-muted/5 border border-border/60 rounded-[2rem] p-8 md:p-12 space-y-6">
-              <p className="text-xs md:text-sm font-black uppercase tracking-widest opacity-30 flex items-center gap-2"><Sparkles className="h-4 w-4" /> COACH'S VERDICT</p>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs md:text-sm font-black uppercase tracking-widest opacity-30 flex items-center gap-2">
+                  <Sparkles className="h-4 w-4" /> COACH'S VERDICT
+                </p>
+                {(ttsLoading || ttsAudioRef.current) && (
+                  <button
+                    onClick={toggleTts}
+                    disabled={ttsLoading}
+                    title={ttsLoading ? "Preparing coach voice…" : ttsPlaying ? "Stop" : "Hear coach"}
+                    className={cn(
+                      "flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.2em] transition-all",
+                      ttsLoading ? "opacity-30 animate-pulse cursor-wait" : "opacity-50 hover:opacity-100",
+                      ttsPlaying && "text-primary opacity-100"
+                    )}
+                  >
+                    <Volume2 className="h-3.5 w-3.5" />
+                    {ttsPlaying ? "Stop" : ttsLoading ? "Loading…" : "Hear Coach"}
+                  </button>
+                )}
+              </div>
               <p className="text-lg md:text-2xl leading-relaxed opacity-70 italic font-medium">"{aiResult.feedback}"</p>
             </div>
 
@@ -762,13 +958,13 @@ const LessonDrill = ({
                 </button>
               ) : (
                 <>
-                  <button onClick={() => { setPhase("idle"); setAiResult(null); setSeconds(lesson.durationSeconds); }} className="button-pill flex-1 py-5 border border-primary/30 text-primary flex items-center justify-center gap-3 hover:bg-primary/5 transition-all">
+                  <button onClick={handleRetry} className="button-pill flex-1 py-5 border border-primary/30 text-primary flex items-center justify-center gap-3 hover:bg-primary/5 transition-all">
                     <RotateCcw className="h-4 w-4" />
                     <span className="text-sm font-black uppercase tracking-[0.2em]">RETRY DRILL</span>
                   </button>
                   <button
                     id="tutorial-close-drill"
-                    onClick={() => { onComplete(); onClose(); }}
+                    onClick={() => { onComplete(aiResult?.score ?? 0); onClose(); }}
                     className="button-pill flex-1 py-5 bg-muted/20 border border-border/60 flex items-center justify-center gap-3 opacity-60 hover:opacity-100 transition-all"
                   >
                     <ChevronRight className="h-4 w-4" />
@@ -802,14 +998,145 @@ const LessonDrill = ({
   );
 };
 
+/* ── Tier section header ─────────────────────────────────── */
+const TierHeader = ({ tier, done, total, locked }: {
+  tier: PathwayTier; done: number; total: number; locked: boolean;
+}) => {
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  const complete = total > 0 && done === total;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-80px" }}
+      transition={{ duration: 0.5 }}
+      className="flex flex-col items-center text-center gap-3 pt-4"
+    >
+      <div className="flex items-center gap-3 text-[10px] md:text-xs font-black uppercase tracking-[0.5em] text-primary">
+        {locked ? <Lock className="h-3 w-3" /> : complete ? <Check className="h-3 w-3 stroke-[4]" /> : <Sparkles className="h-3 w-3" />}
+        {tier.name}
+      </div>
+      <h2 className="speak-serif text-4xl md:text-6xl tracking-tighter italic leading-none">{tier.tagline}</h2>
+      <p className="text-sm md:text-base opacity-50 max-w-lg leading-snug">{tier.description}</p>
+      {!locked && (
+        <div className="flex items-center gap-3 pt-1 text-[10px] font-black uppercase tracking-[0.3em] opacity-40">
+          <span>{done}/{total} drills</span>
+          <span className="h-1 w-1 rounded-full bg-foreground/30" />
+          <span>{pct}%</span>
+        </div>
+      )}
+    </motion.div>
+  );
+};
+
 /* ── Main Pathway Page ───────────────────────────────────── */
 const Pathway = () => {
   const {
-    chapters, loading, getNodeStatus,
-    completeLesson, progressPercent, completedCount, totalLessons
+    chapters, loading, progress, drillScores, getNodeStatus,
+    completeLesson, applyPlacement, debugSetProgress,
+    progressPercent, completedCount, totalLessons
   } = usePathway();
+
+  const getScoreHistory = useCallback(
+    (id: string) => drillScores[id] ?? [],
+    [drillScores]
+  );
   const { count: streakDays } = useSyncedStreak();
+  const { profile: arenaProfile, completeDuel, handleForfeit } = useArena();
+  const { user } = useAuth();
   const [activeDrill, setActiveDrill] = useState<PathwayLesson | null>(null);
+  const [placementOpen, setPlacementOpen] = useState(false);
+
+  // Offer placement once to fresh users who haven't skipped it.
+  useEffect(() => {
+    if (loading || !user) return;
+    const skipped = localStorage.getItem(`speakbold:placement-skipped:${user.id}`) === "1";
+    const placed = Object.values(progress).some(s => s === "completed" || s === "tested-out");
+    if (!skipped && !placed) setPlacementOpen(true);
+  }, [loading, user, progress]);
+
+  // Dev console helpers — window.speakbold.*
+  useEffect(() => {
+    if (!user) return;
+    const TIER_ORDER: TierId[] = ["beginner", "intermediate", "orator"];
+    (window as any).speakbold = {
+      placement: (tier: string) => {
+        if (!TIER_ORDER.includes(tier as TierId)) {
+          console.warn('[SpeakBold] Invalid tier. Use "beginner", "intermediate", or "orator".');
+          return;
+        }
+        applyPlacement(tier as TierId);
+        localStorage.setItem(`speakbold:placement-skipped:${user.id}`, "1");
+        setPlacementOpen(false);
+        console.log(`[SpeakBold] Placed into: ${tier}`);
+      },
+      resetPlacement: () => {
+        localStorage.removeItem(`speakbold:placement-skipped:${user.id}`);
+        const fresh: Record<string, NodeStatus> = {};
+        ALL_LESSONS.forEach((l, i) => { fresh[l.id] = i === 0 ? "available" : "locked"; });
+        debugSetProgress(fresh);
+        setPlacementOpen(false);
+        console.log("[SpeakBold] Progress cleared — placement offer will reappear on next visit.");
+      },
+      showPlacement: () => {
+        localStorage.removeItem(`speakbold:placement-skipped:${user.id}`);
+        setPlacementOpen(true);
+        console.log("[SpeakBold] Placement test opened.");
+      },
+      progress: () => {
+        console.table(
+          ALL_LESSONS.map(l => ({ id: l.id, title: l.title, status: getNodeStatus(l.id) }))
+        );
+      },
+      completeAll: () => {
+        const all: Record<string, NodeStatus> = {};
+        ALL_LESSONS.forEach(l => { all[l.id] = "completed"; });
+        debugSetProgress(all);
+        console.log("[SpeakBold] All lessons marked completed.");
+      },
+      completeUpTo: (tier: string) => {
+        if (!TIER_ORDER.includes(tier as TierId)) {
+          console.warn('[SpeakBold] Invalid tier. Use "beginner", "intermediate", or "orator".');
+          return;
+        }
+        const tierChapters = chapters.filter(c => c.tier === (tier as TierId));
+        const entryId = tierChapters[0]?.lessons[0]?.id;
+        const entryIndex = ALL_LESSONS.findIndex(l => l.id === entryId);
+        const map: Record<string, NodeStatus> = {};
+        ALL_LESSONS.forEach((l, i) => {
+          map[l.id] = i < entryIndex ? "completed" : i === entryIndex ? "available" : "locked";
+        });
+        debugSetProgress(map);
+        console.log(`[SpeakBold] Completed all drills before ${tier} tier — entry is now ${entryId}.`);
+      },
+      help: () => {
+        console.log(
+          `SpeakBold debug — available commands:\n` +
+          `  window.speakbold.placement('beginner'|'intermediate'|'orator')    force-place to a tier\n` +
+          `  window.speakbold.resetPlacement()                                  clear all progress + re-show placement\n` +
+          `  window.speakbold.showPlacement()                                   open placement overlay now\n` +
+          `  window.speakbold.progress()                                        print lesson status table\n` +
+          `  window.speakbold.completeAll()                                     mark every lesson completed\n` +
+          `  window.speakbold.completeUpTo('beginner'|'intermediate'|'orator')  complete all drills before a tier\n` +
+          `  window.passDrill()                                                  (inside a drill) auto-pass it`
+        );
+      },
+    };
+    console.log("[SpeakBold] Debug console ready — type window.speakbold.help() for commands.");
+    return () => { delete (window as any).speakbold; };
+  }, [user, applyPlacement, debugSetProgress, getNodeStatus, chapters]);
+
+  const handlePlace = (tier: TierId) => {
+    applyPlacement(tier);
+    if (user) localStorage.setItem(`speakbold:placement-skipped:${user.id}`, "1");
+    setPlacementOpen(false);
+  };
+
+  const handleSkipPlacement = () => {
+    if (user) localStorage.setItem(`speakbold:placement-skipped:${user.id}`, "1");
+    setPlacementOpen(false);
+  };
 
   // Derive current drill (first available across all chapters)
   const currentDrill = useMemo(() => {
@@ -821,6 +1148,18 @@ const Pathway = () => {
     }
     return null;
   }, [chapters, getNodeStatus]);
+
+  // Path is "finished" when nothing is left to do — every node is completed or
+  // tested past. Placed users can finish their tier without grinding all 19.
+  const pathComplete = useMemo(
+    () => chapters.length > 0 && chapters.every(c =>
+      c.lessons.every(l => {
+        const s = getNodeStatus(l.id);
+        return s === "completed" || s === "tested-out";
+      })
+    ),
+    [chapters, getNodeStatus]
+  );
 
   if (loading) {
     return (
@@ -857,29 +1196,49 @@ const Pathway = () => {
       </section>
 
       {/* Chapter stack */}
-      <section id="pathway-units" className="px-4 md:container max-w-4xl mx-auto pb-32 lg:pb-40 relative z-10 space-y-12 lg:space-y-20">
-        {chapters.map((chapter, ci) => {
-          const completedInCh = chapter.lessons.filter(l => getNodeStatus(l.id) === "completed").length;
-          const isComplete = completedInCh === chapter.lessons.length;
-          const isLocked = chapter.lessons.every(l => getNodeStatus(l.id) === "locked");
-          const isCurrent = !isComplete && !isLocked;
+      <section id="pathway-units" className="px-4 md:container max-w-4xl mx-auto pb-32 lg:pb-40 relative z-10 space-y-16 lg:space-y-28">
+        {TIERS.map((tier) => {
+          const tierChapters = chapters.filter(c => c.tier === tier.id);
+          if (!tierChapters.length) return null;
+
+          const tierLessons = tierChapters.flatMap(c => c.lessons);
+          const isDone = (id: string) => {
+            const s = getNodeStatus(id);
+            return s === "completed" || s === "tested-out";
+          };
+          const tierDone = tierLessons.filter(l => isDone(l.id)).length;
+          const tierLocked = tierLessons.every(l => getNodeStatus(l.id) === "locked");
 
           return (
-            <ChapterCard
-              key={chapter.id}
-              chapter={chapter}
-              index={ci}
-              isCurrent={isCurrent}
-              isComplete={isComplete}
-              isLocked={isLocked}
-              currentDrillId={currentDrill?.lesson.id || null}
-              getNodeStatus={getNodeStatus}
-              onNodeClick={setActiveDrill}
-            />
+            <div key={tier.id} className="space-y-12 lg:space-y-20">
+              <TierHeader tier={tier} done={tierDone} total={tierLessons.length} locked={tierLocked} />
+
+              {tierChapters.map((chapter) => {
+                const ci = chapters.indexOf(chapter);
+                const isComplete = chapter.lessons.every(l => isDone(l.id));
+                const isLocked = chapter.lessons.every(l => getNodeStatus(l.id) === "locked");
+                const isCurrent = !isComplete && !isLocked;
+
+                return (
+                  <ChapterCard
+                    key={chapter.id}
+                    chapter={chapter}
+                    index={ci}
+                    isCurrent={isCurrent}
+                    isComplete={isComplete}
+                    isLocked={isLocked}
+                    currentDrillId={currentDrill?.lesson.id || null}
+                    getNodeStatus={getNodeStatus}
+                    getScoreHistory={getScoreHistory}
+                    onNodeClick={setActiveDrill}
+                  />
+                );
+              })}
+            </div>
           );
         })}
 
-        {progressPercent === 100 && (
+        {pathComplete && (
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             whileInView={{ opacity: 1, scale: 1 }}
@@ -900,11 +1259,34 @@ const Pathway = () => {
       </section>
 
       <AnimatePresence>
-        {activeDrill && (
+        {activeDrill && activeDrill.type === "debate" && (
+          <DebateBattle
+            key={activeDrill.id}
+            prompt={activeDrill.prompt}
+            userStand={activeDrill.stance ?? "FOR"}
+            opponent={makeDebateOpponent(activeDrill.personaSkill)}
+            userElo={arenaProfile?.elo ?? STARTING_ELO}
+            onClose={() => setActiveDrill(null)}
+            onComplete={() => { completeLesson(activeDrill.id); setActiveDrill(null); }}
+            completeDuel={completeDuel}
+            handleForfeit={handleForfeit}
+          />
+        )}
+        {activeDrill && activeDrill.type !== "debate" && activeDrill.type !== "duel" && (
           <LessonDrill
             lesson={activeDrill}
             onClose={() => setActiveDrill(null)}
-            onComplete={() => { completeLesson(activeDrill.id); }}
+            onComplete={(score) => { completeLesson(activeDrill.id, score); }}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {placementOpen && (
+          <PlacementTest
+            userName={user?.email?.split("@")[0] || "Speaker"}
+            onPlace={handlePlace}
+            onSkip={handleSkipPlacement}
           />
         )}
       </AnimatePresence>

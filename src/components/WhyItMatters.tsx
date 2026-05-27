@@ -3,7 +3,7 @@ import { GraduationCap, Target, Users, TrendingUp, ShieldCheck, Heart } from "lu
 
 export const WhyItMatters = () => {
   return (
-    <section className="px-4 md:container py-32 relative overflow-hidden group/section">
+    <section className="px-4 md:container py-16 md:py-32 relative overflow-hidden group/section">
       <motion.div 
         animate={{ 
           scale: [1, 1.1, 1],
@@ -15,7 +15,7 @@ export const WhyItMatters = () => {
       />
 
       <div className="max-w-6xl mx-auto">
-        <div className="grid lg:grid-cols-2 gap-20 items-center">
+        <div className="grid lg:grid-cols-2 gap-10 lg:gap-20 items-center">
           
           <motion.div
             initial={{ opacity: 0, x: -30 }}
@@ -27,7 +27,7 @@ export const WhyItMatters = () => {
             <div className="inline-flex items-center gap-3 text-xs font-black uppercase tracking-[0.6em] text-primary">
               <Heart className="h-4 w-4" /> OUR MISSION · SDG 4
             </div>
-            <h2 className="speak-serif text-5xl md:text-7xl tracking-tighter leading-[0.9]">
+            <h2 className="speak-serif text-4xl md:text-7xl tracking-tighter leading-[0.9]">
               Education is the <br />
               <span className="text-primary italic">great equalizer.</span>
             </h2>
@@ -89,7 +89,7 @@ export const WhyItMatters = () => {
               transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
               className="absolute inset-0 bg-primary/20 rounded-[4rem] blur-[100px] pointer-events-none" 
             />
-            <div className="relative bg-muted/5 border border-border/60 rounded-[4rem] p-12 md:p-20 shadow-soft overflow-hidden text-center space-y-12 backdrop-blur-sm group/card hover:border-primary/40 transition-all duration-700">
+            <div className="relative bg-muted/5 border border-border/60 rounded-[2.5rem] md:rounded-[4rem] p-8 md:p-20 shadow-soft overflow-hidden text-center space-y-8 md:space-y-12 backdrop-blur-sm group/card hover:border-primary/40 transition-all duration-700">
                <div className="space-y-4">
                   <p className="text-xs font-black uppercase tracking-[0.6em] text-primary">THE SDG 4 CHALLENGE</p>
                   <blockquote className="speak-serif text-3xl md:text-4xl italic leading-tight tracking-tight group-hover:scale-[1.02] transition-transform duration-700">
