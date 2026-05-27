@@ -403,16 +403,31 @@ export const usePathway = () => {
 
     const fetchProgress = async () => {
       try {
+        // Fetch pathway_progress first — this column is guaranteed to exist.
+        // drill_scores is fetched separately because its migration may not
+        // have been applied yet; a missing column must not block progress load.
         const { data, error } = await supabase
           .from("profiles")
-          .select("pathway_progress, drill_scores")
+          .select("pathway_progress")
           .eq("id", user.id)
           .single();
 
-        if (error && error.code !== "42703") throw error;
+        if (error) throw error;
 
         const stored = (data?.pathway_progress as Record<string, NodeStatus>) || {};
-        const storedScores = (data?.drill_scores as Record<string, number[]>) || {};
+
+        // Attempt to load drill scores — gracefully ignore if column absent.
+        let storedScores: Record<string, number[]> = {};
+        const { data: scoreData, error: scoreError } = await supabase
+          .from("profiles")
+          .select("drill_scores")
+          .eq("id", user.id)
+          .single();
+        if (!scoreError && scoreData) {
+          storedScores = (scoreData.drill_scores as Record<string, number[]>) || {};
+        } else if (scoreError && scoreError.code !== "42703") {
+          console.warn("[Pathway] drill_scores fetch error:", scoreError);
+        }
         setDrillScores(storedScores);
         // Drop any orphaned ids from old pathway content
         const validIds = new Set(ALL_LESSONS.map(l => l.id));
@@ -444,11 +459,24 @@ export const usePathway = () => {
     if (Object.keys(progress).length === 0) return;
 
     const sync = async () => {
+      // Always save pathway_progress — this is the critical placement data.
       const { error } = await supabase
         .from("profiles")
-        .update({ pathway_progress: progress, drill_scores: drillScores } as any)
+        .update({ pathway_progress: progress } as any)
         .eq("id", user.id);
       if (error) console.error("[Pathway] sync error:", error);
+
+      // Save drill_scores as best-effort: the migration may not be applied yet.
+      // A failure here must never prevent pathway_progress from being saved.
+      if (Object.keys(drillScores).length > 0) {
+        const { error: scoreError } = await supabase
+          .from("profiles")
+          .update({ drill_scores: drillScores } as any)
+          .eq("id", user.id);
+        if (scoreError && scoreError.code !== "42703") {
+          console.warn("[Pathway] drill_scores sync error:", scoreError);
+        }
+      }
     };
     sync();
   }, [progress, drillScores, user, loading]);

@@ -50,17 +50,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         .eq("id", currentUser.id)
         .maybeSingle();
 
-      if (error) throw error;
+      // 42703 = undefined_column: columns may not exist yet if the migration
+      // hasn't been applied — treat as "not done" rather than a hard error.
+      if (error && error.code !== "42703") throw error;
 
       console.log("[Auth] Profile Status fetched:", data);
-      const hasOnboarding = data?.onboarding_done ?? false;
+
+      let hasOnboarding = data?.onboarding_done ?? false;
       const hasTutorial = data?.tutorial_done ?? false;
+
+      // If the DB column is absent (42703) or returned false, fall back to the
+      // localStorage key written by OnboardingModal on explicit dismissal.
+      if (!hasOnboarding) {
+        hasOnboarding = localStorage.getItem(`speakbold_onboarding_dismissed_${currentUser.id}`) === "1";
+      }
 
       setOnboardingDone(hasOnboarding);
       setTutorialDone(hasTutorial);
 
       // Sync to local storage for legacy/utility support
-      localStorage.setItem(`speakbold_onboarding_v2_${currentUser.id}`, hasOnboarding ? "true" : "false");
+      // Only write "true" — never write "false", which would clobber the
+      // dismissed key set by OnboardingModal on explicit user action.
+      if (hasOnboarding) {
+        localStorage.setItem(`speakbold_onboarding_v2_${currentUser.id}`, "true");
+      }
       if (hasOnboarding && !hasTutorial) {
         localStorage.setItem(`speakbold_tutorial_pending_${currentUser.id}`, "true");
       } else {

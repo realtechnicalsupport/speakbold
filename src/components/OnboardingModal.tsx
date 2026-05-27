@@ -10,6 +10,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 
 const ONBOARDING_KEY = "speakbold_onboarding_v2";
+// Separate key written on explicit dismissal — survives a page refresh even
+// when the DB write is slow or fails. Never written by AuthContext so it
+// can't be overwritten by a subsequent refreshUserStatus call.
+const dismissedLsKey = (uid: string) => `speakbold_onboarding_dismissed_${uid}`;
 
 // ── Step 4 (goal): What brings you here? ────────────────────────────────────
 const GOALS = [
@@ -127,18 +131,18 @@ export const OnboardingModal = () => {
   useEffect(() => {
     if (!user) { setVisible(false); return; }
     if (statusLoading) return;
-    // Once dismissed this session, never re-show (even if onboardingDone
-    // hasn't propagated yet due to a concurrent auth-state change).
+    // In-session guard: set synchronously on any dismiss action.
     if (dismissedRef.current) { setVisible(false); return; }
+    // Cross-refresh guard: written to localStorage on dismiss so the modal
+    // stays hidden even if the DB write was slow or failed.
+    if (localStorage.getItem(dismissedLsKey(user.id)) === "1") { setVisible(false); return; }
     if (!onboardingDone) {
       const timer = setTimeout(() => setVisible(true), 1200);
       return () => clearTimeout(timer);
     } else {
       setVisible(false);
     }
-  // Use user?.id (a primitive) instead of the user object so that session
-  // object churn from Supabase token events doesn't spuriously re-run the
-  // effect and restart the show-timer while onboardingDone is still false.
+  // user?.id (primitive) prevents spurious re-runs from session-object churn.
   }, [user?.id, onboardingDone, statusLoading]);
 
   const markDoneInDB = async (goalSelection?: string) => {
@@ -159,15 +163,17 @@ export const OnboardingModal = () => {
   };
 
   const dismiss = async () => {
-    // Mark dismissed immediately — before any async work — so the effect
-    // guard fires even if an auth event races the DB write.
     dismissedRef.current = true;
+    // Persist to localStorage immediately so the guard holds across a refresh
+    // even if the DB write hasn't completed (or fails).
+    if (user) localStorage.setItem(dismissedLsKey(user.id), "1");
     setVisible(false);
     await markDoneInDB();
   };
 
   const selectGoal = async (id: string) => {
     dismissedRef.current = true;
+    if (user) localStorage.setItem(dismissedLsKey(user.id), "1");
     setVisible(false);
     navigate("/pathway");
     // DB write happens after navigation; OnboardingModal stays mounted
