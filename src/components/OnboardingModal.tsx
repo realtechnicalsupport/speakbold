@@ -164,11 +164,11 @@ export const OnboardingModal = () => {
 
   const dismiss = async () => {
     dismissedRef.current = true;
-    // Persist to localStorage immediately so the guard holds across a refresh
-    // even if the DB write hasn't completed (or fails).
     if (user) localStorage.setItem(dismissedLsKey(user.id), "1");
     setVisible(false);
-    await markDoneInDB();
+    navigate("/pathway");
+    // Save with a default track so the profile is never left in a null state.
+    await markDoneInDB("confidence");
   };
 
   const selectGoal = async (id: string) => {
@@ -192,12 +192,13 @@ export const OnboardingModal = () => {
           exit={{ opacity: 0 }}
           className="fixed inset-0 z-[200] bg-background/90 backdrop-blur-2xl flex items-center justify-center p-4 overflow-y-auto"
         >
-          {/* Skip button */}
+          {/* Skip button — navigates straight to Pathway with a default track */}
           <button
             onClick={dismiss}
-            className="absolute top-6 right-6 h-12 w-12 rounded-full border border-border/60 flex items-center justify-center opacity-30 hover:opacity-100 transition-opacity z-10"
+            className="absolute top-6 right-6 h-auto px-4 py-2 rounded-full border border-border/60 flex items-center gap-2 opacity-30 hover:opacity-100 transition-opacity z-10"
           >
-            <X className="h-5 w-5" />
+            <X className="h-3.5 w-3.5" />
+            <span className="text-[10px] font-black uppercase tracking-widest">Skip to app</span>
           </button>
 
           <AnimatePresence mode="wait">
@@ -566,9 +567,10 @@ export const OnboardingModal = () => {
                 <div className="text-center">
                   <button
                     onClick={dismiss}
-                    className="text-xs font-black uppercase tracking-wide opacity-30 hover:opacity-70 transition-opacity"
+                    className="text-xs font-black uppercase tracking-wide opacity-30 hover:opacity-70 transition-opacity flex items-center gap-1.5"
                   >
-                    Explore on my own
+                    Go to Pathway
+                    <ArrowRight className="h-3 w-3" />
                   </button>
                 </div>
               </motion.div>

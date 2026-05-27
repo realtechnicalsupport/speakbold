@@ -11,7 +11,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import {
   Check, Lock, Trophy, Play, Pause, RotateCcw, Mic, MicOff,
-  ArrowLeft, ShieldCheck, Target, Sparkles,
+  ArrowLeft, ShieldCheck, Target, Sparkles, Compass,
   Award, Brain, ChevronDown, ChevronRight, ArrowRight, Flame, Clock, Swords, Volume2
 } from "lucide-react";
 import { transcribeAudio, judgePathwayDrill, speakWithDeepgramTTS } from "@/services/geminiService";
@@ -1047,6 +1047,9 @@ const Pathway = () => {
   const { user } = useAuth();
   const [activeDrill, setActiveDrill] = useState<PathwayLesson | null>(null);
   const [placementOpen, setPlacementOpen] = useState(false);
+  // Tracks whether the full-screen PlacementTest modal is open.
+  // placementOpen = inline banner visible; placementTestOpen = full-screen test running.
+  const [placementTestOpen, setPlacementTestOpen] = useState(false);
 
   // Offer placement once to fresh users who haven't skipped it.
   useEffect(() => {
@@ -1082,6 +1085,7 @@ const Pathway = () => {
       showPlacement: () => {
         localStorage.removeItem(`speakbold:placement-skipped:${user.id}`);
         setPlacementOpen(true);
+        setPlacementTestOpen(true);
         console.log("[SpeakBold] Placement test opened.");
       },
       progress: () => {
@@ -1131,6 +1135,7 @@ const Pathway = () => {
     applyPlacement(tier);
     if (user) localStorage.setItem(`speakbold:placement-skipped:${user.id}`, "1");
     setPlacementOpen(false);
+    setPlacementTestOpen(false);
   };
 
   const handleSkipPlacement = () => {
@@ -1185,6 +1190,50 @@ const Pathway = () => {
 
       {/* Hero with Next-Drill CTA */}
       <section className="px-4 md:container pt-20 md:pt-44 pb-8 lg:pb-16 relative z-10">
+
+        {/* ── Placement banner — inline, non-blocking ─────────────────────── */}
+        <AnimatePresence>
+          {placementOpen && !placementTestOpen && (
+            <motion.div
+              key="placement-banner"
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.35, ease: "circOut" }}
+              className="max-w-4xl mx-auto mb-8 md:mb-10"
+            >
+              <div className="rounded-[2rem] border border-primary/20 bg-primary/5 p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="h-10 w-10 rounded-[1rem] bg-primary/15 text-primary flex items-center justify-center flex-shrink-0">
+                    <Compass className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold">Find your starting tier</p>
+                    <p className="text-xs opacity-50 mt-0.5">
+                      60-second speaking test — skip anytime and start from the beginning.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 pl-14 sm:pl-0 flex-shrink-0">
+                  <button
+                    onClick={handleSkipPlacement}
+                    className="text-xs font-black uppercase tracking-widest opacity-30 hover:opacity-80 transition-opacity"
+                  >
+                    Skip
+                  </button>
+                  <button
+                    onClick={() => setPlacementTestOpen(true)}
+                    className="button-pill px-5 py-2.5 bg-primary text-white flex items-center gap-2 hover:scale-[1.02] active:scale-100 transition-transform"
+                  >
+                    <Play className="h-3.5 w-3.5 fill-current" />
+                    <span className="text-xs font-black uppercase tracking-wide">Take the 60s test</span>
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <NextDrillHero
           currentDrill={currentDrill}
           onJumpIn={() => currentDrill && setActiveDrill(currentDrill.lesson)}
@@ -1282,11 +1331,11 @@ const Pathway = () => {
       </AnimatePresence>
 
       <AnimatePresence>
-        {placementOpen && (
+        {placementTestOpen && (
           <PlacementTest
             userName={user?.email?.split("@")[0] || "Speaker"}
             onPlace={handlePlace}
-            onSkip={handleSkipPlacement}
+            onSkip={() => { setPlacementTestOpen(false); }}
           />
         )}
       </AnimatePresence>
