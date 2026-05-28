@@ -7,6 +7,7 @@ export interface ImpromptuSessionRecord {
   topicText: string;
   topicId: string;
   difficulty: Difficulty;
+  framework: string;
   duration: number;
   score: number;
   wpm: number;
@@ -22,6 +23,8 @@ export interface ImpromptuStats {
   avgWpm: number;
   bestWpm: number;
   streak: number;
+  /** Per-framework avg score and session count */
+  frameworkBreakdown: Record<string, { avg: number; count: number }>;
 }
 
 const STORAGE_KEY = "speakbold_impromptu_history_v2";
@@ -65,7 +68,6 @@ function computeStreak(history: ImpromptuSessionRecord[]): number {
 
   let streak = 0;
   const cursor = new Date(today);
-  // allow today or yesterday as the start of streak
   const todayStr = today.toISOString();
   const yesterdayStr = new Date(today.getTime() - 86400000).toISOString();
   if (!days.has(todayStr) && !days.has(yesterdayStr)) return 0;
@@ -80,17 +82,40 @@ function computeStreak(history: ImpromptuSessionRecord[]): number {
 
 export function computeStats(history: ImpromptuSessionRecord[]): ImpromptuStats {
   if (history.length === 0) {
-    return { totalSessions: 0, avgScore: 0, bestScore: 0, avgWpm: 0, bestWpm: 0, streak: 0 };
+    return {
+      totalSessions: 0, avgScore: 0, bestScore: 0,
+      avgWpm: 0, bestWpm: 0, streak: 0, frameworkBreakdown: {},
+    };
   }
+
   const avgScore = Math.round(history.reduce((s, h) => s + h.score, 0) / history.length);
   const bestScore = Math.max(...history.map(h => h.score));
+
   const wpmRecords = history.filter(h => h.wpm > 0);
   const avgWpm = wpmRecords.length > 0
     ? Math.round(wpmRecords.reduce((s, h) => s + h.wpm, 0) / wpmRecords.length)
     : 0;
   const bestWpm = wpmRecords.length > 0 ? Math.max(...wpmRecords.map(h => h.wpm)) : 0;
+
   const streak = computeStreak(history);
-  return { totalSessions: history.length, avgScore, bestScore, avgWpm, bestWpm, streak };
+
+  // Per-framework breakdown
+  const fwMap: Record<string, number[]> = {};
+  for (const h of history) {
+    if (h.framework) {
+      if (!fwMap[h.framework]) fwMap[h.framework] = [];
+      fwMap[h.framework].push(h.score);
+    }
+  }
+  const frameworkBreakdown: Record<string, { avg: number; count: number }> = {};
+  for (const [fw, scores] of Object.entries(fwMap)) {
+    frameworkBreakdown[fw] = {
+      avg: Math.round(scores.reduce((a, b) => a + b, 0) / scores.length),
+      count: scores.length,
+    };
+  }
+
+  return { totalSessions: history.length, avgScore, bestScore, avgWpm, bestWpm, streak, frameworkBreakdown };
 }
 
 export function useImpromptuHistory() {

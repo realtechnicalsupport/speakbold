@@ -1,5 +1,5 @@
-﻿import { useEffect, useState } from "react";
-import { Sparkles, Loader2, RefreshCw, Trophy, TrendingUp, AlertCircle, X, ShieldCheck, Zap, ArrowRight, Target, Microscope } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Sparkles, Loader2, RefreshCw, TrendingUp, AlertCircle, X, Zap, ArrowRight, Target, ChevronDown, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -17,7 +17,7 @@ const DialogContentWithoutClose = ({ className, children, ...props }: React.Comp
     <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-background/60 backdrop-blur-2xl data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
     <DialogPrimitive.Content
       className={cn(
-        "fixed left-[50%] top-[50%] z-50 w-full max-w-4xl translate-x-[-50%] translate-y-[-50%] bg-background border border-border/60 rounded-[4rem] shadow-2xl duration-700 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] max-h-[90vh] overflow-hidden flex flex-col",
+        "fixed left-[50%] top-[50%] z-50 w-full max-w-xl translate-x-[-50%] translate-y-[-50%] bg-background border border-border/60 rounded-[2rem] shadow-2xl duration-300 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 max-h-[90vh] overflow-hidden flex flex-col",
         className,
       )}
       {...props}
@@ -35,6 +35,22 @@ const SCORE_LABELS: Record<string, string> = {
   structure: "Structure",
   confidence: "Confidence",
 };
+
+const overallFrom = (scores: Record<string, number>): number => {
+  if (typeof scores.overall === "number") return Math.round(scores.overall);
+  const vals = Object.values(scores);
+  if (vals.length === 0) return 0;
+  return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
+};
+
+const scoreLabel = (s: number) =>
+  s >= 90 ? "Outstanding" : s >= 80 ? "Strong" : s >= 70 ? "Solid" : s >= 55 ? "Developing" : "Keep Working";
+
+const scoreColor = (s: number): string =>
+  s >= 80 ? "#34d399" : s >= 65 ? "#60a5fa" : s >= 50 ? "#fbbf24" : "#f87171";
+
+const barColor = (s: number): string =>
+  s >= 80 ? "bg-emerald-400" : s >= 65 ? "bg-blue-400" : s >= 50 ? "bg-amber-400" : "bg-red-400";
 
 interface RecordingFeedbackModalProps {
   recordingId: string;
@@ -103,7 +119,7 @@ export const RecordingFeedbackModal = ({ recordingId, trigger, onScoreCalculated
         if (onScoreCalculated) onScoreCalculated(Math.round(overallScore));
         // New analysis changes the skill profile — notify the adaptive plan to recompute.
         if (!data.cached) window.dispatchEvent(new Event(FEEDBACK_SAVED_EVENT));
-        toast.success(data.cached ? "Audit Result Retrieved" : "Analysis Protocol Complete");
+        toast.success(data.cached ? "Feedback retrieved" : "Analysis complete");
       } else if (data?.error) {
         toast.error(data.error);
       }
@@ -189,115 +205,112 @@ export const RecordingFeedbackModal = ({ recordingId, trigger, onScoreCalculated
     </Button>
   );
 
+  const overall = feedback ? overallFrom(feedback.scores) : 0;
+  const breakdown = feedback ? Object.entries(feedback.scores).filter(([k]) => k !== "overall") : [];
+
   return (
     <>
       {button}
       <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContentWithoutClose className="p-0 overflow-hidden">
-          {/* Background Decoration */}
-          <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/5 rounded-full blur-[150px] animate-float opacity-40 pointer-events-none" />
-          <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-accent/5 rounded-full blur-[130px] animate-float opacity-30 pointer-events-none" style={{ animationDelay: "-3s" }} />
+        <DialogContentWithoutClose className="p-0">
 
-          {/* Header */}
-          <div className="p-12 md:p-20 pb-10 border-b border-border/60 flex justify-between items-start relative z-10">
-            <div className="space-y-6">
-              <div className="flex items-center gap-4 text-xs font-black uppercase tracking-[0.6em] text-primary">
-                <ShieldCheck className="h-4 w-4" />
-                AI COACHING RESULT
+          {/* ── Header ── */}
+          <div className="px-6 md:px-8 pt-6 pb-5 border-b border-border/40 flex items-start justify-between gap-4 shrink-0">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.4em] text-primary">
+                <Sparkles className="h-3.5 w-3.5" />
+                AI Coaching Result
               </div>
-              <h2 className="speak-serif text-5xl md:text-8xl text-foreground leading-[0.8] tracking-tighter">
-                {isInvalid ? "Insufficient Data" : (
-                  <>
-                    Practice <span className="text-primary italic">Feedback</span>.
-                  </>
-                )}
+              <h2 className="speak-serif text-2xl md:text-3xl leading-none tracking-tight">
+                {isInvalid ? "Insufficient Data" : <>Practice <span className="text-primary italic">Feedback</span></>}
               </h2>
             </div>
-            <DialogPrimitive.Close className="p-6 hover:bg-muted/50 rounded-full transition-all opacity-20 hover:opacity-100 group">
-              <X className="h-8 w-8 group-hover:rotate-90 transition-transform duration-700" />
-            </DialogPrimitive.Close>
+            <div className="flex items-center gap-3 shrink-0">
+              {feedback?.xp && !isInvalid ? (
+                <span className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-primary bg-primary/8 border border-primary/20 px-3 py-1.5 rounded-full">
+                  <Zap className="h-3 w-3" />+{feedback.xp} XP
+                </span>
+              ) : null}
+              <DialogPrimitive.Close className="p-2 hover:bg-muted/50 rounded-full transition-all opacity-30 hover:opacity-100 group">
+                <X className="h-5 w-5 group-hover:rotate-90 transition-transform duration-300" />
+              </DialogPrimitive.Close>
+            </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-12 md:p-20 pt-12 space-y-24 relative z-10 scrollbar-hide">
-            {!feedback && !loading && !isInvalid ? (
-              <div className="text-center py-40 space-y-12">
-                <div className="relative h-1 w-80 bg-muted rounded-full mx-auto overflow-hidden shadow-inner border border-border/60">
-                  <motion.div 
-                    initial={{ x: "-100%" }}
-                    animate={{ x: "100%" }}
-                    transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
-                    className="absolute inset-0 bg-primary w-1/2 rounded-full shadow-glow"
-                  />
+          {/* ── Body ── */}
+          <div className="flex-1 overflow-y-auto px-6 md:px-8 py-6 scrollbar-hide">
+            {(!feedback && !loading && !isInvalid) || loading ? (
+              <div className="py-16 flex flex-col items-center gap-6">
+                <div className="flex items-center gap-2.5">
+                  {[0, 1, 2].map(i => (
+                    <motion.div
+                      key={i}
+                      className="w-2 h-2 rounded-full bg-primary"
+                      animate={{ opacity: [0.25, 1, 0.25], y: [0, -7, 0] }}
+                      transition={{ duration: 1.3, delay: i * 0.18, repeat: Infinity, ease: "easeInOut" }}
+                    />
+                  ))}
                 </div>
-                <div className="space-y-4">
-                  <p className="text-xs font-black uppercase tracking-[0.6em] text-primary animate-pulse">ANALYZING YOUR RECORDING...</p>
-                  <p className="text-[11px] font-bold uppercase tracking-[0.4em] opacity-40 italic">POWERED BY AI · PLEASE WAIT</p>
-                </div>
-              </div>
-            ) : loading ? (
-              <div className="text-center py-40 space-y-12">
-                <div className="relative h-1 w-80 bg-muted rounded-full mx-auto overflow-hidden shadow-inner border border-border/60">
-                  <motion.div 
-                    initial={{ x: "-100%" }}
-                    animate={{ x: "100%" }}
-                    transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
-                    className="absolute inset-0 bg-primary w-1/2 rounded-full shadow-glow"
-                  />
-                </div>
-                <div className="space-y-4">
-                  <p className="text-xs font-black uppercase tracking-[0.6em] text-primary animate-pulse">ANALYZING SPEECH PATTERNS...</p>
-                  <p className="text-[11px] font-bold uppercase tracking-[0.4em] opacity-40 italic">POWERED BY AI</p>
-                </div>
+                <p className="text-xs font-medium opacity-40 tracking-wide">Analyzing your recording…</p>
               </div>
             ) : isInvalid ? (
-              <div className="text-center py-40 space-y-12">
-                <div className="h-24 w-24 rounded-[2rem] bg-destructive/5 flex items-center justify-center mx-auto border border-destructive/20">
-                  <AlertCircle className="h-10 w-10 text-destructive" />
+              <div className="py-16 flex flex-col items-center gap-5 text-center">
+                <div className="h-16 w-16 rounded-[1.5rem] bg-destructive/5 flex items-center justify-center border border-destructive/20">
+                  <AlertCircle className="h-7 w-7 text-destructive" />
                 </div>
-                <div className="space-y-6">
-                   <h3 className="speak-serif text-4xl md:text-5xl italic tracking-tighter">Capture Cycle Aborted.</h3>
-                   <p className="text-xl font-medium opacity-40 max-w-lg mx-auto leading-relaxed italic">
-                    Not enough speech detected. Try recording again in a quiet place.
+                <div className="space-y-2">
+                  <h3 className="speak-serif text-2xl italic tracking-tight">Not enough speech.</h3>
+                  <p className="text-sm font-medium opacity-40 max-w-xs mx-auto leading-relaxed">
+                    We couldn't detect meaningful speech. Try recording again in a quieter place.
                   </p>
                 </div>
               </div>
             ) : feedback ? (
-              <div className="space-y-24">
-                {/* Summary */}
-                <div className="space-y-8">
-                  <div className="flex items-center gap-4 text-xs font-black uppercase tracking-[0.6em] text-primary">
-                    <Microscope className="h-4 w-4" />
-                    SUMMARY
+              <div className="space-y-5">
+
+                {/* Score + summary hero */}
+                <div className="flex items-center gap-5 rounded-[1.5rem] border border-border/30 bg-muted/4 p-5">
+                  <div className="relative w-[88px] h-[88px] shrink-0 flex items-center justify-center">
+                    <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 88 88" fill="none">
+                      <circle cx="44" cy="44" r="34" stroke="currentColor" strokeWidth="3.5" className="text-foreground/8" />
+                      <motion.circle
+                        cx="44" cy="44" r="34" stroke={scoreColor(overall)} strokeWidth="3.5" strokeLinecap="round"
+                        strokeDasharray={2 * Math.PI * 34}
+                        initial={{ strokeDashoffset: 2 * Math.PI * 34 }}
+                        animate={{ strokeDashoffset: (2 * Math.PI * 34) * (1 - overall / 100) }}
+                        transition={{ duration: 1.2, ease: [0.22, 1, 0.36, 1], delay: 0.1 }}
+                      />
+                    </svg>
+                    <span className="speak-serif text-[2.25rem] font-bold tabular-nums leading-none" style={{ color: scoreColor(overall) }}>
+                      {overall}
+                    </span>
                   </div>
-                  <p className="speak-serif text-3xl md:text-5xl tracking-tighter text-foreground/90 leading-[1.1] italic border-l-2 border-primary/30 pl-12">
-                    "{feedback.summary}"
-                  </p>
+                  <div className="min-w-0 space-y-1.5">
+                    <p className="text-[9px] font-black uppercase tracking-[0.4em] opacity-30">{scoreLabel(overall)}</p>
+                    <p className="speak-serif text-base italic leading-snug opacity-80">"{feedback.summary}"</p>
+                  </div>
                 </div>
 
-                {/* Scores Grid */}
-                {Object.keys(feedback.scores).length > 0 && (
-                  <div className="space-y-12">
-                    <p className="text-xs font-black uppercase tracking-[0.6em] opacity-30">SCORE BREAKDOWN</p>
-                    <div className="grid md:grid-cols-2 gap-16">
-                      {Object.entries(feedback.scores).map(([key, value]) => {
+                {/* Score breakdown */}
+                {breakdown.length > 0 && (
+                  <div className="rounded-[1.5rem] border border-border/30 bg-muted/4 p-5 space-y-4">
+                    <p className="text-[9px] font-black uppercase tracking-[0.4em] opacity-30">Score Breakdown</p>
+                    <div className="grid sm:grid-cols-2 gap-x-6 gap-y-4">
+                      {breakdown.map(([key, value], i) => {
                         const v = value as number;
                         const label = SCORE_LABELS[key] || key.replace(/_/g, " ");
                         return (
-                          <div key={key} className="space-y-6 group">
+                          <div key={key} className="space-y-1.5">
                             <div className="flex items-end justify-between">
-                              <span className="text-xs font-black uppercase tracking-[0.3em] opacity-30 group-hover:opacity-100 group-hover:text-primary transition-all duration-700">
-                                {label.toUpperCase()}
-                              </span>
-                              <span className="speak-serif text-4xl font-bold italic tabular-nums group-hover:text-primary transition-colors duration-700">
-                                {v}
-                              </span>
+                              <span className="text-[10px] font-bold uppercase tracking-wider opacity-50">{label}</span>
+                              <span className="text-sm font-black tabular-nums opacity-70">{v}</span>
                             </div>
-                            <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden border border-border/60 relative">
+                            <div className="h-1.5 w-full bg-foreground/8 rounded-full overflow-hidden">
                               <motion.div
                                 initial={{ width: 0 }}
                                 animate={{ width: `${v}%` }}
-                                transition={{ duration: 1.5, ease: "circOut", delay: 0.3 }}
-                                className="h-full bg-primary shadow-glow shadow-primary/40"
+                                transition={{ duration: 1, ease: "circOut", delay: 0.2 + i * 0.06 }}
+                                className={cn("h-full rounded-full", barColor(v))}
                               />
                             </div>
                           </div>
@@ -307,119 +320,95 @@ export const RecordingFeedbackModal = ({ recordingId, trigger, onScoreCalculated
                   </div>
                 )}
 
-                {/* Strengths & Improvements */}
-                <div className="grid lg:grid-cols-2 gap-20 pt-16 border-t border-border/60">
-                  <div className="space-y-10">
-                    <div className="flex items-center gap-4 text-xs font-black uppercase tracking-[0.5em] text-primary">
-                      <Zap className="h-4 w-4" />
-                      WHAT YOU DID WELL
+                {/* Strengths + improvements */}
+                <div className="grid sm:grid-cols-2 gap-3">
+                  {feedback.strengths.length > 0 && (
+                    <div className="rounded-[1.5rem] border border-emerald-500/15 bg-emerald-500/3 p-5 space-y-3">
+                      <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.4em] text-emerald-400/70">
+                        <Zap className="h-3 w-3" />Did Well
+                      </div>
+                      <ul className="space-y-2.5">
+                        {feedback.strengths.map((s, i) => (
+                          <li key={i} className="flex gap-2.5 text-sm font-medium opacity-65 leading-snug">
+                            <Check className="h-3.5 w-3.5 text-emerald-400/70 mt-0.5 shrink-0" strokeWidth={3} />
+                            <span>{s}</span>
+                          </li>
+                        ))}
+                      </ul>
                     </div>
-                    <ul className="space-y-8">
-                      {feedback.strengths.map((s, i) => (
-                        <motion.li 
-                          key={i} 
-                          initial={{ opacity: 0, x: -20 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: 0.1 * i + 0.5 }}
-                          className="flex gap-8 group items-start"
-                        >
-                          <span className="text-primary text-3xl speak-serif italic opacity-40 group-hover:opacity-100 transition-opacity">✱</span>
-                          <span className="text-lg font-medium tracking-tight opacity-40 leading-snug group-hover:opacity-100 transition-opacity duration-700 italic">"{s}"</span>
-                        </motion.li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div className="space-y-10">
-                    <div className="flex items-center gap-4 text-xs font-black uppercase tracking-[0.5em] opacity-30">
-                      <Target className="h-4 w-4" />
-                      WHAT TO IMPROVE
+                  )}
+                  {feedback.improvements.length > 0 && (
+                    <div className="rounded-[1.5rem] border border-amber-500/15 bg-amber-500/3 p-5 space-y-3">
+                      <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.4em] text-amber-400/70">
+                        <Target className="h-3 w-3" />To Improve
+                      </div>
+                      <ul className="space-y-2.5">
+                        {feedback.improvements.map((s, i) => (
+                          <li key={i} className="flex gap-2.5 text-sm font-medium opacity-65 leading-snug">
+                            <ArrowRight className="h-3.5 w-3.5 text-amber-400/70 mt-0.5 shrink-0" />
+                            <span>{s}</span>
+                          </li>
+                        ))}
+                      </ul>
                     </div>
-                    <ul className="space-y-8">
-                      {feedback.improvements.map((s, i) => (
-                        <motion.li 
-                          key={i} 
-                          initial={{ opacity: 0, x: 20 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: 0.1 * i + 0.5 }}
-                          className="flex gap-8 group items-start"
-                        >
-                          <span className="text-3xl speak-serif italic opacity-10 group-hover:opacity-100 transition-opacity">✱</span>
-                          <span className="text-lg font-medium tracking-tight opacity-40 leading-snug group-hover:opacity-100 transition-opacity duration-700 italic">"{s}"</span>
-                        </motion.li>
-                      ))}
-                    </ul>
-                  </div>
+                  )}
                 </div>
 
-                {/* Next Drill */}
+                {/* Next drill */}
                 {feedback.next_drill && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: 30 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    className="p-12 md:p-16 rounded-[4rem] bg-primary/[0.03] border border-primary/20 space-y-8 relative overflow-hidden group shadow-soft"
-                  >
-                    <div className="absolute top-0 right-0 p-12 opacity-5 group-hover:opacity-10 transition-opacity duration-1000">
-                       <Zap className="h-32 w-32 text-primary" />
+                  <div className="rounded-[1.5rem] border border-primary/25 bg-gradient-to-br from-primary/8 to-primary/3 p-5 flex items-start gap-4">
+                    <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center shrink-0 mt-0.5">
+                      <TrendingUp className="h-3.5 w-3.5 text-primary" />
                     </div>
-                    <div className="flex items-center gap-4 text-xs font-black uppercase tracking-[0.6em] text-primary relative z-10">
-                       <Target className="h-4 w-4" />
-                       RECOMMENDED NEXT DRILL
+                    <div className="space-y-1 min-w-0">
+                      <p className="text-[9px] font-black uppercase tracking-[0.5em] text-primary/50">Try This Next</p>
+                      <p className="text-sm font-semibold leading-relaxed opacity-80">{feedback.next_drill}</p>
                     </div>
-                    <p className="speak-serif text-2xl md:text-4xl italic tracking-tighter leading-relaxed relative z-10">"{feedback.next_drill}"</p>
-                  </motion.div>
+                  </div>
                 )}
 
                 {/* Transcript */}
                 {feedback.transcript && (
-                  <div className="space-y-10">
+                  <div className="rounded-[1.5rem] border border-border/25 bg-muted/3 overflow-hidden">
                     <button
                       type="button"
-                      onClick={() => setShowTranscript((v) => !v)}
-                      className="inline-flex items-center gap-6 text-xs font-black uppercase tracking-[0.6em] opacity-20 hover:opacity-100 hover:text-primary transition-all group"
+                      onClick={() => setShowTranscript(v => !v)}
+                      className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-foreground/3 transition-colors"
                     >
-                      <ArrowRight className={cn("h-4 w-4 transition-transform duration-700", showTranscript ? "rotate-90" : "")} />
-                      {showTranscript ? "COLLAPSE" : "EXPAND"} SESSION TRANSCRIPT
+                      <span className="text-[9px] font-black uppercase tracking-[0.5em] opacity-30">Your Transcript</span>
+                      <motion.div animate={{ rotate: showTranscript ? 180 : 0 }} transition={{ duration: 0.25 }}>
+                        <ChevronDown className="h-3.5 w-3.5 opacity-30" />
+                      </motion.div>
                     </button>
-                    <AnimatePresence>
+                    <AnimatePresence initial={false}>
                       {showTranscript && (
-                        <motion.div 
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: "auto" }}
-                          exit={{ opacity: 0, height: 0 }}
-                          transition={{ duration: 0.8, ease: "circOut" }}
-                          className="text-lg font-medium opacity-40 leading-relaxed bg-muted/5 p-12 rounded-[3.5rem] italic border border-border/60 shadow-inner overflow-hidden"
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                          transition={{ height: { duration: 0.3, ease: [0.22, 1, 0.36, 1] }, opacity: { duration: 0.2 } }}
+                          className="overflow-hidden"
                         >
-                          "{feedback.transcript}"
+                          <p className="px-5 pb-5 border-t border-border/15 pt-4 text-sm font-medium opacity-45 leading-relaxed italic">
+                            "{feedback.transcript}"
+                          </p>
                         </motion.div>
                       )}
                     </AnimatePresence>
                   </div>
                 )}
 
-                <div className="flex justify-center pt-20 border-t border-border/60">
-                  <button 
-                    onClick={() => generate(true)} 
+                {/* Re-analyze */}
+                <div className="flex justify-center pt-1">
+                  <button
+                    onClick={() => generate(true)}
                     disabled={loading}
-                    className="text-xs font-black uppercase tracking-[0.5em] opacity-20 hover:opacity-100 hover:text-primary transition-all flex items-center gap-6 group"
+                    className="text-[9px] font-black uppercase tracking-[0.4em] opacity-25 hover:opacity-100 hover:text-primary transition-all flex items-center gap-2.5 group py-2"
                   >
-                    <RefreshCw className={cn("h-4 w-4 transition-all duration-1000", loading ? "animate-spin" : "group-hover:rotate-180")} />
-                    RE-ANALYZE RECORDING
+                    <RefreshCw className={cn("h-3 w-3 transition-transform duration-700", loading ? "animate-spin" : "group-hover:rotate-180")} />
+                    Re-analyze
                   </button>
                 </div>
               </div>
             ) : null}
-          </div>
-          
-          <div className="p-10 bg-muted/5 border-t border-border/60 flex flex-col md:flex-row justify-between items-center gap-6 text-[11px] font-black uppercase tracking-[0.6em] opacity-20 relative z-10">
-            <div className="flex items-center gap-4">
-               <ShieldCheck className="h-4 w-4" />
-               <span>ENCRYPTED PROTOCOL ACTIVE</span>
-            </div>
-            <div className="flex items-center gap-8">
-              <span>AUDIT ID: {recordingId.slice(0, 12).toUpperCase()}</span>
-              <span>SECURE AI ANALYSIS • END-TO-END VERIFIED</span>
-            </div>
           </div>
         </DialogContentWithoutClose>
       </Dialog>

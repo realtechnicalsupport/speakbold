@@ -3,6 +3,26 @@ import { setRecordingActive } from "@/lib/recordingState";
 
 export type RecordingState = "idle" | "recording" | "paused" | "stopped" | "denied";
 
+/**
+ * Pick a container/codec the current browser can actually produce.
+ * iOS Safari only supports audio/mp4 (never webm); Chrome/Firefox prefer webm/opus.
+ * Returning undefined lets MediaRecorder fall back to its own default.
+ */
+function pickMimeType(): string | undefined {
+  if (typeof MediaRecorder === "undefined" || typeof MediaRecorder.isTypeSupported !== "function") {
+    return undefined;
+  }
+  const candidates = [
+    "audio/webm;codecs=opus",
+    "audio/webm",
+    "audio/mp4;codecs=mp4a.40.2",
+    "audio/mp4",
+    "audio/aac",
+    "audio/ogg;codecs=opus",
+  ];
+  return candidates.find((t) => MediaRecorder.isTypeSupported(t));
+}
+
 export interface Recording {
   url: string;
   blob: Blob;
@@ -48,29 +68,51 @@ export const useRecorder = () => {
       setRecording(null);
     }
     try {
-      // Check for saved microphone preference
-      const savedDeviceId = localStorage.getItem('speakbold-mic-device');
-      const constraints = savedDeviceId
-        ? { audio: { deviceId: { exact: savedDeviceId } } }
-        : { audio: true };
-      
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      // Mobile-friendly capture: explicitly enable auto gain so soft/distant
+      // voices aren't lost, and keep mono to match what analysis expects.
+      const audioConstraints: MediaTrackConstraints = {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+        channelCount: 1,
+      };
+
+      // A device id saved on one device (e.g. desktop) is invalid on another
+      // (e.g. phone) and makes getUserMedia throw. Try the saved mic, then
+      // fall back to the default input so recording still works on mobile.
+      const savedDeviceId = localStorage.getItem("speakbold-mic-device");
+      let stream: MediaStream;
+      if (savedDeviceId) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: { ...audioConstraints, deviceId: { exact: savedDeviceId } },
+          });
+        } catch {
+          stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
+        }
+      } else {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
+      }
       streamRef.current = stream;
-      
+
       // Save microphone choice
       const audioTrack = stream.getAudioTracks()[0];
       if (audioTrack?.getSettings().deviceId) {
         localStorage.setItem('speakbold-mic-device', audioTrack.getSettings().deviceId!);
       }
-      
-      const mr = new MediaRecorder(stream);
+
+      const mimeType = pickMimeType();
+      const mr = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
       mediaRecorderRef.current = mr;
       chunksRef.current = [];
       mr.ondataavailable = (e) => {
         if (e.data.size > 0) chunksRef.current.push(e.data);
       };
       mr.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        // Use the recorder's actual mime type so the blob is never mislabeled
+        // (iOS records mp4, not webm — forcing "audio/webm" corrupts the file).
+        const type = mr.mimeType || mimeType || "audio/webm";
+        const blob = new Blob(chunksRef.current, { type });
         const url = URL.createObjectURL(blob);
         const durationMs = Date.now() - startedAtRef.current - pauseDurationRef.current;
         setRecording({ url, blob, durationMs, createdAt: Date.now() });

@@ -21,12 +21,14 @@ const Impromptu = () => {
     curveballEnabled,
     recordEnabled,
     challengeMode,
+    drillMode,
     prepSecondsLeft,
     speakSecondsLeft,
     isPaused,
     liveTranscript,
     liveInterim,
     fillerCount,
+    fillerTimes,
     wpm,
     totalWords,
     elapsedSecs,
@@ -37,6 +39,7 @@ const Impromptu = () => {
     speechSupported,
     autoFeedbackId,
     clearAutoFeedback,
+    recordingBlobUrl,
     begin,
     pause,
     resume,
@@ -50,6 +53,7 @@ const Impromptu = () => {
     setCurveballEnabled,
     setRecordEnabled,
     setChallengeMode,
+    drillCurveball,
     history,
     stats,
     recorderStartRef,
@@ -127,12 +131,17 @@ const Impromptu = () => {
                 wpm={wpm}
                 totalWords={totalWords}
                 fillerCount={fillerCount}
+                fillerTimes={fillerTimes}
                 elapsedSecs={elapsedSecs}
                 coachReport={coachReport}
                 loadingCoach={loadingCoach}
                 stats={stats}
+                recordingBlobUrl={recordingBlobUrl}
+                curveballText={curveballText}
+                drillMode={drillMode}
                 onGoAgain={goAgain}
                 onNewTopic={() => newTopic()}
+                onDrillCurveball={drillCurveball}
               />
             </motion.div>
           )}
@@ -149,7 +158,7 @@ const Impromptu = () => {
         )}
       </TrackShell>
 
-      {/* ── PREP + SPEAKING: full-screen fixed overlay — timer is always visible ── */}
+      {/* ── PREP + SPEAKING: full-screen fixed overlay ─────────────────────── */}
       <AnimatePresence>
         {(phase === "prep" || phase === "speaking") && (
           <motion.div

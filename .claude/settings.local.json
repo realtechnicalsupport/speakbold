@@ -21,7 +21,10 @@
       "Bash(node -e \"require\\('./node_modules/mitt/dist/mitt.cjs'\\); console.log\\('mitt ok'\\)\")",
       "Bash(node -e ' *)",
       "PowerShell($base = \"C:\\\\Users\\\\One can only ponder\\\\.claude\\\\plugins\\\\cache\\\\ui-ux-pro-max-skill\\\\ui-ux-pro-max\\\\2.5.0\\\\.claude\\\\skills\\\\ui-ux-pro-max\"; python \"$base\\\\scripts\\\\search.py\" \"AI public speaking practice education SaaS premium dark\" --design-system -p \"SpeakBold\")",
-      "PowerShell(Get-ChildItem *)"
+      "PowerShell(Get-ChildItem *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)"
     ]
   }
 }

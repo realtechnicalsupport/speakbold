@@ -99,8 +99,8 @@ export const ImpromptuStage = ({
       </div>
 
       {/* Top: topic + LIVE badge */}
-      <div className="relative z-10 w-full max-w-xl flex items-center justify-between gap-4 px-4">
-        <p className="text-xs italic opacity-25 truncate flex-1">"{topic.text}"</p>
+      <div className="relative z-10 w-full max-w-xl flex items-start justify-between gap-4 px-4">
+        <p className="text-sm italic opacity-70 flex-1 leading-snug">"{topic.text}"</p>
 
         <div className="flex items-center gap-3 shrink-0">
           {speechSupported && (

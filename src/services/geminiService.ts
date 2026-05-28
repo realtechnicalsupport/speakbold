@@ -148,7 +148,15 @@ async function transcribeWithGroq(blob: Blob): Promise<string | null> {
   if (!GROQ_API_KEY) return null;
   try {
     const form = new FormData();
-    form.append("file", blob, "recording.webm");
+    // Whisper infers format from the filename extension — name it to match the
+    // actual blob type so iOS recordings (audio/mp4) aren't rejected as ".webm".
+    const t = blob.type;
+    const ext = t.includes("mp4") || t.includes("m4a") || t.includes("aac") ? "m4a"
+      : t.includes("ogg") ? "ogg"
+      : t.includes("mpeg") || t.includes("mp3") ? "mp3"
+      : t.includes("wav") ? "wav"
+      : "webm";
+    form.append("file", blob, `recording.${ext}`);
     form.append("model", "whisper-large-v3-turbo");
     const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
       method: "POST",

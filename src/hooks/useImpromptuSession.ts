@@ -3,7 +3,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useRecordings, useSyncedStreak } from "@/hooks/useRecordings";
 import { setTimerActive, setTimerSeconds } from "@/lib/timerState";
 import { setRecordingActive } from "@/lib/recordingState";
-import { coachImpromptu, type ImpromptuCoachReport } from "@/services/geminiService";
+import { coachImpromptu, transcribeAudio, type ImpromptuCoachReport } from "@/services/geminiService";
 import {
   type Difficulty,
   type ImpromptuTopic,
@@ -18,13 +18,21 @@ declare global {
   interface Window { SpeechRecognition: any; webkitSpeechRecognition: any; }
 }
 
-const FILLER_WORDS = [
+export const FILLER_WORDS = [
   "um", "uh", "like", "you know", "so", "basically", "right",
   "actually", "literally", "kind of", "sort of",
 ];
 
 function countFillers(text: string): number {
   const lower = text.toLowerCase();
+  return FILLER_WORDS.reduce(
+    (n, w) => n + (lower.match(new RegExp(`\\b${w.replace(/ /g, "\\s+")}\\b`, "g"))?.length ?? 0),
+    0
+  );
+}
+
+function countFillersInChunk(chunk: string): number {
+  const lower = chunk.toLowerCase();
   return FILLER_WORDS.reduce(
     (n, w) => n + (lower.match(new RegExp(`\\b${w.replace(/ /g, "\\s+")}\\b`, "g"))?.length ?? 0),
     0
@@ -45,6 +53,9 @@ export function useImpromptuSession() {
   const [recordEnabled, setRecordEnabledState] = useState(false);
   const [challengeMode, setChallengeModeState] = useState(false);
 
+  /** Last duration set explicitly by the user — restored when drill mode ends */
+  const userDurationRef = useRef(60);
+
   // ── Phase ──────────────────────────────────────────────────────────────────
   const [phase, setPhaseState] = useState<SessionPhase>("setup");
   const phaseRef = useRef<SessionPhase>("setup");
@@ -52,6 +63,10 @@ export function useImpromptuSession() {
     phaseRef.current = p;
     setPhaseState(p);
   }, []);
+
+  // ── Drill mode ─────────────────────────────────────────────────────────────
+  /** True when in a 30-second curveball drill (not a full session) */
+  const [drillMode, setDrillMode] = useState(false);
 
   // ── Timers ─────────────────────────────────────────────────────────────────
   const [prepSecondsLeft, setPrepSecondsLeft] = useState(0);
@@ -67,8 +82,11 @@ export function useImpromptuSession() {
   const [liveTranscript, setLiveTranscript] = useState("");
   const [liveInterim, setLiveInterim] = useState("");
   const [fillerCount, setFillerCount] = useState(0);
+  /** Elapsed seconds at each detected filler event — used for review sparkline */
+  const [fillerTimes, setFillerTimes] = useState<number[]>([]);
   const transcriptRef = useRef("");
   const fillerCountRef = useRef(0);
+  const fillerTimesRef = useRef<number[]>([]);
 
   // ── Curveball ──────────────────────────────────────────────────────────────
   const [curveballText, setCurveballText] = useState<string | null>(null);
@@ -80,13 +98,20 @@ export function useImpromptuSession() {
   const [coachReport, setCoachReport] = useState<ImpromptuCoachReport | null>(null);
   const [loadingCoach, setLoadingCoach] = useState(false);
 
-  // ── Recorder ───────────────────────────────────────────────────────────────
+  // ── Recording ──────────────────────────────────────────────────────────────
   const recorderStartRef = useRef<(() => void) | undefined>(undefined);
   const recorderPauseRef = useRef<(() => void) | undefined>(undefined);
   const recorderResumeRef = useRef<(() => void) | undefined>(undefined);
   const recorderStopRef = useRef<(() => void) | undefined>(undefined);
   const [autoFeedbackId, setAutoFeedbackId] = useState<string | null>(null);
   const wasRecordingRef = useRef(false);
+  /** Object URL for the most recent recording blob — available during review */
+  const [recordingBlobUrl, setRecordingBlobUrl] = useState<string | null>(null);
+  /** True when the live (browser) transcript was empty and we're waiting on the
+   *  recording so we can transcribe it server-side and still produce coaching.
+   *  Common on mobile, where Web Speech recognition is weak or unsupported. */
+  const awaitingRecordingTranscriptRef = useRef(false);
+  const fallbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Stable refs for values used in callbacks ────────────────────────────────
   const topicRef = useRef(topic);
@@ -139,7 +164,26 @@ export function useImpromptuSession() {
       : 0;
 
     if (finalTranscript.trim().length < 15) {
-      setCoachReport(null);
+      // The browser's live transcript is empty. If we recorded audio, defer
+      // coaching to server-side transcription (handled in onRecordingComplete)
+      // instead of dead-ending at "No speech captured" — this is the reliable
+      // path on mobile/tablet where Web Speech barely picks anything up.
+      if (wasRecordingRef.current) {
+        awaitingRecordingTranscriptRef.current = true;
+        setLoadingCoach(true);
+        // Safety net: if the recording never arrives (mic genuinely failed),
+        // don't hang on the loader forever.
+        if (fallbackTimeoutRef.current) clearTimeout(fallbackTimeoutRef.current);
+        fallbackTimeoutRef.current = setTimeout(() => {
+          if (awaitingRecordingTranscriptRef.current) {
+            awaitingRecordingTranscriptRef.current = false;
+            setLoadingCoach(false);
+            setCoachReport(null);
+          }
+        }, 12000);
+      } else {
+        setCoachReport(null);
+      }
       return;
     }
 
@@ -157,6 +201,7 @@ export function useImpromptuSession() {
         topicText: topicRef.current.text,
         topicId: topicRef.current.id,
         difficulty: topicRef.current.difficulty,
+        framework: topicRef.current.framework,
         duration: durationRef.current,
         score: report.score,
         wpm: finalWpm,
@@ -168,6 +213,7 @@ export function useImpromptuSession() {
       setCoachReport(null);
     }
     setLoadingCoach(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setPhase, addSession]);
 
   // ── PREP timer ──────────────────────────────────────────────────────────────
@@ -255,6 +301,16 @@ export function useImpromptuSession() {
       if (newFinal) {
         const updated = transcriptRef.current + newFinal;
         transcriptRef.current = updated;
+
+        // Track elapsed time of each filler event for sparkline
+        const chunkFillerCount = countFillersInChunk(newFinal);
+        if (chunkFillerCount > 0) {
+          const elapsedNow = durationRef.current - speakSecondsLeftRef.current;
+          const newTimes = Array(chunkFillerCount).fill(elapsedNow);
+          fillerTimesRef.current = [...fillerTimesRef.current, ...newTimes];
+          setFillerTimes([...fillerTimesRef.current]);
+        }
+
         const fillers = countFillers(updated);
         fillerCountRef.current = fillers;
         setLiveTranscript(updated);
@@ -263,13 +319,25 @@ export function useImpromptuSession() {
       setLiveInterim(interim);
     };
     recognition.onerror = (e: any) => {
-      if (e.error === "no-speech" || e.error === "aborted") return;
+      // Transient — let onend restart. Fatal (mic blocked / unavailable) — stop
+      // the restart loop so we don't spin pointlessly on mobile.
+      if (e.error === "not-allowed" || e.error === "service-not-allowed" || e.error === "audio-capture") {
+        stopped = true;
+      }
     };
     recognition.onend = () => {
       if (stopped) return;
-      restartTimer = setTimeout(() => {
-        if (!stopped) try { recognition.start(); } catch (_) {}
-      }, 100);
+      // Mobile speech engines auto-stop on every short pause. Restart immediately
+      // so words spoken right after a pause aren't dropped — the gap here is what
+      // makes mobile transcription feel like it "misses" speech. Only fall back to
+      // a short delay if an immediate restart throws (engine still tearing down).
+      try {
+        recognition.start();
+      } catch {
+        restartTimer = setTimeout(() => {
+          if (!stopped) try { recognition.start(); } catch (_) {}
+        }, 200);
+      }
     };
 
     try { recognition.start(); } catch (_) {}
@@ -300,17 +368,27 @@ export function useImpromptuSession() {
 
   // ── Actions ─────────────────────────────────────────────────────────────────
   const begin = useCallback(() => {
+    // Revoke any previous blob URL
+    setRecordingBlobUrl(prev => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+
     transcriptRef.current = "";
     fillerCountRef.current = 0;
+    fillerTimesRef.current = [];
     setLiveTranscript("");
     setLiveInterim("");
     setFillerCount(0);
+    setFillerTimes([]);
     setCoachReport(null);
     setAutoFeedbackId(null);
     setCurveballVisible(false);
     curveballFiredRef.current = false;
     wasRecordingRef.current = false;
     setSpeakingExpired(false);
+    awaitingRecordingTranscriptRef.current = false;
+    if (fallbackTimeoutRef.current) { clearTimeout(fallbackTimeoutRef.current); fallbackTimeoutRef.current = null; }
 
     if (curveballEnabledRef.current && topicRef.current.curveballs.length > 0) {
       const cbs = topicRef.current.curveballs;
@@ -357,6 +435,52 @@ export function useImpromptuSession() {
     }
   }, [setPhase]);
 
+  /**
+   * Jump directly to speaking with the curveball shown immediately.
+   * Runs for 30 seconds as a focused pivot drill.
+   */
+  const drillCurveball = useCallback(() => {
+    if (!curveballTextRef.current) return;
+
+    // Revoke previous blob URL
+    setRecordingBlobUrl(prev => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+
+    transcriptRef.current = "";
+    fillerCountRef.current = 0;
+    fillerTimesRef.current = [];
+    setLiveTranscript("");
+    setLiveInterim("");
+    setFillerCount(0);
+    setFillerTimes([]);
+    setCoachReport(null);
+    setAutoFeedbackId(null);
+    setSpeakingExpired(false);
+    wasRecordingRef.current = false;
+    awaitingRecordingTranscriptRef.current = false;
+    if (fallbackTimeoutRef.current) { clearTimeout(fallbackTimeoutRef.current); fallbackTimeoutRef.current = null; }
+
+    // Show curveball immediately
+    setCurveballVisible(true);
+    curveballFiredRef.current = true;
+
+    setDrillMode(true);
+
+    const drillDur = 30;
+    setSpeakSecondsLeft(drillDur);
+    speakSecondsLeftRef.current = drillDur;
+    durationRef.current = drillDur;
+    setDurationState(drillDur);
+
+    setPhase("speaking");
+    if (recordEnabledRef.current) {
+      recorderStartRef.current?.();
+      wasRecordingRef.current = true;
+    }
+  }, [setPhase]);
+
   const reset = useCallback((newTopic?: ImpromptuTopic) => {
     setPhase("setup");
     setIsPaused(false);
@@ -365,9 +489,11 @@ export function useImpromptuSession() {
     setSpeakSecondsLeft(0);
     speakSecondsLeftRef.current = 0;
     transcriptRef.current = "";
+    fillerTimesRef.current = [];
     setLiveTranscript("");
     setLiveInterim("");
     setFillerCount(0);
+    setFillerTimes([]);
     setCurveballText(null);
     curveballTextRef.current = null;
     setCurveballVisible(false);
@@ -376,8 +502,25 @@ export function useImpromptuSession() {
     setLoadingCoach(false);
     setSpeakingExpired(false);
     wasRecordingRef.current = false;
+    setAutoFeedbackId(null);
+    awaitingRecordingTranscriptRef.current = false;
+    if (fallbackTimeoutRef.current) { clearTimeout(fallbackTimeoutRef.current); fallbackTimeoutRef.current = null; }
+
+    // Restore the user's chosen duration when exiting drill mode
+    if (drillMode) {
+      setDurationState(userDurationRef.current);
+      durationRef.current = userDurationRef.current;
+      setDrillMode(false);
+    }
+
+    // Revoke blob URL on reset
+    setRecordingBlobUrl(prev => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+
     if (newTopic) setTopicState(newTopic);
-  }, [setPhase]);
+  }, [setPhase, drillMode]);
 
   const goAgain = useCallback(() => reset(), [reset]);
 
@@ -407,7 +550,10 @@ export function useImpromptuSession() {
     setDifficultyState(d);
     setTopicState(getRandomTopic(d));
   }, []);
-  const setDuration = useCallback((d: number) => setDurationState(d), []);
+  const setDuration = useCallback((d: number) => {
+    userDurationRef.current = d;
+    setDurationState(d);
+  }, []);
   const setCurveballEnabled = useCallback((v: boolean) => setCurveballEnabledState(v), []);
   const setRecordEnabled = useCallback((v: boolean) => setRecordEnabledState(v), []);
   const setChallengeMode = useCallback((v: boolean) => setChallengeModeState(v), []);
@@ -416,6 +562,64 @@ export function useImpromptuSession() {
   const onRecordingComplete = useCallback(
     async (blob: Blob, durationMs: number) => {
       markPracticed();
+
+      // Store blob URL for in-review playback
+      const url = URL.createObjectURL(blob);
+      setRecordingBlobUrl(url);
+
+      // Fallback path: the live transcript was empty, so transcribe the recorded
+      // audio server-side and run the impromptu coaching off that instead. This
+      // is what makes mobile/tablet sessions produce real feedback despite the
+      // browser's weak on-device speech recognition.
+      if (awaitingRecordingTranscriptRef.current) {
+        awaitingRecordingTranscriptRef.current = false;
+        if (fallbackTimeoutRef.current) {
+          clearTimeout(fallbackTimeoutRef.current);
+          fallbackTimeoutRef.current = null;
+        }
+        try {
+          const serverTranscript = (await transcribeAudio(blob)).trim();
+          if (serverTranscript.length >= 15) {
+            transcriptRef.current = serverTranscript;
+            setLiveTranscript(serverTranscript);
+            const words = serverTranscript.split(/\s+/).filter(Boolean).length;
+            const fillers = countFillers(serverTranscript);
+            fillerCountRef.current = fillers;
+            setFillerCount(fillers);
+            // Actual spoken time from the recording is more accurate than the timer.
+            const secs = durationMs > 0 ? durationMs / 1000 : durationRef.current;
+            const fbWpm = secs > 3 ? Math.round((words / secs) * 60) : 0;
+
+            const report = await coachImpromptu(
+              topicRef.current,
+              serverTranscript,
+              durationRef.current,
+              fillers,
+              fbWpm
+            );
+            setCoachReport(report);
+            addSession({
+              topicText: topicRef.current.text,
+              topicId: topicRef.current.id,
+              difficulty: topicRef.current.difficulty,
+              framework: topicRef.current.framework,
+              duration: durationRef.current,
+              score: report.score,
+              wpm: fbWpm,
+              fillerCount: fillers,
+              totalWords: words,
+              verdict: report.verdict,
+            });
+          } else {
+            setCoachReport(null);
+          }
+        } catch {
+          setCoachReport(null);
+        } finally {
+          setLoadingCoach(false);
+        }
+      }
+
       if (!user) return;
       try {
         const result = await uploadRecording(blob, {
@@ -428,7 +632,7 @@ export function useImpromptuSession() {
         refreshRecordings();
       } catch { /* non-critical */ }
     },
-    [user, uploadRecording, refreshRecordings, markPracticed]
+    [user, uploadRecording, refreshRecordings, markPracticed, addSession]
   );
 
   return {
@@ -442,6 +646,7 @@ export function useImpromptuSession() {
     curveballEnabled,
     recordEnabled,
     challengeMode,
+    drillMode,
 
     // Timers
     prepSecondsLeft,
@@ -452,6 +657,7 @@ export function useImpromptuSession() {
     liveTranscript,
     liveInterim,
     fillerCount,
+    fillerTimes,
     wpm,
     totalWords,
     elapsedSecs,
@@ -463,6 +669,7 @@ export function useImpromptuSession() {
     // Review
     coachReport,
     loadingCoach,
+    recordingBlobUrl,
 
     // Misc
     speechSupported,
@@ -479,6 +686,7 @@ export function useImpromptuSession() {
     newTopic,
     shuffleTopic,
     reset,
+    drillCurveball,
 
     // Config setters
     setTopic,

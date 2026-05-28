@@ -69,7 +69,12 @@ export const useRecordings = (filter: RecordingFilter = "all") => {
       meta: { promptText: string; difficulty: string; durationMs: number; targetSeconds: number }
     ) => {
       if (!user) return null;
-      const ext = blob.type.includes("webm") ? "webm" : "audio";
+      const t = blob.type;
+      const ext = t.includes("webm") ? "webm"
+        : t.includes("mp4") || t.includes("aac") || t.includes("m4a") ? "m4a"
+        : t.includes("ogg") ? "ogg"
+        : t.includes("mpeg") || t.includes("mp3") ? "mp3"
+        : "webm";
       const path = `${user.id}/${Date.now()}.${ext}`;
       const { error: upErr } = await supabase.storage
         .from("Recordings")
