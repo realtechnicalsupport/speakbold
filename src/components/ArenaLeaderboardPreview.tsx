@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Trophy, Crown, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { getRankFromElo, getRankColor } from "@/hooks/arenaUtils";
+import { arenaEmitter } from "@/lib/events";
 
 interface LeaderRow {
   id: string;
@@ -20,60 +21,63 @@ export const ArenaLeaderboardPreview = () => {
   const [totalPlayers, setTotalPlayers] = useState<number>(0);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    let cancelled = false;
+  const fetchLeaderboard = useCallback(async () => {
+    if (!user) return;
+    try {
+      // Top 5
+      const { data: topData } = await supabase
+        .from("profiles")
+        .select("id, display_name, elo")
+        .order("elo", { ascending: false })
+        .limit(5);
 
-    const fetchLeaderboard = async () => {
-      if (!user) return;
-      try {
-        // Top 5
-        const { data: topData } = await supabase
-          .from("profiles")
-          .select("id, display_name, elo")
-          .order("elo", { ascending: false })
-          .limit(5);
+      // My ELO
+      const { data: meData } = await supabase
+        .from("profiles")
+        .select("elo")
+        .eq("id", user.id)
+        .maybeSingle();
 
-        // My ELO
-        const { data: meData } = await supabase
-          .from("profiles")
-          .select("elo")
-          .eq("id", user.id)
-          .maybeSingle();
+      // Players ranked above me (= my rank - 1)
+      const myElo = meData?.elo ?? 0;
+      const { count: above } = await supabase
+        .from("profiles")
+        .select("id", { count: "exact", head: true })
+        .gt("elo", myElo);
 
-        // Players ranked above me (= my rank - 1)
-        const myElo = meData?.elo ?? 0;
-        const { count: above } = await supabase
-          .from("profiles")
-          .select("id", { count: "exact", head: true })
-          .gt("elo", myElo);
+      // Total players ranked
+      const { count: total } = await supabase
+        .from("profiles")
+        .select("id", { count: "exact", head: true })
+        .gt("elo", 0);
 
-        // Total players ranked
-        const { count: total } = await supabase
-          .from("profiles")
-          .select("id", { count: "exact", head: true })
-          .gt("elo", 0);
-
-        if (cancelled) return;
-
-        setTop(
-          (topData || []).map((r: any) => ({
-            id: r.id,
-            name: r.display_name || "Anonymous",
-            elo: r.elo ?? 0,
-          }))
-        );
-        setMyRank((above ?? 0) + 1);
-        setTotalPlayers(total ?? 0);
-      } catch (err) {
-        console.error("[ArenaLeaderboardPreview] Failed to load:", err);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-
-    fetchLeaderboard();
-    return () => { cancelled = true; };
+      setTop(
+        (topData || []).map((r: any) => ({
+          id: r.id,
+          name: r.display_name || "Anonymous",
+          elo: r.elo ?? 0,
+        }))
+      );
+      setMyRank((above ?? 0) + 1);
+      setTotalPlayers(total ?? 0);
+    } catch (err) {
+      console.error("[ArenaLeaderboardPreview] Failed to load:", err);
+    } finally {
+      setLoading(false);
+    }
   }, [user?.id]);
+
+  useEffect(() => {
+    fetchLeaderboard();
+  }, [fetchLeaderboard]);
+
+  // Re-fetch whenever a battle moves ELO so the board never shows a stale
+  // value (e.g. the user's own freshly-changed rating snapping back to 1000).
+  useEffect(() => {
+    const onEloUpdate = () => fetchLeaderboard();
+    arenaEmitter.on("elo:updated", onEloUpdate);
+    return () => arenaEmitter.off("elo:updated", onEloUpdate);
+  }, [fetchLeaderboard]);
 
   const myPercentile = myRank && totalPlayers > 0
     ? Math.max(1, Math.round((myRank / totalPlayers) * 100))
