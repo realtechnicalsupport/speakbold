@@ -313,7 +313,17 @@ export async function generateArenaPrompt(gamemode: string): Promise<string> {
 }
 
 export async function generateAIArgument(prompt: string, durationSeconds: number, gamemode: string, persona?: any): Promise<string> {
-  const wordCount = Math.floor(durationSeconds * 2.2); // ~2.2 words/sec speaking pace
+  // Real humans speak ~2.0 words/sec but waste words on filler, restarts, and
+  // throat-clearing — so plan for fewer load-bearing words than a polished
+  // script would have. Lower-tier personas talk shorter still.
+  const skill = (persona?.skill || "Intermediate") as "Beginner" | "Intermediate" | "Advanced" | "Expert";
+  const skillWordFactor: Record<typeof skill, number> = {
+    Beginner:     1.7,
+    Intermediate: 1.9,
+    Advanced:     2.1,
+    Expert:       2.2,
+  };
+  const wordCount = Math.floor(durationSeconds * (skillWordFactor[skill] ?? 2.0));
 
   let gamemodeInstructions = "Deliver a compelling, standalone speech";
   if (gamemode === "debate") {
@@ -328,26 +338,37 @@ export async function generateAIArgument(prompt: string, durationSeconds: number
   if (gamemode === "pitch") gamemodeInstructions = "Act as a strict investor/client. State a complex problem or objection in 2-3 sentences that the user must pitch a solution for";
   if (gamemode === "blitz") gamemodeInstructions = "Deliver a rapid-fire, high-energy impromptu speech";
 
-  let personaInstructions = `You are an elite competitive speaker in a ${durationSeconds}-second argument battle.`;
+  // Tier-specific quality guidance — beatable by a thoughtful human at every
+  // level except Expert. Keep the AI sounding like a person, not a champion.
+  const skillProfile: Record<typeof skill, string> = {
+    Beginner: `You are NOT a polished debater. You make ONE main point and repeat yourself. Use simple words. Stumble once with a filler like "um", "I mean", or "you know". Your reasoning has a small gap — don't try to cover every angle. Don't use sophisticated vocabulary or rhetorical devices. A thoughtful opponent should be able to find a real weakness in what you say.`,
+    Intermediate: `You sound like an average person who has thought about the topic but isn't a trained speaker. Use one filler word naturally ("honestly", "I think", "to be fair"). Make 1-2 supporting reasons — one strong, one a bit hand-wavy. Avoid perfect structure. Allow a small concession or "I'll admit" moment. Beatable by anyone who pushes back specifically on your weaker reason.`,
+    Advanced: `You are a confident amateur — clear structure, one strong example, but you over-rely on conviction in spots. Use vivid language but don't overdo rhetorical flourishes. One of your supporting reasons should be more emotional than logical. Beatable by an opponent who attacks your weaker premise.`,
+    Expert: `You are a sharp, eloquent debater. Multi-angle reasoning, a memorable line, tight structure — but still HUMAN, not a perfect machine. Use one natural pause or self-correction. Allow one rhetorical question. Don't sound like an essay.`,
+  };
+
+  let personaInstructions = `You are a human competitor speaking in a ${durationSeconds}-second argument round. Be persuasive but distinctly human.`;
   if (persona) {
-    personaInstructions = `You are ${persona.name}. 
-    Personality: ${persona.personality}
-    Skill Level: ${persona.skill}. 
-    STRENGTHS: ${persona.strengths}. 
-    WEAKNESSES: ${persona.weaknesses}.
-    
-    IMPORTANT: Do not make your points too complex or 'AI-like'. Keep them human, grounded, and appropriate for your skill level (${persona.skill}).`;
+    personaInstructions = `You are ${persona.name}.
+Personality: ${persona.personality}
+Skill Level: ${persona.skill}.
+STRENGTHS: ${persona.strengths}.
+WEAKNESSES: ${persona.weaknesses}.
+
+${skillProfile[skill]}
+
+CRITICAL: Do NOT sound like an AI or a polished essay. Speak the way a real person at your skill level actually talks under pressure — including the imperfections.`;
   }
 
   const fullPrompt = `${personaInstructions}
 The topic is: "${prompt}"
 
 ${gamemodeInstructions} that:
-1. Is approximately ${wordCount} words (fills exactly ${durationSeconds} seconds when spoken aloud at normal pace)
-2. Has a clear opening hook, structured middle, and memorable closing line
-3. Uses vivid language, rhetorical devices, and natural spoken cadence — not essay-style prose
-4. Feels like a real human speaking passionately and confidently
-5. Contains NO stage directions, NO labels, NO formatting — just the raw speech text
+1. Is roughly ${wordCount} words (fills ${durationSeconds} seconds at conversational pace)
+2. Sounds spoken, not written — short sentences, contractions, occasional filler
+3. Stays in character for the skill level above — DO NOT exceed it
+4. Has at least one specific, concrete weakness an attentive opponent could attack (only Expert-tier may make this subtle)
+5. NO stage directions, NO labels, NO formatting — just the raw speech text
 
 Return ONLY the speech text. Nothing else.`;
 

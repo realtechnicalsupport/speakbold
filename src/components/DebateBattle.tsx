@@ -182,41 +182,32 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
 
   // ── Tab-visibility guard ──────────────────────────────────────────────────
   // Goal: tab switches don't restart, revert, or skip anything.
-  //  - Pause/resume Deepgram audio so "ended" stays accurate
-  //  - Defer autoAdvance until user is back (so transcripts aren't wiped)
+  //  - Deepgram audio keeps playing in the background (browser allows
+  //    user-initiated playback to continue) so the user hears the AI argument
+  //    through tab-out
+  //  - Defer autoAdvance until user is back (so transcripts aren't wiped, and
+  //    the next phase isn't entered while they're not looking)
   //  - Clear stale liveInterim on return (recognition was suspended)
   //  - Force-restart speech recognition on return (Chrome stops mic in bg tabs)
   useEffect(() => {
     const onVisibilityChange = () => {
-      if (document.hidden) {
-        // Pause Deepgram audio to stop it firing "ended" while backgrounded
-        if (audioRef.current && !audioRef.current.paused) {
-          (audioRef.current as any)._pausedByHide = true;
-          audioRef.current.pause();
-        }
-      } else {
-        // Resume Deepgram audio
-        if (audioRef.current && (audioRef.current as any)._pausedByHide) {
-          (audioRef.current as any)._pausedByHide = false;
-          audioRef.current.play().catch(() => {});
-        }
-        // Fire any deferred phase advance (SpeechSynthesis ended while hidden)
-        if (pendingAutoAdvanceRef.current) {
-          pendingAutoAdvanceRef.current = false;
-          advancePhaseRef.current();
-          return; // phase changed — let the new effect handle the rest
-        }
-        // If it's the user's turn, clear stale interim and force-restart recognition
-        const isUserSpeaking = PHASE_CONFIG[phaseRef.current].speaker === "user"
-          && phaseRef.current !== "judging" && phaseRef.current !== "results";
-        if (isUserSpeaking) {
-          // Clear the dangling interim phrase (recognition is fresh now)
-          setLiveInterim("");
-          // Coax recognition back to life — Chrome stops the mic on tab-hide
-          if (recognitionRef.current) {
-            try { recognitionRef.current.stop(); } catch (_) {}
-            // onend handler will restart it after 100ms
-          }
+      if (document.hidden) return;
+      // Fire any deferred phase advance (audio ended while tab was hidden)
+      if (pendingAutoAdvanceRef.current) {
+        pendingAutoAdvanceRef.current = false;
+        advancePhaseRef.current();
+        return; // phase changed — let the new effect handle the rest
+      }
+      // If it's the user's turn, clear stale interim and force-restart recognition
+      const isUserSpeaking = PHASE_CONFIG[phaseRef.current].speaker === "user"
+        && phaseRef.current !== "judging" && phaseRef.current !== "results";
+      if (isUserSpeaking) {
+        // Clear the dangling interim phrase (recognition is fresh now)
+        setLiveInterim("");
+        // Coax recognition back to life — Chrome stops the mic on tab-hide
+        if (recognitionRef.current) {
+          try { recognitionRef.current.stop(); } catch (_) {}
+          // onend handler will restart it after 100ms
         }
       }
     };
@@ -445,10 +436,21 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
       } else if (phase === "rebuttal-ai") {
         // In FOR order, the user's most recent speech before rebuttal-ai is their rebuttal.
         // In AGAINST order, the user has only spoken their opening at this point.
-        const prevUserSpeech = userStand === "FOR"
-          ? transcriptsRef.current.userRebuttal || transcriptsRef.current.userOpening || "(no clear argument from opponent)"
-          : transcriptsRef.current.userOpening || "(no clear argument from opponent)";
-        aiPrompt = `${prompt}\n\n(You are arguing ${myStand} this topic. The other side just argued: "${prevUserSpeech.slice(0, 400)}". Directly address and rebut those specific points, then reinforce your own position. Do NOT open with "My opponent", "My opponent said", or any phrase that references them by name or role. Start with your own assertion. Keep it natural and conversational. Maximum 80 words.)`;
+        const prevUserSpeech = (userStand === "FOR"
+          ? transcriptsRef.current.userRebuttal || transcriptsRef.current.userOpening
+          : transcriptsRef.current.userOpening) || "";
+        const trimmedSpeech = prevUserSpeech.trim();
+        // Anything under ~20 chars is silence, a single filler word, or an
+        // unintelligible interim phrase — not enough to rebut. Fall back to a
+        // closing statement that reinforces our own case instead of inventing
+        // strawmen from the opponent.
+        const hasRealResponse = trimmedSpeech.length >= 20;
+
+        if (hasRealResponse) {
+          aiPrompt = `${prompt}\n\n(You are arguing ${myStand} this topic. The other side just argued: "${trimmedSpeech.slice(0, 400)}". Directly address and rebut those specific points — quote or paraphrase what they actually said, then explain why it doesn't hold up. End by reinforcing your own position. Do NOT open with "My opponent", "My opponent said", or any phrase that references them by name or role. Start with your own assertion. Keep it natural and conversational. Maximum 80 words.)`;
+        } else {
+          aiPrompt = `${prompt}\n\n(You are arguing ${myStand} this topic. The other side gave no substantive response to rebut, so deliver a tight CLOSING STATEMENT instead: restate your strongest point in a new way, add one fresh piece of evidence or angle you haven't used yet, and close with a memorable line. Do NOT mention that they didn't respond. Do NOT open with "My opponent". Start with your own assertion. Keep it natural and conversational. Maximum 80 words.)`;
+        }
       }
 
       let argument: string;
