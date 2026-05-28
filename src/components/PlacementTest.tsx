@@ -69,6 +69,15 @@ export const PlacementTest = ({ userName, onPlace, onSkip }: {
   const handleStop = () => {
     setRunning(false);
     recorderStopRef.current?.();
+    // Safety net: if the recorder never delivers a blob (denied mic, empty
+    // capture, hardware glitch) analyze() is never called and the screen would
+    // hang on "recording" forever. Fall back to a beginner placement so the
+    // user always moves forward.
+    setTimeout(() => {
+      if (phaseRef.current === "recording") {
+        fallback("We couldn't capture your audio, so we'll start you from the beginning. You can jump ahead anytime.");
+      }
+    }, 1500);
   };
 
   const fallback = (feedback: string) => {

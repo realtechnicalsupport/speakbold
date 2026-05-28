@@ -429,6 +429,29 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
+  const pickPersonaByElo = (userElo: number) => {
+    // Bronze <600: mostly Echo, occasionally LogicBot
+    if (userElo < 600) {
+      return Math.random() < 0.7 ? AI_PERSONAS[0] : AI_PERSONAS[1];
+    }
+    // Silver 600–1199: LogicBot primary, slight chance of Echo or Persuado
+    if (userElo < 1200) {
+      const r = Math.random();
+      if (r < 0.20) return AI_PERSONAS[0]; // Echo
+      if (r < 0.75) return AI_PERSONAS[1]; // LogicBot
+      return AI_PERSONAS[2];               // Persuado
+    }
+    // Gold 1200–1799: Persuado primary, some LogicBot and NeuroJudge
+    if (userElo < 1800) {
+      const r = Math.random();
+      if (r < 0.10) return AI_PERSONAS[1]; // LogicBot
+      if (r < 0.70) return AI_PERSONAS[2]; // Persuado
+      return AI_PERSONAS[3];               // NeuroJudge
+    }
+    // Platinum+ 1800+: NeuroJudge dominant
+    return Math.random() < 0.30 ? AI_PERSONAS[2] : AI_PERSONAS[3];
+  };
+
   const findMatch = async (mode: Gamemode): Promise<any> => {
     let dynamicPrompt = await generateArenaPrompt(mode);
     if (mode === "debate") {
@@ -437,7 +460,7 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
     return new Promise(resolve => {
       setTimeout(() => {
-        const persona = AI_PERSONAS[Math.floor(Math.random() * AI_PERSONAS.length)];
+        const persona = pickPersonaByElo(profile.elo);
         const match = {
           id: `ai-duel-${Date.now()}`,
           creator: { id: user?.id, name: user?.email?.split("@")[0] || "You", avatar: "👤", elo: profile.elo, rank: getRankFromElo(profile.elo), score: 0 },
