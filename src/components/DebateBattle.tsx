@@ -195,12 +195,10 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
       perms.query({ name: "microphone" as PermissionName })
         .then((status: PermissionStatus) => {
           if (cancelled) return;
+          // Only flag an error on outright denial. "prompt" means the browser
+          // will ask the user when we actually start recording — no need to
+          // open a stream here just to learn that.
           setMicError(status.state === "denied");
-          // Permissions API doesn't reveal whether an absent permission will
-          // actually succeed (some browsers report "prompt" for blocked devs).
-          // Only fall back to the stream probe if the state is genuinely
-          // unknown — never on "denied", to avoid retriggering the prompt.
-          if (status.state === "prompt") probe();
         })
         .catch(() => probe());
     } else {
