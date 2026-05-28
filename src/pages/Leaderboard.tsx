@@ -92,7 +92,7 @@ const Leaderboard = () => {
                     <div className="space-y-2 md:space-y-4 text-right">
                       <p className="text-[10px] md:text-xs font-black uppercase tracking-widest opacity-30">Rank</p>
                       <div className="flex items-center justify-end gap-2 md:gap-4">
-                        <span className="text-2xl md:text-4xl animate-float">{getRankEmblem(myRank.name)}</span>
+                        <span className="text-2xl md:text-4xl">{getRankEmblem(myRank.name)}</span>
                         <p className="speak-serif text-xl md:text-3xl font-bold uppercase tracking-tighter italic">{myRank.name} {myRank.tier}</p>
                       </div>
                     </div>
