@@ -83,39 +83,89 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [incomingRequests, setIncomingRequests] = useState<any[]>([]);
   const arenaChannel = useRef<any>(null);
 
-  // Write a new ELO value to the DB and confirm it landed by reading the row
-  // back. Surfaces a destructive toast on failure so silent RLS/migration
-  // issues become visible instead of leaving the leaderboard stuck at 1000.
-  // Returns the persisted value (or the optimistic target if the read-back
-  // fails so the in-session UI still moves).
-  const persistElo = async (userId: string, targetElo: number): Promise<number> => {
+  // Authoritative battle-result submitter. Replaces the previous client-side
+  // `persistElo` + direct `arena_battles` insert combo, both of which let any
+  // user PATCH their own row to arbitrary ratings. The edge function recomputes
+  // ELO from server-side inputs (current ELO from DB, match count from DB,
+  // opponent ELO from DB when opponent is a real user) and writes both the
+  // battle row and the new ELO atomically.
+  //
+  // Returns the server's authoritative `{ newElo, eloChange }`. On failure
+  // returns the client's optimistic value so the in-session UI still moves —
+  // but a destructive toast surfaces so silent edge-function / RLS / deploy
+  // issues become visible instead of leaving the leaderboard stuck.
+  const submitBattleResult = async (input: {
+    duelObj: Duel;
+    isAi: boolean;
+    isTie?: boolean;
+    isForfeit?: "self" | "opponent" | null;
+    isCustom?: boolean;
+    myScore: number | null;
+    oppScore: number | null;
+    opponent: { id?: string | null; name?: string; avatar?: string; elo?: number };
+    feedback?: string;
+    strengths?: string;
+    oppStrengths?: string;
+    oppFeedback?: string;
+    exampleSpeech?: string;
+    /** Fallback ELO to display if the server is unreachable. */
+    fallbackNewElo: number;
+    fallbackEloChange: number;
+  }): Promise<{ newElo: number; eloChange: number }> => {
     try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .update({ elo: targetElo })
-        .eq("id", userId)
-        .select("elo")
-        .single();
+      const { data, error } = await supabase.functions.invoke<{
+        ok?: boolean; newElo?: number; eloChange?: number; error?: string;
+      }>("submit-battle-result", {
+        body: {
+          duelId: input.duelObj.id,
+          gamemode: input.duelObj.gamemode,
+          isAi: input.isAi,
+          isTie: input.isTie ?? false,
+          isForfeit: input.isForfeit ?? null,
+          isCustom: input.isCustom ?? false,
+          myScore: input.myScore,
+          oppScore: input.oppScore,
+          opponent: {
+            id: input.opponent.id ?? null,
+            name: input.opponent.name,
+            avatar: input.opponent.avatar,
+          },
+          // Channel for AI opponents: the persona ELO is hardcoded in
+          // AI_PERSONAS, so we pass it through under a private field so the
+          // server can bound-check + use it without trusting the client for
+          // real users.
+          _aiOppElo: input.isAi ? input.opponent.elo : undefined,
+          prompt: input.duelObj.prompt,
+          feedback: input.feedback,
+          strengths: input.strengths,
+          oppStrengths: input.oppStrengths,
+          oppFeedback: input.oppFeedback,
+          exampleSpeech: input.exampleSpeech,
+        },
+      });
 
-      if (error) {
-        console.error("[ArenaContext] ELO write FAILED:", error);
+      if (error || data?.error) {
+        console.error("[ArenaContext] submitBattleResult failed:", error || data?.error);
         toast({
           title: "Rating didn't save",
-          description: `Battle recorded, but your ELO couldn't be written (${error.message}). Check Supabase RLS / migrations.`,
+          description: `Battle couldn't be recorded server-side (${error?.message || data?.error}). Showing local estimate.`,
           variant: "destructive",
         });
-        return targetElo;
+        return { newElo: input.fallbackNewElo, eloChange: input.fallbackEloChange };
       }
-      const persisted = data?.elo ?? targetElo;
-      if (persisted !== targetElo) {
-        console.warn(`[ArenaContext] ELO write landed at ${persisted}, expected ${targetElo}`);
-      } else {
-        console.log(`[ArenaContext] ELO persisted: ${persisted}`);
-      }
-      return persisted;
+
+      const newElo = data?.newElo ?? input.fallbackNewElo;
+      const eloChange = data?.eloChange ?? input.fallbackEloChange;
+      console.log(`[ArenaContext] battle submitted: ${eloChange >= 0 ? "+" : ""}${eloChange} → ${newElo}`);
+      return { newElo, eloChange };
     } catch (e) {
-      console.error("[ArenaContext] persistElo threw:", e);
-      return targetElo;
+      console.error("[ArenaContext] submitBattleResult threw:", e);
+      toast({
+        title: "Rating didn't save",
+        description: "Couldn't reach the battle-result service. Your rating wasn't updated.",
+        variant: "destructive",
+      });
+      return { newElo: input.fallbackNewElo, eloChange: input.fallbackEloChange };
     }
   };
 
@@ -321,7 +371,10 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     try {
       // ── Optimistic local update ───────────────────────────────────────────
-      // Update UI immediately — don't wait for the round-trip to the DB.
+      // Update UI immediately — don't wait for the round-trip to the server.
+      // The authoritative value below replaces this once the edge function
+      // returns; if the function is unreachable, the optimistic value sticks
+      // and a toast surfaces.
       setProfile(prev => ({
         ...prev,
         elo: newElo,
@@ -329,31 +382,36 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         losses: isMe ? prev.losses + 1 : prev.losses,
       }));
 
-      // ── Persist ELO to DB ─────────────────────────────────────────────────
-      // Direct UPDATE with read-back so failures are visible. Bypasses the
-      // add_user_elo RPC entirely — too many deployments have shipped without
-      // the migration, leaving battles that look like they counted but didn't.
-      const persistedElo = await persistElo(user.id, newElo);
+      // ── Persist via authoritative edge function ───────────────────────────
+      // Edge function recomputes ELO server-side from DB-read inputs (not the
+      // client payload), writes the arena_battles row, then updates profiles.
+      // Replaces the old direct-UPDATE path which let any user PATCH their own
+      // rating to anything they wanted.
+      const opponent = isCreator ? duelObj.challenger : duelObj.creator;
+      const { newElo: serverElo, eloChange: serverDelta } = await submitBattleResult({
+        duelObj,
+        isAi,
+        isForfeit: isMe ? "self" : "opponent",
+        myScore: null,
+        oppScore: null,
+        opponent: {
+          id: opponent?.id,
+          name: opponent?.name,
+          avatar: opponent?.avatar,
+          elo: opponent?.elo,
+        },
+        feedback: isMe ? "Player forfeited the match." : "Opponent forfeited the match.",
+        fallbackNewElo: newElo,
+        fallbackEloChange: eloChange,
+      });
 
-      const isUuid = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-5][0-9a-f]{3}-[089ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
-
-      const payload = {
-        challenger_id: isUuid(duelObj.creator.id     || "") ? duelObj.creator.id      : user.id,
-        opponent_id:   isUuid(duelObj.challenger?.id || "") ? duelObj.challenger?.id  : null,
-        prompt:   duelObj.prompt,
-        gamemode: duelObj.gamemode,
-        challenger_score: isMe ? 0   : 100,
-        opponent_score:   isMe ? 100 : 0,
-        verdict: isMe ? "Player forfeited the match." : "Opponent forfeited the match.",
-        // winner_id must be a real auth.users UUID or null — never an AI pseudo-ID
-        winner_id: isMe ? null : user.id,
-      };
-
-      const { error: fInsertErr } = await supabase.from("arena_battles").insert(payload);
-      if (fInsertErr) console.error("[ArenaContext] Forfeit battle insert failed:", fInsertErr);
+      // Reconcile with the server-authoritative value
+      if (serverElo !== newElo) {
+        setProfile(prev => ({ ...prev, elo: serverElo }));
+      }
 
       await refresh(true);
-      arenaEmitter.emit("elo:updated", { change: eloChange, newElo: persistedElo });
+      arenaEmitter.emit("elo:updated", { change: serverDelta, newElo: serverElo });
     } catch (e) {
       console.error("[ArenaContext] handleForfeit failed:", e);
     }
@@ -394,6 +452,7 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     try {
       // ── Optimistic local update ───────────────────────────────────────────
+      // UI moves instantly; server-authoritative values reconcile below.
       setProfile(prev => ({
         ...prev,
         elo:    isCustom ? prev.elo : newElo,
@@ -401,41 +460,39 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         losses: (!won && !tie) ? prev.losses + 1 : prev.losses,
       }));
 
-      // ── Persist ELO to DB ─────────────────────────────────────────────────
-      // Direct UPDATE with read-back. We skip the add_user_elo RPC because
-      // many deployments are missing the migration, and a silent RPC failure
-      // followed by a silent fallback meant battles appeared to count but the
-      // DB never moved off 1000.
-      let persistedElo = newElo;
-      if (eloChange !== 0) {
-        persistedElo = await persistElo(user.id, newElo);
-      }
-
-      const isUuid = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-5][0-9a-f]{3}-[089ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
-
-      const payload = {
-        challenger_id: isUuid(duelObj.creator.id || "") ? duelObj.creator.id : user.id,
-        opponent_id: isUuid(duelObj.challenger?.id || "") ? duelObj.challenger?.id : null,
-        prompt: duelObj.prompt,
-        gamemode: duelObj.gamemode,
-        challenger_score: creatorScore,
-        opponent_score: challengerScore,
-        verdict: feedback,
+      // ── Persist via authoritative edge function ───────────────────────────
+      // The function recomputes ELO server-side from DB-read inputs and writes
+      // both the arena_battles row AND profiles.elo atomically. Replaces the
+      // old client-UPDATE path which let any user PATCH their own rating.
+      const opponent = isChallenger ? duelObj.creator : duelObj.challenger;
+      const { newElo: serverElo, eloChange: serverDelta } = await submitBattleResult({
+        duelObj,
+        isAi: isAI,
+        isTie: tie,
+        isCustom,
+        myScore,
+        oppScore,
+        opponent: {
+          id: opponent?.id,
+          name: opponent?.name,
+          avatar: opponent?.avatar,
+          elo: opponent?.elo,
+        },
+        feedback,
         strengths: details?.strengths,
-        opp_strengths: details?.oppStrengths,
-        opp_feedback: details?.oppFeedback,
-        example_speech: details?.exampleSpeech,
-        // winner_id must always be a real auth.users UUID or null.
-        // When the losing side is an AI (non-UUID id like "ai" or "ai-{timestamp}"),
-        // store null — result is inferred from scores. Never pass a non-UUID string.
-        winner_id: won ? user.id : (tie ? null : (() => {
-          const losingOpponentId = isChallenger ? duelObj.creator.id : duelObj.challenger?.id;
-          return isUuid(losingOpponentId || "") ? losingOpponentId : null;
-        })())
-      };
+        oppStrengths: details?.oppStrengths,
+        oppFeedback: details?.oppFeedback,
+        exampleSpeech: details?.exampleSpeech,
+        fallbackNewElo: newElo,
+        fallbackEloChange: eloChange,
+      });
 
-      const { error: insertErr } = await supabase.from("arena_battles").insert(payload);
-      if (insertErr) console.error("[ArenaContext] Battle insert failed:", insertErr);
+      // Reconcile with the server-authoritative ELO if it differs
+      if (!isCustom && serverElo !== newElo) {
+        setProfile(prev => ({ ...prev, elo: serverElo }));
+      }
+      const persistedElo = serverElo;
+      const persistedDelta = serverDelta;
 
       // ── Mark daily practice streak ────────────────────────────────────────
       // Arena battles count toward the daily streak just like Pathway drills.
@@ -456,7 +513,7 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       } catch { /* streak update is non-critical */ }
 
       await refresh(true);
-      arenaEmitter.emit("elo:updated", { change: eloChange, newElo: persistedElo });
+      arenaEmitter.emit("elo:updated", { change: persistedDelta, newElo: persistedElo });
     } catch (e) {
       console.error("[ArenaContext] completeDuel failed:", e);
     }

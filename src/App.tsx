@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useEffect } from "react";
-import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
+import { useEffect, type ReactNode } from "react";
+import { BrowserRouter, Route, Routes, Navigate, useLocation } from "react-router-dom";
+import { useAuth } from "./context/AuthContext";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -45,6 +46,20 @@ const ReminderWrapper = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
+/**
+ * Gate a protected route on an authenticated session. While auth is still
+ * resolving we render nothing (rather than flashing an empty authed page,
+ * then redirecting). Once resolved, signed-out users are sent to /login with
+ * the original destination preserved so post-login can bounce them back.
+ */
+const RequireAuth = ({ children }: { children: ReactNode }) => {
+  const { session, loading } = useAuth();
+  const location = useLocation();
+  if (loading) return null;
+  if (!session) return <Navigate to="/login" replace state={{ from: location }} />;
+  return <>{children}</>;
+};
+
 const App = () => {
   const timerActive = useTimerActive();
 
@@ -54,10 +69,10 @@ const App = () => {
       "%c SPEAKBOLD %c v1.2.5 %c\n" +
       "%c\n" +
       "  RECENT UPDATES:\n" +
-      "  Γ£┤ User Progress: Finalized robust Supabase sync for Onboarding & Tutorials\n" +
-      "  Γ£┤ Persistence: Implemented cross-device state recovery via AuthContext\n" +
-      "  Γ£┤ Arena: Fixed battle archive persistence for AI & custom duels\n" +
-      "  Γ£┤ Performance: Optimized ELO calculation and database RPC calls\n" +
+      "  ✓ User Progress: Finalized robust Supabase sync for Onboarding & Tutorials\n" +
+      "  ✓ Persistence: Implemented cross-device state recovery via AuthContext\n" +
+      "  ✓ Arena: Fixed battle archive persistence for AI & custom duels\n" +
+      "  ✓ Performance: Optimized ELO calculation and database RPC calls\n" +
       "\n" +
       "  DEV TOOLS AVAILABLE:\n" +
       "  > resetOnboarding()  - Clear all progress and restart experience\n" +
@@ -107,25 +122,32 @@ const App = () => {
 
               <div className={`${timerActive ? "pb-0" : "pb-24 lg:pb-0"} relative z-10`}>
                 <Routes>
+                  {/* Public — anyone, signed in or not */}
                   <Route path="/" element={<Index />} />
-                  <Route path="/pre-flight" element={<PreFlightChecklist />} />
-                  <Route path="/profile" element={<Profile />} />
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/auth/callback" element={<Callback />} />
                   <Route path="/reset-password" element={<ResetPassword />} />
+                  <Route path="/pitch" element={<PitchDeck />} />
+                  {/* Track pages are intentionally public — Login.tsx
+                      links to "/tracks/impromptu" as ANONYMOUS PRACTICE. */}
                   <Route path="/tracks/public-speaking" element={<PublicSpeaking />} />
                   <Route path="/tracks/impromptu" element={<Impromptu />} />
                   <Route path="/tracks/interviews" element={<Interviews />} />
                   <Route path="/tracks/body-language" element={<BodyLanguage />} />
-                  <Route path="/login" element={<Login />} />
-                  <Route path="/auth/callback" element={<Callback />} />
-                  <Route path="/pitch" element={<PitchDeck />} />
-                  <Route path="/report" element={<ProgressReport />} />
-                  <Route path="/leaderboard" element={<Leaderboard />} />
-                  <Route path="/pathway" element={<Pathway />} />
-                  <Route path="/lab" element={<Lab />} />
-                  <Route path="/arena" element={<Arena />} />
-                  <Route path="/events" element={<Events />} />
-                  <Route path="/events/new" element={<CreateEvent />} />
-                  <Route path="/events/:id" element={<EventDetail />} />
+
+                  {/* Auth-gated — flash an empty page no longer; bounce to
+                      /login with location state so we can return after sign-in. */}
+                  <Route path="/pre-flight" element={<RequireAuth><PreFlightChecklist /></RequireAuth>} />
+                  <Route path="/profile" element={<RequireAuth><Profile /></RequireAuth>} />
+                  <Route path="/report" element={<RequireAuth><ProgressReport /></RequireAuth>} />
+                  <Route path="/leaderboard" element={<RequireAuth><Leaderboard /></RequireAuth>} />
+                  <Route path="/pathway" element={<RequireAuth><Pathway /></RequireAuth>} />
+                  <Route path="/lab" element={<RequireAuth><Lab /></RequireAuth>} />
+                  <Route path="/arena" element={<RequireAuth><Arena /></RequireAuth>} />
+                  <Route path="/events" element={<RequireAuth><Events /></RequireAuth>} />
+                  <Route path="/events/new" element={<RequireAuth><CreateEvent /></RequireAuth>} />
+                  <Route path="/events/:id" element={<RequireAuth><EventDetail /></RequireAuth>} />
+
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </div>

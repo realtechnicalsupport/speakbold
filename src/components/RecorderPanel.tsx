@@ -38,10 +38,21 @@ export const RecorderPanel = React.forwardRef(({
   const { permission, requestPermission } = useMicPermission();
   const externallyControlled = !!(recorderStartRef && recorderPauseRef && recorderResumeRef && recorderStopRef);
 
-  // Pre-request permission on mount for externally-driven recorders (hidden in Arena/Pathway)
-  // so the browser prompt fires before the user hits the start button.
+  // Pre-request permission on mount for externally-driven recorders (hidden in
+  // Arena/Pathway) so the browser prompt fires before the user hits start.
+  // Gated by a session flag so navigating between track pages doesn't re-prompt:
+  // some browsers (notably Safari and Chromium with "ask each time" policy)
+  // return "prompt" from the Permissions API even after the user has just
+  // granted access in this tab, which would otherwise pop the dialog on every
+  // single mount. The flag is session-scoped so a fresh tab still gets the
+  // proactive prompt once.
   useEffect(() => {
-    if (recorderStartRef && permission === "prompt") requestPermission();
+    if (!recorderStartRef) return;
+    if (permission !== "prompt") return;
+    const SESSION_FLAG = "speakbold-mic-prompted-this-session";
+    if (sessionStorage.getItem(SESSION_FLAG) === "1") return;
+    try { sessionStorage.setItem(SESSION_FLAG, "1"); } catch { /* private mode */ }
+    requestPermission();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

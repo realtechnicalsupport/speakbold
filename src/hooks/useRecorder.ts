@@ -79,14 +79,17 @@ export const useRecorder = () => {
       };
 
       // A device id saved on one device (e.g. desktop) is invalid on another
-      // (e.g. phone) and makes getUserMedia throw. Try the saved mic, then
-      // fall back to the default input so recording still works on mobile.
+      // (e.g. phone) and used to make getUserMedia throw OverconstrainedError.
+      // Switched from `exact` → `ideal` so an invalid pinned device silently
+      // falls back to the system default instead of failing the whole start.
+      // (We still keep the explicit fallback below for browsers that ignore
+      // `ideal` and treat any deviceId object as a hard constraint.)
       const savedDeviceId = localStorage.getItem("speakbold-mic-device");
       let stream: MediaStream;
       if (savedDeviceId) {
         try {
           stream = await navigator.mediaDevices.getUserMedia({
-            audio: { ...audioConstraints, deviceId: { exact: savedDeviceId } },
+            audio: { ...audioConstraints, deviceId: { ideal: savedDeviceId } },
           });
         } catch {
           stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
@@ -143,6 +146,15 @@ export const useRecorder = () => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
       mediaRecorderRef.current.pause();
       pausedAtRef.current = Date.now();
+      // Stop the tick while paused — without this, the interval keeps firing
+      // every 100ms and computing the same elapsedMs over and over. It also
+      // means a JS macrotask backlog (a long task during pause) can show a
+      // visible tick-jump the first frame after resume. Cheaper + steadier
+      // to suspend ticks for the paused window.
+      if (tickRef.current) {
+        window.clearInterval(tickRef.current);
+        tickRef.current = null;
+      }
       setState("paused");
       // Keep border active while paused
       setRecordingActive(true);
@@ -153,6 +165,14 @@ export const useRecorder = () => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === "paused") {
       mediaRecorderRef.current.resume();
       pauseDurationRef.current += Date.now() - pausedAtRef.current;
+      // Restart the elapsed tick now that we're recording again. The wall-clock
+      // math (now - startedAt - pauseDuration) already accounts for the pause,
+      // so the first tick lands at the correct elapsed value with no jump.
+      if (!tickRef.current) {
+        tickRef.current = window.setInterval(() => {
+          setElapsedMs(Date.now() - startedAtRef.current - pauseDurationRef.current);
+        }, 100);
+      }
       setState("recording");
       setRecordingActive(true);
     }

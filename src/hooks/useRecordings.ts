@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
-import { XP_REWARDS } from "@/lib/xp-system";
+import { getXpReward } from "@/lib/xp-system";
 import { toast } from "sonner";
 
 export type CloudRecording = {
@@ -102,8 +102,8 @@ export const useRecordings = (filter: RecordingFilter = "all") => {
         return null;
       }
 
-      // Award XP based on difficulty - try profiles table first, fallback to user_xp
-      const xpReward = XP_REWARDS[meta.difficulty as keyof typeof XP_REWARDS] || 20;
+      // Award XP based on difficulty (case-insensitive — see xp-system.ts)
+      const xpReward = getXpReward(meta.difficulty);
 try {
         // Always use user_xp table
         console.log("[recordings] Using user_xp for XP");
