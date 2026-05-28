@@ -5,6 +5,12 @@ import { useChat } from "@/context/ChatContext";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { useTimerActive } from "@/lib/timerState";
+
+// Session flag so dismissing the FAB hides it until the next tab open. We use
+// sessionStorage (not localStorage) so the coach reappears next session — the
+// dismissal is "leave me alone for now," not "hide forever."
+const FAB_DISMISSED_KEY = "speakbold-coach-fab-dismissed";
 
 export const AICoachChat = () => {
   const { user } = useAuth();
@@ -12,6 +18,13 @@ export const AICoachChat = () => {
   const [inputText, setInputText] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+  // Hide the FAB during timed drills — same signal MobileNav uses. Coach
+  // popping over a live recording panel is purely distracting.
+  const timerActive = useTimerActive();
+  // Per-session dismiss flag (the small "x" on the FAB)
+  const [fabDismissed, setFabDismissed] = useState(() => {
+    try { return sessionStorage.getItem(FAB_DISMISSED_KEY) === "1"; } catch { return false; }
+  });
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -21,6 +34,16 @@ export const AICoachChat = () => {
   }, [messages, isOpen, isLoading]);
 
   if (!user) return null;
+  // FAB is suppressed if: timer is active, user dismissed it, or chat window
+  // is already open. The chat window itself stays available — only the
+  // floating trigger is hidden.
+  const fabHidden = timerActive || fabDismissed || isOpen;
+
+  const dismissFab = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setFabDismissed(true);
+    try { sessionStorage.setItem(FAB_DISMISSED_KEY, "1"); } catch { /* private mode */ }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,21 +54,65 @@ export const AICoachChat = () => {
 
   return (
     <>
-      {/* Floating Action Button */}
+      {/* Floating Action Button — full version (timer + dismiss-aware) */}
       <AnimatePresence>
-        {!isOpen && (
-          <motion.button
+        {!fabHidden && (
+          <motion.div
             initial={{ scale: 0, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0, opacity: 0 }}
-            onClick={() => setIsOpen(true)}
-            id="coach-chat-trigger"
-            className="fixed bottom-24 lg:bottom-8 right-6 z-50 h-14 w-14 rounded-full bg-primary text-white shadow-glow flex items-center justify-center hover:scale-110 active:scale-95 transition-all group border-2 border-primary/50"
-            aria-label="Open AI Coach"
+            // Sit above the mobile nav pill (env(safe-area-inset-bottom) + pill
+            // height ≈ 1.5rem + 4rem). Previous `bottom-24` (6rem) collided with
+            // the pill on devices with home-indicator insets. On lg+ desktops
+            // there is no MobileNav so we keep the original `bottom-8` spacing.
+            className="fixed right-6 z-50 bottom-[calc(env(safe-area-inset-bottom,0px)+6.5rem)] lg:bottom-8"
           >
-            <div className="absolute inset-0 rounded-full bg-white/20 animate-ping opacity-0 group-hover:opacity-100" />
-            <Sparkles className="h-6 w-6 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 group-hover:animate-spin-slow transition-opacity" />
-            <MessageCircle className="h-6 w-6 transition-opacity group-hover:opacity-0" />
+            <button
+              onClick={() => setIsOpen(true)}
+              id="coach-chat-trigger"
+              className="relative h-14 w-14 rounded-full bg-primary text-white shadow-glow flex items-center justify-center hover:scale-110 active:scale-95 transition-all group border-2 border-primary/50"
+              aria-label="Open AI Coach"
+            >
+              <div className="absolute inset-0 rounded-full bg-white/20 animate-ping opacity-0 group-hover:opacity-100" />
+              <Sparkles className="h-6 w-6 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 group-hover:animate-spin-slow transition-opacity" />
+              <MessageCircle className="h-6 w-6 transition-opacity group-hover:opacity-0" />
+            </button>
+            {/* Tiny dismiss handle — minimises to the ghost re-show pill below.
+                Crucially this does NOT make the coach unreachable: the ghost
+                still gives users a way back. Without it, dismissing once would
+                kill chat access for the whole session. */}
+            <button
+              onClick={dismissFab}
+              aria-label="Hide AI Coach for this session"
+              className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-background border border-border text-foreground/60 flex items-center justify-center hover:text-foreground hover:scale-110 transition-all"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Ghost re-show pill — visible ONLY when the user explicitly dismissed
+          the FAB. Lower contrast, smaller footprint, but still tappable so the
+          coach is never permanently unreachable within a session. Click both
+          un-dismisses AND opens the chat in a single action. Hidden during
+          timed drills so it doesn't compete with the drill UI. */}
+      <AnimatePresence>
+        {fabDismissed && !isOpen && !timerActive && (
+          <motion.button
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 0.55 }}
+            whileHover={{ opacity: 1, scale: 1.05 }}
+            exit={{ scale: 0, opacity: 0 }}
+            onClick={() => {
+              setFabDismissed(false);
+              try { sessionStorage.removeItem(FAB_DISMISSED_KEY); } catch { /* private mode */ }
+              setIsOpen(true);
+            }}
+            aria-label="Show AI Coach"
+            className="fixed right-3 z-50 h-7 w-7 rounded-full bg-muted/80 backdrop-blur-sm border border-border text-foreground/70 flex items-center justify-center hover:text-primary transition-colors bottom-[calc(env(safe-area-inset-bottom,0px)+7rem)] lg:bottom-10"
+          >
+            <Sparkles className="h-3.5 w-3.5" />
           </motion.button>
         )}
       </AnimatePresence>

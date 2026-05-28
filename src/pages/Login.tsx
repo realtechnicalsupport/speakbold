@@ -1,5 +1,5 @@
 ﻿import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Mic, Eye, EyeOff, ArrowRight, Mail, Lock, ShieldCheck, Zap, Sparkles, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,13 +18,17 @@ const Login = () => {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
-  const [rememberMe, setRememberMe] = useState(true);
   const navigate = useNavigate();
+  const location = useLocation();
   const { session } = useAuth();
 
+  // Post-login destination: prefer the page the user originally tried to
+  // reach (set by <RequireAuth> via location state), otherwise /pathway.
+  const redirectTo = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname || "/pathway";
+
   useEffect(() => {
-    if (session) navigate("/pathway", { replace: true });
-  }, [session, navigate]);
+    if (session) navigate(redirectTo, { replace: true });
+  }, [session, navigate, redirectTo]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,7 +48,7 @@ const Login = () => {
       } else if (mode === "login") {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        navigate("/pathway");
+        navigate(redirectTo);
       } else {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
           redirectTo: `${window.location.origin}/reset-password`,

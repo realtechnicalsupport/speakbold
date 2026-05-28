@@ -113,8 +113,11 @@ const Arena = () => {
     else if (eloUpdate.change < 0) arenasfx.eloLoss();
   }, [eloUpdate]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Debug command for developers
+  // Debug command — DEV ONLY. Previously shipped to production, which let
+  // anyone with devtools auto-win battles and forge ELO. Vite strips this
+  // entire effect at build time when import.meta.env.DEV is false.
   useEffect(() => {
+    if (!import.meta.env.DEV) return;
     (window as any).debugWin = () => {
       if (!activeDrill) {
         console.error("[Debug] No active battle to win! Enter a match first.");
@@ -122,22 +125,22 @@ const Arena = () => {
       }
       console.log("[Debug] Auto-winning battle:", activeDrill.id);
       completeDuel(
-        activeDrill.id, 
-        user?.email?.split("@")[0] || "User", 
+        activeDrill.id,
+        user?.email?.split("@")[0] || "User",
         100, // Perfect score
         0,   // Opponent loss
-        "Victory achieved via divine debug intervention.", 
+        "Victory achieved via divine debug intervention.",
         activeDrill
       );
-      
+
       // Simulate return to lobby
       setActiveDrill(null);
       setIsCreating(false);
-      
+
       // Fire animation (completeDuel handles the event dispatch)
       console.log("[Debug] Rank adjustment triggered.");
     };
-    
+
     return () => { delete (window as any).debugWin; };
   }, [activeDrill, completeDuel, user]);
 

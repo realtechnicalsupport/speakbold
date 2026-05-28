@@ -10,7 +10,7 @@ import { setRecordingActive } from "@/lib/recordingState";
 import { MicrophoneBorder } from "@/components/MicrophoneBorder";
 import { RecorderPanel } from "@/components/RecorderPanel";
 import type { Duel, Gamemode, DuelPlayer } from "@/context/ArenaContext";
-import { getRankColor, getRankFromElo } from "@/hooks/arenaUtils";
+import { getRankColor, getRankFromElo, FORFEIT_PENALTY } from "@/hooks/arenaUtils";
 import { useSoundEffects } from "@/hooks/useSoundEffects";
 
 // ─── Web Speech API typing ───────────────────────────────────────────────────
@@ -86,6 +86,28 @@ const getPersonaVoice = (personaName?: string): string => {
   return AURA_VOICES[hash % AURA_VOICES.length];
 };
 
+/**
+ * Persisted debate state lives under these keys. Centralised so forfeit,
+ * intentional close, and the natural results path all clear the same set
+ * — previously the forfeit path only zeroed some of them, and the next
+ * battle would resume mid-rebuttal on the wrong topic.
+ */
+const DEBATE_STORAGE_KEYS = [
+  "debate_phase",
+  "debate_phase_start",
+  "debate_transcripts",
+  "debate_identity", // prompt|opponent fingerprint — used to reject stale restores
+] as const;
+
+function clearDebateStorage() {
+  for (const k of DEBATE_STORAGE_KEYS) sessionStorage.removeItem(k);
+}
+
+/** Stable fingerprint for a debate session — used to detect stale storage from a previous match. */
+function debateIdentity(prompt: string, opponentName: string): string {
+  return `${prompt}|${opponentName}`;
+}
+
 export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, onComplete, completeDuel, handleForfeit }: DebateBattleProps) => {
   const { user } = useAuth();
   const { upload, refresh } = useRecordings("arena");
@@ -96,8 +118,18 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
 
   // ── Phase + timer (with sessionStorage persistence for tab-discard recovery) ──
   // Recoverable phases: any user/ai speaking turn. "judging" and "results" are not restored.
-  const _savedPhaseRaw = sessionStorage.getItem("debate_phase") as DebatePhase | null;
-  const _savedPhaseStart = sessionStorage.getItem("debate_phase_start");
+  // We also require the persisted identity to match the current debate — otherwise
+  // a stale match from a tab-close hijacks the next one (different topic, same
+  // restore → user lands mid-rebuttal on a debate they never started).
+  const _currentIdentity = debateIdentity(prompt, opponent.name);
+  const _savedIdentity = sessionStorage.getItem("debate_identity");
+  const _identityMatches = _savedIdentity === _currentIdentity;
+  const _savedPhaseRaw = _identityMatches
+    ? (sessionStorage.getItem("debate_phase") as DebatePhase | null)
+    : null;
+  const _savedPhaseStart = _identityMatches
+    ? sessionStorage.getItem("debate_phase_start")
+    : null;
   const _validSavedPhase = (
     _savedPhaseRaw !== null &&
     _savedPhaseRaw in PHASE_CONFIG &&
@@ -105,6 +137,11 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
     _savedPhaseRaw !== "judging" &&
     _savedPhaseRaw !== "prep"
   );
+  // If the persisted state is for a different debate, wipe it so the rest of
+  // this mount + the persist effects below start from a clean slate.
+  if (_savedIdentity && !_identityMatches) {
+    clearDebateStorage();
+  }
 
   const [phase, setPhase] = useState<DebatePhase>(
     _validSavedPhase ? (_savedPhaseRaw as DebatePhase) : phaseOrder[0]
@@ -374,9 +411,11 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
       // Fresh phase — reset wall-clock anchor and full duration
       phaseStartRef.current = Date.now();
       setSecondsLeft(cfg.duration);
-      // Persist the new phase start to storage
+      // Persist the new phase start to storage + identity fingerprint so
+      // a later mount can reject this state if it belongs to a different debate.
       sessionStorage.setItem("debate_phase", phase);
       sessionStorage.setItem("debate_phase_start", phaseStartRef.current.toString());
+      sessionStorage.setItem("debate_identity", _currentIdentity);
     }
     sfx.resetCountdown();
 
@@ -582,13 +621,20 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
       // not incremented per tick. This means on tab return (after Chrome throttles
       // setTimeout to 1Hz on hidden tabs), the next tick jumps the text to where it
       // SHOULD be, instead of slowly catching up — no visible "revert" effect.
+      //
+      // estimatedDurationMs can be mutated mid-stream (via the ref) when real
+      // audio.duration becomes known after a `durationchange` event — avoids
+      // the old desync where Infinity-duration streams paced text over 45s
+      // while the audio actually finished in 8s.
+      const durationRef = { current: 1 };
       const startStreaming = (estimatedDurationMs: number) => {
+        durationRef.current = Math.max(1, estimatedDurationMs);
         const totalChars = argument.length;
         const startedAt = Date.now();
         const tick = () => {
           if (aiAbortRef.current) return;
           const elapsed = Date.now() - startedAt;
-          const fraction = Math.min(1, elapsed / Math.max(1, estimatedDurationMs));
+          const fraction = Math.min(1, elapsed / durationRef.current);
           const i = Math.floor(totalChars * fraction);
           setAiStream(argument.slice(0, i));
           if (i < totalChars) {
@@ -599,6 +645,10 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
         };
         tick();
       };
+
+      // Read-the-last-line delay so users see the closing words for a beat
+      // before the phase advances. 350ms matches the typical end-of-sentence pause.
+      const READ_AFTER_END_MS = 350;
 
       const autoAdvance = () => {
         // Only advance if we're still on this AI turn (not already moved on)
@@ -613,11 +663,60 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
           pendingAutoAdvanceRef.current = true;
           return;
         }
-        console.log(`[Debate] AI finished speaking, auto-advancing from ${phaseRef.current}`);
-        advancePhaseRef.current();
+        // Force-flush the full text so the closing sentence is fully on screen
+        // before we move on. Without this, an early `ended` event (Infinity
+        // duration → streaming paced too slowly → audio finishes first) would
+        // jump the phase while half the AI's closing line was still hidden.
+        setAiStream(argument);
+        setTimeout(() => {
+          if (aiAbortRef.current) return;
+          console.log(`[Debate] AI finished speaking, auto-advancing from ${phaseRef.current}`);
+          advancePhaseRef.current();
+        }, READ_AFTER_END_MS);
       };
 
-      // ── 3. TTS: Deepgram Aura → browser SpeechSynthesis fallback ────────
+      // ── 3. TTS chain ────────────────────────────────────────────────────
+      // Single-shot fallback flag — both `audio.play().catch` AND audio's
+      // `error` event can fire for the same failure, and the cleanup of the
+      // Deepgram element happens around the same time. Without this guard
+      // we'd speakViaBrowser() twice, queueing two utterances over each
+      // other and racing two streaming ticks against one another.
+      let fallbackFired = false;
+
+      // Tear down any Deepgram element + its listeners cleanly before we
+      // hand off to the browser TTS fallback. Otherwise a lingering
+      // durationchange listener keeps mutating durationRef while the
+      // fallback's own startStreaming is the one actually driving the text.
+      let detachDeepgram: (() => void) | null = null;
+
+      // Browser SpeechSynthesis fallback — used when Deepgram TTS request
+      // itself fails OR Deepgram loaded but autoplay was blocked / element
+      // errored mid-playback. Previously the autoplay-blocked branch called
+      // autoAdvance() instantly, so the user neither heard nor read the AI's
+      // turn — the phase just skipped.
+      const speakViaBrowser = () => {
+        if (aiAbortRef.current) return;
+        if (fallbackFired) return;
+        fallbackFired = true;
+        detachDeepgram?.();
+        // Cancel any in-flight streaming tick from the Deepgram path — we're
+        // about to restart with a new pace from the browser-TTS estimate.
+        if (aiStreamRef.current) { clearTimeout(aiStreamRef.current); aiStreamRef.current = null; }
+        const estimatedMs = Math.max(5000, Math.min(60000, argument.length * 60));
+        startStreaming(estimatedMs);
+        const utterance = new SpeechSynthesisUtterance(argument);
+        utterance.rate = 1.05;
+        utterance.pitch = opponent.persona?.skill === "Expert" ? 0.85 : 1.05;
+        utterance.onend = autoAdvance;
+        utterance.onerror = autoAdvance;
+        try {
+          window.speechSynthesis.speak(utterance);
+        } catch (e) {
+          console.warn("[Debate] speechSynthesis.speak threw:", e);
+          autoAdvance();
+        }
+      };
+
       // Cancel anything currently playing first
       if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
       window.speechSynthesis.cancel();
@@ -639,31 +738,57 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
         });
         if (aiAbortRef.current) { audio.pause(); return; }
 
-        const durationMs = (audio.duration && isFinite(audio.duration) ? audio.duration : cfg.duration) * 1000;
-        startStreaming(durationMs);
+        const initialDurationMs = (audio.duration && isFinite(audio.duration) ? audio.duration : cfg.duration) * 1000;
+        startStreaming(initialDurationMs);
 
-        // When real audio finishes, end the AI turn immediately
+        // Some streamed audio sources only learn their real duration mid-playback
+        // (initial duration is Infinity). When the browser fires durationchange
+        // with a finite value, re-pace the text streaming to match — otherwise
+        // the text crawls at 45s pace while the audio finishes in 8s and the
+        // user sees the AI's closing words pop in *after* the phase advances.
+        //
+        // GUARD: only re-pace *forward* (shorter than current estimate). If the
+        // new real duration is longer than what we estimated, leaving the pace
+        // alone is fine — full text will sit visible until audio ends. Without
+        // this guard a longer-than-estimate duration would shrink the streamed
+        // text fraction and visibly REWIND what the user has read.
+        const onDurationChange = () => {
+          if (!audio.duration || !isFinite(audio.duration) || audio.duration <= 0) return;
+          const newDurationMs = audio.duration * 1000;
+          if (newDurationMs < durationRef.current) {
+            durationRef.current = newDurationMs;
+          }
+        };
+        audio.addEventListener("durationchange", onDurationChange);
+
+        const onAudioError = () => {
+          console.warn("[Debate] audio element errored mid-playback — falling back to SpeechSynthesis");
+          speakViaBrowser();
+        };
         audio.addEventListener("ended", autoAdvance, { once: true });
-        // Also handle play errors (e.g. autoplay blocked) so the turn doesn't stall
-        audio.addEventListener("error", autoAdvance, { once: true });
+        audio.addEventListener("error", onAudioError, { once: true });
+
+        // Wire up the detach so speakViaBrowser can sever the Deepgram element
+        // before installing its own streaming tick.
+        detachDeepgram = () => {
+          try {
+            audio.removeEventListener("durationchange", onDurationChange);
+            audio.removeEventListener("ended", autoAdvance);
+            audio.removeEventListener("error", onAudioError);
+            audio.pause();
+          } catch { /* element already torn down */ }
+          if (audioRef.current === audio) audioRef.current = null;
+        };
 
         audio.play().catch(err => {
-          console.warn("[Debate] audio.play() rejected (autoplay blocked?):", err);
-          autoAdvance();
+          // Autoplay blocked OR another play() interruption. Don't skip the
+          // turn — the user should still hear (or at least see) the argument.
+          console.warn("[Debate] audio.play() rejected (autoplay blocked?), falling back to SpeechSynthesis:", err);
+          speakViaBrowser();
         });
       } catch (ttsErr) {
         console.warn("[Debate] Deepgram TTS failed, falling back to browser SpeechSynthesis:", ttsErr);
-
-        // Estimate ~17 chars/sec for browser TTS at rate 1.05 — used only to pace text streaming
-        const estimatedMs = Math.max(5000, Math.min(60000, argument.length * 60));
-        startStreaming(estimatedMs);
-
-        const utterance = new SpeechSynthesisUtterance(argument);
-        utterance.rate = 1.05;
-        utterance.pitch = opponent.persona?.skill === "Expert" ? 0.85 : 1.05;
-        utterance.onend = autoAdvance;
-        utterance.onerror = autoAdvance;
-        window.speechSynthesis.speak(utterance);
+        speakViaBrowser();
       }
     };
 
@@ -691,14 +816,14 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
 
     const userTotalLen = (t.userOpening + t.userRebuttal).trim().length;
     if (userTotalLen < 20) {
+      // Voided match — don't fabricate a 0-50 fake loss, don't call
+      // completeDuel, don't move ELO. The previous behaviour penalised
+      // users for their OWN broken mic AND inflated the opponent's
+      // unearned score, while never persisting the row.
       setVerdict({
-        score: 0, oppScore: 50,
-        feedback: "We couldn't capture enough of your speech to judge. Check your microphone and try again.",
-        oppFeedback: "Your opponent argued their case clearly.",
-        won: false,
-        strengths: "Showed up to the debate.",
-        oppStrengths: "Clarity, Structure",
-        exampleSpeech: "",
+        voided: true,
+        voidReason:
+          "We couldn't capture enough of your speech to judge this match. Check your microphone, allow access in your browser settings, then try again — your ELO is unchanged.",
       });
       setPhase("results");
       return;
@@ -782,16 +907,19 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
       setPhase("results");
     } catch (e: any) {
       // judgeBattle now has its own local fallback, so this branch should be very rare.
-      // If we somehow still get here, show a minimal result rather than ejecting.
+      // If we somehow still get here, void the match — the user DID speak, but our
+      // AI couldn't score them, so we won't fabricate a 50-50 tie or move ELO.
       console.error("[Debate] Judging failed unexpectedly:", e);
-      toast({ title: "Scoring unavailable", description: "Could not reach the AI judge. Showing a participation result.", variant: "destructive" });
-      setVerdict({
-        score: 50, oppScore: 50, won: false,
-        feedback: "The AI judge was unreachable. Both debaters receive participation credit.",
-        oppFeedback: "The AI judge was unreachable.",
-        strengths: "Participation", oppStrengths: "Participation", exampleSpeech: "",
+      toast({
+        title: "Scoring unavailable",
+        description: "Could not reach the AI judge. Your match wasn't recorded.",
+        variant: "destructive",
       });
-      sfx.loss();
+      setVerdict({
+        voided: true,
+        voidReason:
+          "Our AI judge was unreachable, so this match wasn't recorded. Your ELO is unchanged — try again in a moment.",
+      });
       setPhase("results");
     } finally {
       unsubscribe();
@@ -800,11 +928,7 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
 
   // ── Clear debate storage when results are shown (battle is done) ─────────
   useEffect(() => {
-    if (phase === "results") {
-      sessionStorage.removeItem("debate_phase");
-      sessionStorage.removeItem("debate_phase_start");
-      sessionStorage.removeItem("debate_transcripts");
-    }
+    if (phase === "results") clearDebateStorage();
   }, [phase]);
 
   // ── Cleanup on unmount ────────────────────────────────────────────────────
@@ -817,18 +941,41 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
     // Only clear the persisted debate state if the user intentionally left
     // (forfeit / close). For a plain refresh-during-debate, the component
     // unmounts but we WANT the next mount to restore — so keep the keys.
-    if (isClosingRef.current) {
-      sessionStorage.removeItem("debate_phase");
-      sessionStorage.removeItem("debate_phase_start");
-      sessionStorage.removeItem("debate_transcripts");
-    }
+    if (isClosingRef.current) clearDebateStorage();
   }, []);
+
+  // ── Reset everything back to a fresh debate on the SAME topic ────────────
+  // Used by "Try again" on a voided result, so the user doesn't have to walk
+  // back to the lobby and re-pick everything when their own mic failed (or
+  // when our AI judge timed out).
+  const resetDebate = useCallback(() => {
+    clearDebateStorage();
+    aiAbortRef.current = true;
+    pendingAutoAdvanceRef.current = false;
+    if (aiStreamRef.current) clearTimeout(aiStreamRef.current);
+    if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+    window.speechSynthesis.cancel();
+    try { recognitionRef.current?.stop(); } catch (_) {}
+    setTranscripts({ userOpening: "", aiOpening: "", userRebuttal: "", aiRebuttal: "" });
+    setLiveFinal("");
+    setLiveInterim("");
+    setAiStream("");
+    setVerdict(null);
+    setAnalyzeText("REVIEWING DEBATE...");
+    restoredFromStorageRef.current = false;
+    wasRecording.current = false;
+    phaseStartRef.current = Date.now();
+    setSecondsLeft(PHASE_CONFIG[phaseOrder[0]].duration);
+    aiAbortRef.current = false;
+    setPhase(phaseOrder[0]);
+  }, [phaseOrder]);
 
   // ─── RENDER ────────────────────────────────────────────────────────────────
   const cfg = PHASE_CONFIG[phase];
   const isUserTurn = cfg.speaker === "user";
   const showResults = phase === "results" && verdict;
   const showJudging = phase === "judging";
+  const isVoided = !!verdict?.voided;
 
   return (
     <motion.div
@@ -924,8 +1071,59 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
         </div>
       )}
 
-      {/* RESULTS SCREEN */}
-      {showResults && verdict && (
+      {/* RESULTS SCREEN — voided variant */}
+      {showResults && verdict && isVoided && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+          className="max-w-3xl mx-auto w-full px-4 md:px-8 py-6 md:py-8 space-y-4 md:space-y-6"
+        >
+          <div className="text-center space-y-3">
+            <div className="inline-flex items-center justify-center h-14 w-14 rounded-full bg-yellow-500/10 border border-yellow-500/30 mx-auto">
+              <AlertTriangle className="h-7 w-7 text-yellow-500" />
+            </div>
+            <h2 className="text-xs md:text-sm font-black uppercase tracking-widest md:tracking-[0.6em] text-yellow-500">
+              Match voided
+            </h2>
+            <p className="text-sm md:text-base leading-relaxed opacity-70 max-w-xl mx-auto">
+              {verdict.voidReason}
+            </p>
+          </div>
+
+          {/* Transcript so the user can see exactly what was/wasn't captured */}
+          <div className="bg-background/30 border border-border rounded-2xl p-4 md:p-6 space-y-3 md:space-y-4">
+            <p className="text-[10px] md:text-sm font-black uppercase tracking-widest md:tracking-[0.4em] text-primary">Captured transcript</p>
+            {[
+              { label: `You · Opening (${userStand})`, text: transcripts.userOpening, mine: true },
+              { label: `${opponent.name} · Opening (${oppStand})`, text: transcripts.aiOpening, mine: false },
+              { label: `You · Rebuttal`, text: transcripts.userRebuttal, mine: true },
+              { label: `${opponent.name} · Rebuttal`, text: transcripts.aiRebuttal, mine: false },
+            ].map((t, i) => (
+              <div key={i} className={cn("p-3 rounded-xl border-l-2", t.mine ? "border-primary bg-primary/5" : "border-amber-500/40 bg-amber-500/5")}>
+                <p className="text-[9px] md:text-[10px] font-black uppercase tracking-widest opacity-50 mb-1">{t.label}</p>
+                <p className="text-sm opacity-80 italic leading-relaxed">{t.text || "(no speech captured)"}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex flex-col gap-2 mt-2 md:mt-4">
+            <button
+              onClick={resetDebate}
+              className="w-full py-4 md:py-5 bg-primary text-white rounded-2xl text-xs md:text-sm font-black uppercase tracking-widest md:tracking-[0.4em] hover:scale-[1.02] active:scale-95 transition-all shadow-glow"
+            >
+              Try again
+            </button>
+            <button
+              onClick={onClose}
+              className="w-full py-3 md:py-4 bg-transparent border border-border/60 text-foreground/70 rounded-2xl text-[10px] md:text-xs font-black uppercase tracking-widest hover:bg-muted/20 transition-all"
+            >
+              Back to Arena
+            </button>
+          </div>
+        </motion.div>
+      )}
+
+      {/* RESULTS SCREEN — judged variant */}
+      {showResults && verdict && !isVoided && (
         <motion.div
           initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
           className="max-w-3xl mx-auto w-full px-4 md:px-8 py-6 md:py-8 space-y-4 md:space-y-6"
@@ -1119,12 +1317,18 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
               </div>
               <h3 className="speak-serif text-2xl italic">Forfeit the debate?</h3>
               <p className="text-xs font-medium opacity-50 leading-relaxed">
-                Leaving mid-debate counts as a forfeit. Your AI opponent wins by default.
+                Leaving mid-debate counts as a forfeit. You'll lose{" "}
+                <span className="font-black text-red-500">{FORFEIT_PENALTY} ELO</span>{" "}
+                and your AI opponent wins by default.
               </p>
               <div className="flex flex-col gap-2">
                 <button
                   onClick={async () => {
                     isClosingRef.current = true;
+                    // Defence in depth: nuke persisted state up-front so even
+                    // if onClose causes some race that swallows the unmount
+                    // cleanup, the next debate won't restore into this one.
+                    clearDebateStorage();
                     if (handleForfeit) {
                       const userName = user?.email?.split("@")[0] || "You";
                       const duelId = `debate-forfeit-${Date.now()}`;
