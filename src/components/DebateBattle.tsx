@@ -434,17 +434,22 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
       if (phase === "opening-ai") {
         aiPrompt = `${prompt}\n\n(You are arguing ${myStand} this topic. Open with a bold, direct claim about the topic — do NOT start with "My opponent", "I take the", "I stand", or any meta-commentary. State your position as a confident fact, then give 1-2 tight supporting reasons. Keep it natural and conversational. Maximum 100 words.)`;
       } else if (phase === "rebuttal-ai") {
-        // In FOR order, the user's most recent speech before rebuttal-ai is their rebuttal.
-        // In AGAINST order, the user has only spoken their opening at this point.
-        const prevUserSpeech = (userStand === "FOR"
-          ? transcriptsRef.current.userRebuttal || transcriptsRef.current.userOpening
-          : transcriptsRef.current.userOpening) || "";
+        // FOR  order: prep → opening-user → opening-ai → rebuttal-user → rebuttal-ai
+        //   → user's most recent turn before us is their REBUTTAL. We address THAT, not their opening.
+        //   Falling back to userOpening would mean re-litigating Round 1, which is what the user
+        //   complained about.
+        // AGAINST order: prep → opening-ai → opening-user → rebuttal-ai → rebuttal-user
+        //   → user has only given their opening at this point. It IS their most recent turn.
+        const prevUserSpeech = userStand === "FOR"
+          ? (transcriptsRef.current.userRebuttal || "")
+          : (transcriptsRef.current.userOpening || "");
         const trimmedSpeech = prevUserSpeech.trim();
         // Anything under ~20 chars is silence, a single filler word, or an
         // unintelligible interim phrase — not enough to rebut. Fall back to a
         // closing statement that reinforces our own case instead of inventing
-        // strawmen from the opponent.
+        // strawmen or re-attacking an earlier turn.
         const hasRealResponse = trimmedSpeech.length >= 20;
+        console.log(`[Debate] rebuttal-ai source: userStand=${userStand}, hasRealResponse=${hasRealResponse}, len=${trimmedSpeech.length}, preview="${trimmedSpeech.slice(0, 60)}..."`);
 
         if (hasRealResponse) {
           aiPrompt = `${prompt}\n\n(You are arguing ${myStand} this topic. The other side just argued: "${trimmedSpeech.slice(0, 400)}". Directly address and rebut those specific points — quote or paraphrase what they actually said, then explain why it doesn't hold up. End by reinforcing your own position. Do NOT open with "My opponent", "My opponent said", or any phrase that references them by name or role. Start with your own assertion. Keep it natural and conversational. Maximum 80 words.)`;
