@@ -858,7 +858,42 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
       )}
 
       {/* DEBATE STAGE — two podiums */}
-      {!showResults && !showJudging && phase !== "prep" && (
+      {!showResults && !showJudging && phase !== "prep" && (() => {
+        // The "previous turn" surfaces on each podium when its speaker isn't
+        // active. We want it to reflect the SPEAKER'S most recent finished
+        // turn, not always the opening — otherwise the rebuttal-ai screen
+        // shows the user their Round 1 transcript while their just-spoken
+        // rebuttal disappears.
+        let userPrevText = "";
+        let userPrevLabel = "Your opening";
+        if (phase === "rebuttal-user") {
+          userPrevText = transcripts.userOpening;
+        } else if (phase === "rebuttal-ai") {
+          if (userStand === "FOR" && transcripts.userRebuttal) {
+            userPrevText = transcripts.userRebuttal;
+            userPrevLabel = "Your rebuttal";
+          } else {
+            // AGAINST order: user has only spoken their opening at this point.
+            // FOR order with empty rebuttal: fall back to opening for context.
+            userPrevText = transcripts.userOpening;
+          }
+        }
+
+        let aiPrevText = "";
+        let aiPrevLabel = "Their opening";
+        if (phase === "rebuttal-user" || phase === "rebuttal-ai") {
+          // Mirror logic: in AGAINST order, the AI just gave their rebuttal
+          // before rebuttal-user fires, so show that. In FOR order the AI's
+          // only prior turn at rebuttal-user is their opening.
+          if (oppStand === "FOR" && phase === "rebuttal-user" && transcripts.aiRebuttal) {
+            aiPrevText = transcripts.aiRebuttal;
+            aiPrevLabel = "Their rebuttal";
+          } else {
+            aiPrevText = transcripts.aiOpening;
+          }
+        }
+
+        return (
         <div className="flex-1 px-3 md:px-12 py-3 md:py-6 max-w-6xl mx-auto w-full flex flex-col">
           <div className="grid md:grid-cols-2 gap-3 md:gap-6 flex-1">
             {/* USER PODIUM */}
@@ -868,8 +903,8 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
               stand={userStand}
               isActive={isUserTurn}
               avatar="👤"
-              previousText={phase === "rebuttal-user" || phase === "rebuttal-ai" ? transcripts.userOpening : ""}
-              previousLabel="Your opening"
+              previousText={userPrevText}
+              previousLabel={userPrevLabel}
               liveText={isUserTurn ? liveFinal : ""}
               interimText={isUserTurn ? liveInterim : ""}
               currentText={isUserTurn ? "" : ""}
@@ -882,8 +917,8 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
               stand={oppStand}
               isActive={!isUserTurn}
               avatar={opponent.avatar}
-              previousText={phase === "rebuttal-user" || phase === "rebuttal-ai" ? transcripts.aiOpening : ""}
-              previousLabel="Their opening"
+              previousText={aiPrevText}
+              previousLabel={aiPrevLabel}
               liveText=""
               interimText=""
               currentText={!isUserTurn ? aiStream : ""}
@@ -916,7 +951,8 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
             )}
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* Hidden recorder for uploading user audio to history */}
       {user && (
