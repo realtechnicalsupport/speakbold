@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { arenaEmitter } from "@/lib/events";
+import { STARTING_ELO } from "@/hooks/arenaUtils";
 
 export type LeaderboardRow = {
   id: string;
@@ -18,9 +19,14 @@ export const useLeaderboard = (limit = 50) => {
   const fetchLeaderboard = useCallback(async () => {
     try {
       setLoading(true);
+      // Filter out accounts still at the default 1000 ELO. These are either
+      // pre-revamp legacy users (back-filled to 1000 by the v2 migration) or
+      // accounts that have never finished a battle — neither has earned a
+      // spot on the board.
       const { data: eloData, error: eloError } = await supabase
         .from("profiles")
         .select("id, display_name, elo")
+        .neq("elo", STARTING_ELO)
         .order("elo", { ascending: false })
         .limit(limit);
 
@@ -52,10 +58,11 @@ export const useLeaderboard = (limit = 50) => {
             .eq("id", user.id)
             .maybeSingle();
           const myElo = self?.elo ?? 0;
-          // Count of profiles strictly above me — leaderboard rank = above + 1.
+          // Count of ranked (non-default) players strictly above me.
           const { count: above } = await supabase
             .from("profiles")
             .select("id", { count: "exact", head: true })
+            .neq("elo", STARTING_ELO)
             .gt("elo", myElo);
           setMe({ elo: myElo, rank: (above ?? 0) + 1 });
         }

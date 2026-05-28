@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
-import { getRankFromElo, getRankColor } from "@/hooks/arenaUtils";
+import { getRankFromElo, getRankColor, STARTING_ELO } from "@/hooks/arenaUtils";
 import { arenaEmitter } from "@/lib/events";
 
 interface LeaderRow {
@@ -24,10 +24,11 @@ export const ArenaLeaderboardPreview = () => {
   const fetchLeaderboard = useCallback(async () => {
     if (!user) return;
     try {
-      // Top 5
+      // Top 5 — exclude default-ELO accounts (legacy + never-played).
       const { data: topData } = await supabase
         .from("profiles")
         .select("id, display_name, elo")
+        .neq("elo", STARTING_ELO)
         .order("elo", { ascending: false })
         .limit(5);
 
@@ -38,18 +39,19 @@ export const ArenaLeaderboardPreview = () => {
         .eq("id", user.id)
         .maybeSingle();
 
-      // Players ranked above me (= my rank - 1)
+      // Ranked players above me (= my rank - 1), excluding default-ELO accounts.
       const myElo = meData?.elo ?? 0;
       const { count: above } = await supabase
         .from("profiles")
         .select("id", { count: "exact", head: true })
+        .neq("elo", STARTING_ELO)
         .gt("elo", myElo);
 
-      // Total players ranked
+      // Total ranked players (excludes default-ELO accounts).
       const { count: total } = await supabase
         .from("profiles")
         .select("id", { count: "exact", head: true })
-        .gt("elo", 0);
+        .neq("elo", STARTING_ELO);
 
       setTop(
         (topData || []).map((r: any) => ({
