@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { useArena, type Duel, type Gamemode, GAMEMODES, getRankColor, getRankFromElo, AI_PERSONAS } from "@/hooks/useArena";
+import { useLocalStorageState } from "@/hooks/useLocalStorageState";
 import { isInPlacement, getPlacementProgress, getMatchesPlayed, PLACEMENT_MATCHES_REQUIRED, getSeasonInfo, estimateEloAtStake, getNextRankInfo, ELO_FLOOR } from "@/hooks/arenaUtils";
 import { SiteHeader } from "@/components/SiteHeader";
 import { ArenaLeaderboardPreview } from "@/components/ArenaLeaderboardPreview";
@@ -56,7 +57,9 @@ const Arena = () => {
   useEffect(() => {
     sessionStorage.setItem("arena_is_creating", isCreating.toString());
   }, [isCreating]);
-  const [selectedMode, setSelectedMode] = useState<Gamemode>("standard");
+  // Selected battle mode persists across refresh — picking "debate" once should
+  // not have to be re-selected every visit.
+  const [selectedMode, setSelectedMode] = useLocalStorageState<Gamemode>("speakbold:arena:mode", "standard");
 
   // Turn-based debate flow (replaces parallel debate in DuelDrill)
   const [debateSetupOpen, setDebateSetupOpen] = useState(false);

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useRecordings, useSyncedStreak } from "@/hooks/useRecordings";
+import { useLocalStorageState } from "@/hooks/useLocalStorageState";
 import { setTimerActive, setTimerSeconds } from "@/lib/timerState";
 import { setRecordingActive } from "@/lib/recordingState";
 import { coachImpromptu, transcribeAudio, type ImpromptuCoachReport } from "@/services/geminiService";
@@ -46,15 +47,18 @@ function getSpeechRecognition() {
 
 export function useImpromptuSession() {
   // ── Config ─────────────────────────────────────────────────────────────────
-  const [topic, setTopicState] = useState<ImpromptuTopic>(() => getRandomTopic("Medium"));
-  const [difficulty, setDifficultyState] = useState<Difficulty>("Medium");
-  const [duration, setDurationState] = useState(60);
-  const [curveballEnabled, setCurveballEnabledState] = useState(false);
-  const [recordEnabled, setRecordEnabledState] = useState(false);
-  const [challengeMode, setChallengeModeState] = useState(false);
+  // Options below persist across refresh via localStorage so the user's chosen
+  // setup (difficulty, duration, recording, challenge, curveball) is restored
+  // on next visit. Topic stays ephemeral — we still randomise per session.
+  const [difficulty, setDifficultyState] = useLocalStorageState<Difficulty>("speakbold:impromptu:difficulty", "Medium");
+  const [duration, setDurationState] = useLocalStorageState<number>("speakbold:impromptu:duration", 60);
+  const [curveballEnabled, setCurveballEnabledState] = useLocalStorageState<boolean>("speakbold:impromptu:curveball", false);
+  const [recordEnabled, setRecordEnabledState] = useLocalStorageState<boolean>("speakbold:impromptu:record", false);
+  const [challengeMode, setChallengeModeState] = useLocalStorageState<boolean>("speakbold:impromptu:challenge", false);
+  const [topic, setTopicState] = useState<ImpromptuTopic>(() => getRandomTopic(difficulty));
 
   /** Last duration set explicitly by the user — restored when drill mode ends */
-  const userDurationRef = useRef(60);
+  const userDurationRef = useRef(duration);
 
   // ── Phase ──────────────────────────────────────────────────────────────────
   const [phase, setPhaseState] = useState<SessionPhase>("setup");
