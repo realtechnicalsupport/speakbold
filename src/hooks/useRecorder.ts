@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { setRecordingActive } from "@/lib/recordingState";
+import { setRecordingActive, setActiveStream } from "@/lib/recordingState";
 
 export type RecordingState = "idle" | "recording" | "paused" | "stopped" | "denied";
 
@@ -59,6 +59,7 @@ export const useRecorder = () => {
     streamRef.current = null;
     cleanupTimer();
     setRecordingActive(false);
+    setActiveStream(null);
   }, []);
 
   const start = useCallback(async () => {
@@ -94,6 +95,9 @@ export const useRecorder = () => {
         stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
       }
       streamRef.current = stream;
+      // Publish to the shared store so visualizers can attach without opening
+      // a second getUserMedia call.
+      setActiveStream(stream);
 
       // Save microphone choice
       const audioTrack = stream.getAudioTracks()[0];
@@ -164,16 +168,24 @@ export const useRecorder = () => {
     setRecordingActive(false);
   }, [recording]);
 
+  // Unmount cleanup — must be UNCONDITIONAL. Previously this only ran when
+  // `state` was "recording"/"paused", but with an empty deps array `state` was
+  // a stale closure (always "idle"), so the cleanup never fired. Result: the
+  // OS mic indicator and the browser tab "recording" dot stayed on after the
+  // user navigated away. Now we always tear down the MediaRecorder + stream
+  // + tick interval + shared store entry, regardless of React state.
   useEffect(() => {
-    // Don't auto-stop - let user manually stop
     return () => {
-      // Cleanup only on unmount if recording is still active
-      if (state === "recording" || state === "paused") {
-        // Warn user or save recording?
-        // For now, just cleanup
-        if (recording?.url) URL.revokeObjectURL(recording.url);
-        setRecordingActive(false);
-      }
+      try {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+          mediaRecorderRef.current.stop();
+        }
+      } catch { /* recorder already torn down */ }
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+      cleanupTimer();
+      setRecordingActive(false);
+      setActiveStream(null);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

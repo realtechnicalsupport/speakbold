@@ -174,10 +174,39 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
   const pendingAutoAdvanceRef = useRef(false);
 
   // ── Mic permission check ──────────────────────────────────────────────────
+  // Prefer the Permissions API — it tells us the current state without
+  // opening a stream. The previous implementation called getUserMedia just to
+  // immediately stop the tracks, which (combined with the recorder + the
+  // MicrophoneBorder visualizer) meant three simultaneous mic streams and
+  // intermittent NotReadableError on macOS/Windows.
   useEffect(() => {
-    navigator.mediaDevices.getUserMedia({ audio: true })
-      .then(s => { setMicError(false); s.getTracks().forEach(t => t.stop()); })
-      .catch(() => setMicError(true));
+    let cancelled = false;
+    const probe = () => {
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(s => {
+          s.getTracks().forEach(t => t.stop());
+          if (!cancelled) setMicError(false);
+        })
+        .catch(() => { if (!cancelled) setMicError(true); });
+    };
+
+    const perms = (navigator as any).permissions;
+    if (perms && typeof perms.query === "function") {
+      perms.query({ name: "microphone" as PermissionName })
+        .then((status: PermissionStatus) => {
+          if (cancelled) return;
+          setMicError(status.state === "denied");
+          // Permissions API doesn't reveal whether an absent permission will
+          // actually succeed (some browsers report "prompt" for blocked devs).
+          // Only fall back to the stream probe if the state is genuinely
+          // unknown — never on "denied", to avoid retriggering the prompt.
+          if (status.state === "prompt") probe();
+        })
+        .catch(() => probe());
+    } else {
+      probe();
+    }
+    return () => { cancelled = true; };
   }, []);
 
   // ── Tab-visibility guard ──────────────────────────────────────────────────
