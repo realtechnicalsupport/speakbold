@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { rankFor, ALL_RANKS } from "@/lib/rank";
+import { getRankFromElo, getRankEmblem } from "@/hooks/arenaUtils";
 import { useLeaderboard } from "@/hooks/useLeaderboard";
 import { useAuth } from "@/context/AuthContext";
 import { Trophy, ArrowRight } from "lucide-react";
@@ -58,7 +58,7 @@ export function LeaderboardWidget() {
           <p className="text-center text-sm text-gray-500 py-4">No users yet</p>
         ) : (
           topFive.map((entry, index) => {
-            const rankData = rankFor(entry.xp);
+            const rankData = getRankFromElo(entry.elo);
             const isCurrentUser = entry.id === user?.id;
             const medal = getMedalEmoji(index + 1);
             const position = index + 1;
@@ -74,7 +74,7 @@ export function LeaderboardWidget() {
                   <div className="flex-shrink-0 w-5 text-center font-semibold">
                     {medal || `#${position}`}
                   </div>
-                  <div className="text-xl flex-shrink-0">{rankData.emblem}</div>
+                  <div className="text-xl flex-shrink-0">{getRankEmblem(rankData.name)}</div>
                   <div className="min-w-0 flex-1">
                     <p className="font-semibold text-gray-900 text-sm truncate">
                       {entry.display_name}
@@ -83,8 +83,8 @@ export function LeaderboardWidget() {
                   </div>
                 </div>
                 <div className="flex-shrink-0 text-right">
-                  <p className="font-bold text-gray-900">{entry.xp.toLocaleString()}</p>
-                  <p className="text-xs text-gray-500">XP</p>
+                  <p className="font-bold text-gray-900">{entry.elo.toLocaleString()}</p>
+                  <p className="text-xs text-gray-500">ELO</p>
                 </div>
               </div>
             );

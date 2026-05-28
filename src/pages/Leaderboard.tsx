@@ -1,11 +1,20 @@
 ﻿import { Link, Navigate } from "react-router-dom";
-import { Sparkles, ArrowRight, Trophy, Target, Zap, RefreshCw, Microscope, Mic } from "lucide-react";
+import { Sparkles, ArrowRight, Trophy, Target, Zap, RefreshCw, Microscope, Swords } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { useAuth } from "@/context/AuthContext";
 import { useLeaderboard } from "@/hooks/useLeaderboard";
-import { rankFor, rankProgress, ALL_RANKS } from "@/lib/rank";
+import { getRankFromElo, getNextRankInfo, getRankEmblem } from "@/hooks/arenaUtils";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
+
+// Ranks rendered in the legend at the bottom of the page.
+const ARENA_RANKS: { name: "Bronze" | "Silver" | "Gold" | "Platinum" | "Diamond"; min: number }[] = [
+  { name: "Bronze",   min: 0    },
+  { name: "Silver",   min: 600  },
+  { name: "Gold",     min: 1200 },
+  { name: "Platinum", min: 1800 },
+  { name: "Diamond",  min: 2400 },
+];
 
 const rankBadgeColor = (place: number) => {
   if (place === 1) return "bg-primary text-white shadow-glow shadow-primary/20 border-primary"; 
@@ -21,8 +30,11 @@ const Leaderboard = () => {
   if (loading) return null;
   if (!user) return <Navigate to="/login" replace />;
 
-  const myRank = me ? rankFor(me.xp) : null;
-  const myProg = me ? rankProgress(me.xp) : null;
+  const myRank = me ? getRankFromElo(me.elo) : null;
+  const myRankInfo = me ? getNextRankInfo(me.elo) : null;
+  const myProgPct = myRankInfo
+    ? Math.min(100, Math.max(0, (myRankInfo.offsetInRank / (myRankInfo.nextRankFloor - myRankInfo.rankFloor || 1)) * 100))
+    : 0;
 
   return (
     <main className="min-h-screen bg-background relative overflow-hidden">
@@ -43,13 +55,13 @@ const Leaderboard = () => {
             Global <span className="text-primary italic">Mastery</span>.
           </h1>
           <p className="text-base md:text-2xl font-medium tracking-tight opacity-40 max-w-2xl leading-relaxed">
-            Earn XP in every session. Rank up by practicing every day.
+            Win battles in the Arena to climb the ladder. Your ELO is your rank.
           </p>
         </motion.div>
 
         {/* User Standing Card */}
         <AnimatePresence>
-          {me && myRank && myProg && (
+          {me && myRank && myRankInfo && (
             <motion.div 
               initial={{ opacity: 0, y: 40 }}
               animate={{ opacity: 1, y: 0 }}
@@ -74,14 +86,14 @@ const Leaderboard = () => {
 
                   <div className="grid grid-cols-2 gap-6 md:gap-16 pt-6 md:pt-16 border-t border-border/60">
                     <div className="space-y-2 md:space-y-4">
-                      <p className="text-[10px] md:text-xs font-black uppercase tracking-widest opacity-30">Total XP</p>
-                      <p className="speak-serif text-3xl md:text-5xl font-bold tabular-nums italic text-primary">{me.xp.toLocaleString()}</p>
+                      <p className="text-[10px] md:text-xs font-black uppercase tracking-widest opacity-30">ELO Rating</p>
+                      <p className="speak-serif text-3xl md:text-5xl font-bold tabular-nums italic text-primary">{me.elo.toLocaleString()}</p>
                     </div>
                     <div className="space-y-2 md:space-y-4 text-right">
                       <p className="text-[10px] md:text-xs font-black uppercase tracking-widest opacity-30">Rank</p>
                       <div className="flex items-center justify-end gap-2 md:gap-4">
-                        <span className="text-2xl md:text-4xl animate-float">{myRank.emblem}</span>
-                        <p className="speak-serif text-xl md:text-3xl font-bold uppercase tracking-tighter italic">{myRank.name}</p>
+                        <span className="text-2xl md:text-4xl animate-float">{getRankEmblem(myRank.name)}</span>
+                        <p className="speak-serif text-xl md:text-3xl font-bold uppercase tracking-tighter italic">{myRank.name} {myRank.tier}</p>
                       </div>
                     </div>
                   </div>
@@ -90,15 +102,15 @@ const Leaderboard = () => {
                     <div className="flex items-center justify-between text-[10px] md:text-xs font-black uppercase tracking-widest">
                       <span className="opacity-30">Next rank</span>
                       <span className="text-primary text-right">
-                        {myRank.next == null
-                          ? "Max rank reached"
-                          : `${(myRank.next - me.xp).toLocaleString()} XP to go`}
+                        {myRankInfo.isMaxRank
+                          ? "Apex rank reached"
+                          : `${myRankInfo.pointsToNext.toLocaleString()} ELO to go`}
                       </span>
                     </div>
                     <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden border border-border/60">
                       <motion.div
                         initial={{ width: 0 }}
-                        animate={{ width: `${myProg.pct}%` }}
+                        animate={{ width: `${myProgPct}%` }}
                         transition={{ duration: 2, ease: "circOut" }}
                         className="h-full bg-primary shadow-glow shadow-primary/40"
                       />
@@ -113,12 +125,12 @@ const Leaderboard = () => {
                     <Sparkles className="h-6 w-6 md:h-8 md:w-8 text-primary" />
                   </div>
                   <div className="space-y-4 md:space-y-6">
-                    <p className="text-[10px] md:text-xs font-black uppercase tracking-widest opacity-40">How to earn XP</p>
+                    <p className="text-[10px] md:text-xs font-black uppercase tracking-widest opacity-40">How to climb</p>
                     <ul className="space-y-4 md:space-y-6">
                       {[
-                        { icon: Mic, label: "+10 XP per recorded drill" },
-                        { icon: Zap, label: "+1 XP per 10 seconds spoken" },
-                        { icon: Target, label: "+5 XP for daily check-in" }
+                        { icon: Swords, label: "Win Arena battles to gain ELO" },
+                        { icon: Zap, label: "Higher scores → bigger swings" },
+                        { icon: Target, label: "Debate mode moves ELO most" }
                       ].map((rule, i) => (
                         <li key={i} className="text-xs font-black uppercase tracking-widest flex items-center gap-3 md:gap-4 group">
                           <rule.icon className="h-4 w-4 text-primary opacity-40 group-hover:opacity-100 transition-opacity shrink-0" />
@@ -128,9 +140,9 @@ const Leaderboard = () => {
                     </ul>
                   </div>
                 </div>
-                
-                <Link to="/tracks/impromptu" className="button-pill w-full py-6 flex items-center justify-center gap-4 bg-primary text-white shadow-glow group">
-                  <span className="text-xs font-black uppercase tracking-[0.2em]">START PRACTICE</span>
+
+                <Link to="/arena" className="button-pill w-full py-6 flex items-center justify-center gap-4 bg-primary text-white shadow-glow group">
+                  <span className="text-xs font-black uppercase tracking-[0.2em]">ENTER THE ARENA</span>
                   <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
                 </Link>
               </div>
@@ -150,7 +162,7 @@ const Leaderboard = () => {
                 Top <span className="text-primary italic">speakers</span>.
               </h2>
               <p className="text-sm font-medium tracking-tight opacity-40 max-w-sm leading-relaxed">
-                The highest-XP voices, refreshed in real-time.
+                The highest-rated speakers, refreshed in real-time.
               </p>
             </div>
             <Link
@@ -181,7 +193,7 @@ const Leaderboard = () => {
             ) : (
               <div className="space-y-4">
                 {rows.map((row, i) => {
-                  const r = rankFor(row.xp);
+                  const r = getRankFromElo(row.elo);
                   const isMe = row.id === user.id;
                   const place = i + 1;
                   return (
@@ -221,16 +233,16 @@ const Leaderboard = () => {
                         <div className="flex items-center gap-2 md:gap-4 text-[10px] md:text-xs font-black uppercase tracking-widest opacity-40">
                           <span className="text-primary italic font-black">{r.name}</span>
                           <span className="h-1 w-1 rounded-full bg-foreground/20 hidden sm:block" />
-                          <span className="hidden sm:block">Tier 0{r.tier + 1}</span>
+                          <span className="hidden sm:block">Tier {r.tier}</span>
                         </div>
                       </div>
 
                       <div className="text-right shrink-0 space-y-1 md:space-y-2">
                         <div className="speak-serif text-2xl md:text-4xl lg:text-5xl font-bold tabular-nums tracking-tighter italic">
-                          {row.xp.toLocaleString()}
+                          {row.elo.toLocaleString()}
                         </div>
                         <p className="text-[10px] md:text-xs font-black uppercase tracking-widest opacity-20">
-                          XP
+                          ELO
                         </p>
                       </div>
                     </motion.div>
@@ -244,12 +256,12 @@ const Leaderboard = () => {
         {/* Tiers Legend */}
         <section className="py-16 md:py-40 space-y-10 md:space-y-24">
           <div className="space-y-4 md:space-y-6 text-center">
-            <p className="text-xs font-black uppercase tracking-widest opacity-30">The eight ranks</p>
+            <p className="text-xs font-black uppercase tracking-widest opacity-30">The five ranks</p>
             <h2 className="speak-serif text-4xl md:text-8xl leading-none tracking-tighter">Rank <span className="text-primary italic">Progress</span>.</h2>
           </div>
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-8">
-            {ALL_RANKS.map((t, i) => (
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 md:gap-8">
+            {ARENA_RANKS.map((t, i) => (
               <motion.div
                 key={t.name}
                 initial={{ opacity: 0, scale: 0.95 }}
@@ -258,11 +270,11 @@ const Leaderboard = () => {
                 transition={{ delay: i * 0.05 }}
                 className="glass-card rounded-2xl md:rounded-[3rem] p-5 md:p-10 space-y-4 md:space-y-8 group hover:border-primary/40 transition-all duration-700 relative overflow-hidden shadow-soft"
               >
-                <div className="text-3xl md:text-5xl group-hover:scale-110 group-hover:rotate-6 transition-all duration-700 origin-left inline-block">{t.emblem}</div>
+                <div className="text-3xl md:text-5xl group-hover:scale-110 group-hover:rotate-6 transition-all duration-700 origin-left inline-block">{getRankEmblem(t.name)}</div>
                 <div className="space-y-1 md:space-y-3">
                   <p className="speak-serif text-xl md:text-3xl font-bold uppercase tracking-tighter italic group-hover:text-primary transition-colors">{t.name}</p>
                   <p className="text-[10px] md:text-xs font-black opacity-30 uppercase tracking-widest">
-                    {t.min.toLocaleString()}+ XP
+                    {t.min.toLocaleString()}+ ELO
                   </p>
                 </div>
               </motion.div>

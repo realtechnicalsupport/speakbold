@@ -8,6 +8,17 @@ export const GAMEMODES = {
   pitch:    { label: "Speed Pitch",      duration: 45, color: "text-emerald-500", bg: "bg-emerald-500/10", desc: "Fast 45s product pitch." },
 };
 
+// ─── Rank emblems (used by leaderboards) ────────────────────────────────────
+export const getRankEmblem = (name: RankName): string => {
+  switch (name) {
+    case "Bronze":   return "🥉";
+    case "Silver":   return "🥈";
+    case "Gold":     return "🥇";
+    case "Platinum": return "💎";
+    case "Diamond":  return "💠";
+  }
+};
+
 // ─── Rank colours ────────────────────────────────────────────────────────────
 export const getRankColor = (rank: Rank) => {
   switch (rank.name) {

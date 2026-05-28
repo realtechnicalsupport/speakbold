@@ -510,12 +510,21 @@ OBJECTIVE: "${lessonObjective}"
 PROMPT GIVEN: "${lessonPrompt}"
 STUDENT: ${userName}
 
-Evaluate the transcript against the drill's specific objective. Be honest, constructive, and encouraging.
+Evaluate the transcript against the drill's specific objective. Reward effort and on-topic execution generously — this is a learning environment, not an audition.
+
+SCORING RUBRIC (bias toward generosity):
+- 90–100: Exceptional. Clear, confident, hits every part of the objective.
+- 75–89:  Strong. Meets the objective with only minor rough edges. THIS IS THE DEFAULT BAND for a solid attempt.
+- 65–74:  Solid. On-topic, recognizable structure, a few weak spots. Most genuine attempts land here or above.
+- 50–64:  Developing. On-topic but missing key elements of the objective.
+- Below 50: Reserve for transcripts that are off-topic, near-silent, incoherent, or fundamentally don't engage with the prompt.
+
+Default to scoring in the 70s for a real, on-topic attempt. Only score below 60 if the student clearly failed to address the prompt or said almost nothing. Filler words, brief stumbles, and minor disorganization should NOT push the score below 65 on their own.
 
 Return JSON ONLY:
 {
-  "score": (0-100, how well they met the drill objective),
-  "feedback": "2-3 sentence overall verdict written directly to ${userName}, mentioning what they did well and what needs work",
+  "score": (0-100, calibrated to the rubric above),
+  "feedback": "2-3 sentence overall verdict written directly to ${userName}, leading with what worked and framing weaknesses as next steps",
   "strengths": "comma-separated list of 2-4 specific technical strengths demonstrated",
   "coaching": "1 specific, actionable coaching tip they should focus on for next time",
   "exampleSpeech": "A short, high-quality model response to this drill prompt showing exactly how an expert would execute it (2-4 sentences)"

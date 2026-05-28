@@ -1,66 +1,63 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
-
-const triggerXPChange = () => window.dispatchEvent(new Event("xp-updated"));
+import { arenaEmitter } from "@/lib/events";
 
 export type LeaderboardRow = {
   id: string;
   display_name: string | null;
-  xp: number;
+  elo: number;
 };
 
 export const useLeaderboard = (limit = 50) => {
   const { user } = useAuth();
   const [rows, setRows] = useState<LeaderboardRow[]>([]);
-  const [me, setMe] = useState<{ xp: number; rank: number } | null>(null);
+  const [me, setMe] = useState<{ elo: number; rank: number } | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchLeaderboard = async () => {
+  const fetchLeaderboard = useCallback(async () => {
     try {
       setLoading(true);
-      const { data: xpData, error: xpError } = await supabase
-        .from("user_xp")
-        .select(`
-          id,
-          user_id,
-          total_xp,
-          display_name
-        `)
-        .order("total_xp", { ascending: false })
+      const { data: eloData, error: eloError } = await supabase
+        .from("profiles")
+        .select("id, display_name, elo")
+        .order("elo", { ascending: false })
         .limit(limit);
-      
-      if (xpError) {
-        console.error("user_xp query failed:", xpError);
+
+      if (eloError) {
+        console.error("profiles ELO query failed:", eloError);
         setRows([]);
         setMe(null);
         setLoading(false);
         return;
       }
-      
-      const list = (xpData || [])
+
+      const list = (eloData || [])
         .map((entry: any) => ({
-          id: entry.user_id,
-          display_name: entry.display_name || `User ${entry.user_id?.slice(0, 8) || 'Unknown'}`,
-          xp: entry.total_xp || 0,
-        }))
-        .filter((r) => r.xp > 0) as LeaderboardRow[];
-      
+          id: entry.id,
+          display_name: entry.display_name || `User ${entry.id?.slice(0, 8) || "Unknown"}`,
+          elo: entry.elo ?? 0,
+        })) as LeaderboardRow[];
+
       setRows(list);
-      
+
       if (user) {
         const mine = list.find((r) => r.id === user.id);
         if (mine) {
-          setMe({ xp: mine.xp, rank: list.indexOf(mine) + 1 });
+          setMe({ elo: mine.elo, rank: list.indexOf(mine) + 1 });
         } else {
           const { data: self } = await supabase
-            .from("user_xp")
-            .select("total_xp")
-            .eq("user_id", user.id)
+            .from("profiles")
+            .select("elo")
+            .eq("id", user.id)
             .maybeSingle();
-          const myXp = self?.total_xp ?? 0;
-          const higherCount = list.filter((r) => r.xp > myXp).length;
-          setMe({ xp: myXp, rank: higherCount + 1 });
+          const myElo = self?.elo ?? 0;
+          // Count of profiles strictly above me — leaderboard rank = above + 1.
+          const { count: above } = await supabase
+            .from("profiles")
+            .select("id", { count: "exact", head: true })
+            .gt("elo", myElo);
+          setMe({ elo: myElo, rank: (above ?? 0) + 1 });
         }
       }
       setLoading(false);
@@ -68,21 +65,18 @@ export const useLeaderboard = (limit = 50) => {
       console.error("Unexpected leaderboard error:", err);
       setLoading(false);
     }
-  };
+  }, [user, limit]);
 
   useEffect(() => {
     fetchLeaderboard();
-  }, [user, limit]);
+  }, [fetchLeaderboard]);
 
-  // Listen for XP changes
+  // Re-fetch when any battle moves ELO so the board never shows a stale value.
   useEffect(() => {
-    const onXPChange = () => {
-      console.log("[Leaderboard] XP changed, refreshing...");
-      fetchLeaderboard();
-    };
-    window.addEventListener("xp-updated", onXPChange);
-    return () => window.removeEventListener("xp-updated", onXPChange);
-  }, []);
+    const onEloUpdate = () => fetchLeaderboard();
+    arenaEmitter.on("elo:updated", onEloUpdate);
+    return () => arenaEmitter.off("elo:updated", onEloUpdate);
+  }, [fetchLeaderboard]);
 
   return { rows, me, loading, refresh: fetchLeaderboard };
 };

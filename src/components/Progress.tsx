@@ -1,7 +1,7 @@
 ﻿import { Trophy, ArrowRight, Target, Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
-import { rankFor } from "@/lib/rank";
+import { getRankFromElo, getRankEmblem } from "@/hooks/arenaUtils";
 import { useLeaderboard } from "@/hooks/useLeaderboard";
 import { useAuth } from "@/context/AuthContext";
 import { motion, useInView } from "framer-motion";
@@ -36,7 +36,7 @@ export const Progress = () => {
             <span className="text-primary italic">rank</span> globally.
           </h2>
           <p className="text-lg md:text-2xl font-medium tracking-tight opacity-60 mb-12 max-w-lg leading-relaxed">
-            Consistency is the only metric that matters. Earn XP through daily drills and ascend the hierarchy.
+            Win battles. Climb the ladder. Your ELO is your rank — and the leaderboard never lies.
           </p>
           <Link to="/leaderboard" className="button-pill inline-flex items-center gap-6 group hover:scale-105 transition-transform">
             <span className="text-xs font-black uppercase tracking-widest">FULL LEADERBOARD</span>
@@ -75,7 +75,7 @@ export const Progress = () => {
                 </div>
               ) : (
                 topFive.map((entry, index) => {
-                  const rankData = rankFor(entry.xp);
+                  const rankData = getRankFromElo(entry.elo);
                   const isCurrentUser = entry.id === user?.id;
                   const position = index + 1;
 
@@ -98,7 +98,7 @@ export const Progress = () => {
                           {position}
                         </span>
                         <div className="h-12 w-12 rounded-full bg-background/10 flex items-center justify-center text-2xl shadow-inner">
-                          {rankData.emblem}
+                          {getRankEmblem(rankData.name)}
                         </div>
                         <div>
                           <p className={cn(
@@ -117,12 +117,12 @@ export const Progress = () => {
                           "text-2xl font-sans-bold tracking-tighter tabular-nums",
                           isCurrentUser ? "text-white" : "text-foreground"
                         )}>
-                          {entry.xp.toLocaleString()}
+                          {entry.elo.toLocaleString()}
                         </p>
                         <p className={cn(
                           "text-[11px] font-black uppercase tracking-widest",
                           isCurrentUser ? "text-white/60" : "opacity-40"
-                        )}>XP</p>
+                        )}>ELO</p>
                       </div>
                     </motion.div>
                   );
