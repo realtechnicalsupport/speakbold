@@ -113,9 +113,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [session?.user?.id]);
 
   const signOut = useCallback(async () => {
+    // Scope localStorage clearing to the signed-out user's keys + the
+    // supabase auth handles. Blanket `localStorage.clear()` was wiping
+    // every other account's settings + device preferences on the same
+    // browser (impromptu options, mic device, onboarding state for other
+    // users, etc.).
+    const uid = session?.user?.id;
     await supabase.auth.signOut();
-    localStorage.clear();
-  }, []);
+    try {
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k) continue;
+        if (k.startsWith("sb-")) keysToRemove.push(k);             // supabase auth tokens
+        else if (uid && k.endsWith(`_${uid}`)) keysToRemove.push(k); // user-scoped speakbold keys
+      }
+      keysToRemove.forEach(k => localStorage.removeItem(k));
+    } catch { /* private mode / quota — ignore */ }
+  }, [session?.user?.id]);
 
   // Memoised value: prevents all consumers from re-rendering on unrelated state changes
   const value = useMemo(() => ({

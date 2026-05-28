@@ -8,6 +8,54 @@ import {
   type SkillProfile,
 } from "@/lib/skillProfile";
 
+// ─── AI provider status channel ────────────────────────────────────────────
+// The fallback chain (Groq → OpenRouter → Cerebras → Gemini) can sit for up
+// to 20+ seconds when early providers are slow or down. Consumers (e.g. the
+// debate "AI IS WEIGHING THE ARGUMENTS" overlay) subscribe to this channel
+// to update their progress text as the chain advances, so the UI never
+// looks frozen.
+export type AIProviderStatus =
+  | { type: "trying";  provider: string }
+  | { type: "failed";  provider: string; reason: "timeout" | "error" | "no-key" }
+  | { type: "success"; provider: string };
+
+type AIStatusListener = (s: AIProviderStatus) => void;
+const aiStatusListeners = new Set<AIStatusListener>();
+
+export function onAIStatus(fn: AIStatusListener): () => void {
+  aiStatusListeners.add(fn);
+  return () => { aiStatusListeners.delete(fn); };
+}
+
+function emitAIStatus(status: AIProviderStatus) {
+  aiStatusListeners.forEach(fn => { try { fn(status); } catch { /* listener errors don't break the chain */ } });
+}
+
+// Per-provider HTTP timeout. patient (judging / long generation) gets more
+// headroom; fast (autocomplete-style) bails sooner so the user isn't stuck.
+const PROVIDER_TIMEOUT_MS: Record<"patient" | "fast", number> = {
+  patient: 8000,
+  fast: 3500,
+};
+
+/** AbortController-backed fetch with a hard cap, so a slow provider can't pin
+ *  the chain. Returns the Response or null on timeout (caller treats as failure). */
+async function fetchWithTimeout(
+  input: RequestInfo,
+  init: RequestInit,
+  timeoutMs: number,
+): Promise<Response | null> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: ctrl.signal });
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 // ─── Keys (add to .env to unlock each provider) ────────────────────────────
 const GEMINI_API_KEY   = import.meta.env.VITE_GEMINI_API_KEY      || "";
 const GROQ_API_KEY     = import.meta.env.VITE_GROQ_API_KEY        || "";
@@ -32,69 +80,77 @@ const geminiUrl = (model: string) =>
 
 // ─── TEXT providers (each returns null on failure, string on success) ──────
 
-async function tryOpenRouter(prompt: string, temperature: number): Promise<string | null> {
-  if (!OPENROUTER_KEY) return null;
+async function tryOpenRouter(prompt: string, temperature: number, timeoutMs: number): Promise<string | null> {
+  if (!OPENROUTER_KEY) { emitAIStatus({ type: "failed", provider: "OpenRouter", reason: "no-key" }); return null; }
+  emitAIStatus({ type: "trying", provider: "OpenRouter" });
   for (const model of OPENROUTER_MODELS) {
+    const res = await fetchWithTimeout("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${OPENROUTER_KEY}`,
+        "HTTP-Referer": "https://speakbold.app",
+        "X-Title": "SpeakBold",
+      },
+      body: JSON.stringify({ model, messages: [{ role: "user", content: prompt }], temperature }),
+    }, timeoutMs);
+    if (!res) continue; // timeout
     try {
-      const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${OPENROUTER_KEY}`,
-          "HTTP-Referer": "https://speakbold.app",
-          "X-Title": "SpeakBold",
-        },
-        body: JSON.stringify({ model, messages: [{ role: "user", content: prompt }], temperature }),
-      });
       if (res.ok) {
         const data = await res.json();
         const text = data.choices?.[0]?.message?.content;
-        if (text) { console.log(`[AI] ✓ OpenRouter ${model}`); return text; }
+        if (text) { console.log(`[AI] ✓ OpenRouter ${model}`); emitAIStatus({ type: "success", provider: "OpenRouter" }); return text; }
       }
       if (res.status === 429) await sleep(400);
     } catch { /* try next */ }
   }
+  emitAIStatus({ type: "failed", provider: "OpenRouter", reason: "error" });
   return null;
 }
 
-async function tryCerebras(prompt: string, temperature: number): Promise<string | null> {
-  if (!CEREBRAS_KEY) return null;
+async function tryCerebras(prompt: string, temperature: number, timeoutMs: number): Promise<string | null> {
+  if (!CEREBRAS_KEY) { emitAIStatus({ type: "failed", provider: "Cerebras", reason: "no-key" }); return null; }
+  emitAIStatus({ type: "trying", provider: "Cerebras" });
+  const res = await fetchWithTimeout("https://api.cerebras.ai/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${CEREBRAS_KEY}` },
+    body: JSON.stringify({
+      model: "llama-3.3-70b",
+      messages: [{ role: "user", content: prompt }],
+      temperature,
+      max_tokens: 2048,
+    }),
+  }, timeoutMs);
+  if (!res) { emitAIStatus({ type: "failed", provider: "Cerebras", reason: "timeout" }); return null; }
   try {
-    const res = await fetch("https://api.cerebras.ai/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${CEREBRAS_KEY}` },
-      body: JSON.stringify({
-        model: "llama-3.3-70b",
-        messages: [{ role: "user", content: prompt }],
-        temperature,
-        max_tokens: 2048,
-      }),
-    });
     if (res.ok) {
       const data = await res.json();
       const text = data.choices?.[0]?.message?.content;
-      if (text) { console.log("[AI] ✓ Cerebras"); return text; }
+      if (text) { console.log("[AI] ✓ Cerebras"); emitAIStatus({ type: "success", provider: "Cerebras" }); return text; }
     }
   } catch { /* fall through */ }
+  emitAIStatus({ type: "failed", provider: "Cerebras", reason: "error" });
   return null;
 }
 
-async function tryGeminiText(prompt: string, temperature: number): Promise<string | null> {
-  if (!GEMINI_API_KEY) return null;
+async function tryGeminiText(prompt: string, temperature: number, timeoutMs: number): Promise<string | null> {
+  if (!GEMINI_API_KEY) { emitAIStatus({ type: "failed", provider: "Gemini", reason: "no-key" }); return null; }
+  emitAIStatus({ type: "trying", provider: "Gemini" });
   for (const model of GEMINI_TEXT_MODELS) {
+    const res = await fetchWithTimeout(geminiUrl(model), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature },
+      }),
+    }, timeoutMs);
+    if (!res) continue;
     try {
-      const res = await fetch(geminiUrl(model), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature },
-        }),
-      });
       if (res.ok) {
         const data = await res.json();
         const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (text) { console.log(`[AI] ✓ Gemini ${model}`); return text; }
+        if (text) { console.log(`[AI] ✓ Gemini ${model}`); emitAIStatus({ type: "success", provider: "Gemini" }); return text; }
       }
       const status = res.status;
       console.warn(`[AI] Gemini ${model} → ${status}`);
@@ -102,22 +158,25 @@ async function tryGeminiText(prompt: string, temperature: number): Promise<strin
       // 429 quota or 404 model gone — try next model
     } catch { /* try next */ }
   }
+  emitAIStatus({ type: "failed", provider: "Gemini", reason: "error" });
   return null;
 }
 
-async function tryGroqText(prompt: string, temperature: number): Promise<string | null> {
-  if (!GROQ_API_KEY) return null;
+async function tryGroqText(prompt: string, temperature: number, timeoutMs: number): Promise<string | null> {
+  if (!GROQ_API_KEY) { emitAIStatus({ type: "failed", provider: "Groq", reason: "no-key" }); return null; }
+  emitAIStatus({ type: "trying", provider: "Groq" });
   for (const model of GROQ_TEXT_MODELS) {
+    const res = await fetchWithTimeout("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${GROQ_API_KEY}` },
+      body: JSON.stringify({ model, messages: [{ role: "user", content: prompt }], temperature }),
+    }, timeoutMs);
+    if (!res) continue;
     try {
-      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${GROQ_API_KEY}` },
-        body: JSON.stringify({ model, messages: [{ role: "user", content: prompt }], temperature }),
-      });
       if (res.ok) {
         const data = await res.json();
         const text = data.choices?.[0]?.message?.content;
-        if (text) { console.log(`[AI] ✓ Groq ${model}`); return text; }
+        if (text) { console.log(`[AI] ✓ Groq ${model}`); emitAIStatus({ type: "success", provider: "Groq" }); return text; }
       }
       const status = res.status;
       console.warn(`[AI] Groq ${model} → ${status}`);
@@ -125,18 +184,28 @@ async function tryGroqText(prompt: string, temperature: number): Promise<string 
       if (status === 429) await sleep(800);
     } catch { /* try next */ }
   }
+  emitAIStatus({ type: "failed", provider: "Groq", reason: "error" });
   return null;
 }
 
 // ─── MAIN TEXT CALLER ──────────────────────────────────────────────────────
 // Waterfall: Groq → OpenRouter (free) → Cerebras → Gemini (3 models)
-// _attempt kept for backwards-compat with call sites that pass it; ignored internally
-export async function callAI(prompt: string, _attempt = 0, temperature = 0.7): Promise<string> {
+// Pace controls the per-provider HTTP timeout: "patient" (default — judging,
+// long generation) allows ~8s/provider; "fast" (autocomplete, prompt
+// generation) caps each at ~3.5s so worst-case total stays under ~14s.
+// _attempt kept for backwards-compat with call sites that pass it; ignored.
+export async function callAI(
+  prompt: string,
+  _attempt = 0,
+  temperature = 0.7,
+  pace: "patient" | "fast" = "patient",
+): Promise<string> {
+  const timeoutMs = PROVIDER_TIMEOUT_MS[pace];
   const result =
-    (await tryGroqText(prompt, temperature)) ??
-    (await tryOpenRouter(prompt, temperature)) ??
-    (await tryCerebras(prompt, temperature)) ??
-    (await tryGeminiText(prompt, temperature));
+    (await tryGroqText(prompt, temperature, timeoutMs)) ??
+    (await tryOpenRouter(prompt, temperature, timeoutMs)) ??
+    (await tryCerebras(prompt, temperature, timeoutMs)) ??
+    (await tryGeminiText(prompt, temperature, timeoutMs));
 
   if (result) return result;
   throw new Error("All AI providers exhausted. Check API keys and quota in the browser console.");

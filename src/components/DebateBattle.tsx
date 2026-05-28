@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { useRecordings } from "@/hooks/useRecordings";
 import { toast } from "@/hooks/use-toast";
-import { judgeBattle, generateAIArgument, speakWithDeepgramTTS } from "@/services/geminiService";
+import { judgeBattle, generateAIArgument, speakWithDeepgramTTS, onAIStatus } from "@/services/geminiService";
 import { setRecordingActive } from "@/lib/recordingState";
 import { MicrophoneBorder } from "@/components/MicrophoneBorder";
 import { RecorderPanel } from "@/components/RecorderPanel";
@@ -129,14 +129,34 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
   });
 
   // ── Transcripts per turn ──────────────────────────────────────────────────
-  const [transcripts, setTranscripts] = useState({
-    userOpening: "",
-    aiOpening: "",
-    userRebuttal: "",
-    aiRebuttal: "",
+  // Hydrate from sessionStorage so a mid-debate refresh doesn't wipe the
+  // turns that have already happened. The phase/start refs above are already
+  // restored from storage — without restoring transcripts too, the judge
+  // would score an empty case at the end.
+  const [transcripts, setTranscripts] = useState(() => {
+    const empty = { userOpening: "", aiOpening: "", userRebuttal: "", aiRebuttal: "" };
+    if (!_validSavedPhase) return empty;
+    try {
+      const raw = sessionStorage.getItem("debate_transcripts");
+      if (!raw) return empty;
+      const parsed = JSON.parse(raw);
+      return {
+        userOpening: typeof parsed.userOpening === "string" ? parsed.userOpening : "",
+        aiOpening: typeof parsed.aiOpening === "string" ? parsed.aiOpening : "",
+        userRebuttal: typeof parsed.userRebuttal === "string" ? parsed.userRebuttal : "",
+        aiRebuttal: typeof parsed.aiRebuttal === "string" ? parsed.aiRebuttal : "",
+      };
+    } catch { return empty; }
   });
   const transcriptsRef = useRef(transcripts);
   transcriptsRef.current = transcripts;
+
+  // Persist transcripts whenever they change so refresh-during-debate works.
+  // Cleared together with phase/phase_start in the results-effect below and
+  // in the cleanup helper used by forfeit + intentional close.
+  useEffect(() => {
+    try { sessionStorage.setItem("debate_transcripts", JSON.stringify(transcripts)); } catch { /* ignore */ }
+  }, [transcripts]);
 
   // ── Live user transcription state ─────────────────────────────────────────
   const [liveFinal, setLiveFinal] = useState("");
@@ -280,7 +300,11 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
     setLiveInterim("");
 
     let restartTimer: ReturnType<typeof setTimeout> | null = null;
-    let stopped = false; // set true when this effect's cleanup fires
+    let stopped = false;   // set true when this effect's cleanup fires
+    let blocked = false;   // set true when mic permission is revoked / blocked
+                           // — prevents the onend handler from restarting the
+                           //   recognition into a permanent retry loop with no
+                           //   transcript visible to the user.
 
     recognition.onresult = (event: any) => {
       let interim = "";
@@ -297,11 +321,21 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
     recognition.onerror = (e: any) => {
       if (!e.error || e.error === "no-speech" || e.error === "aborted") return;
       console.warn("[Debate] Recognition error:", e.error);
+      if (e.error === "not-allowed" || e.error === "service-not-allowed") {
+        blocked = true;
+        setMicError(true);
+        toast({
+          title: "Microphone blocked",
+          description: "Your browser is blocking mic access. Unblock it in the address-bar lock icon and try again.",
+          variant: "destructive",
+        });
+      }
     };
 
     recognition.onend = () => {
-      // Don't restart if this effect was cleaned up or we left a user turn
-      if (stopped) return;
+      // Don't restart if this effect was cleaned up, the mic was revoked, or
+      // we've left a user turn.
+      if (stopped || blocked) return;
       if (PHASE_CONFIG[phaseRef.current].speaker !== "user") return;
       // Browsers need ~100 ms between stop() and start() to avoid InvalidStateError
       restartTimer = setTimeout(() => {
@@ -438,21 +472,64 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
       const myStand = oppStand;
 
       // ── Topic-aware fallback (used if generation fails) ─────────────────
+      // The previous fallback was a single confident-orator template — picking
+      // a Beginner persona and hitting a network error would still hand the
+      // user a Cicero. Pools are now tiered by persona.skill so an offline
+      // Echo really does sound like a hesitant beginner.
       const makeFallback = (): string => {
         const stance = myStand === "FOR" ? "in favour of" : "against";
         const contrary = myStand === "FOR" ? "against" : "in favour of";
         const topicShort = prompt.replace(/^this house believes\s*/i, "").replace(/^that\s*/i, "");
-        const openingPool = [
+        const skill = (opponent.persona?.skill || "Intermediate") as "Beginner" | "Intermediate" | "Advanced" | "Expert";
+
+        const beginnerOpening = [
+          `Okay, so — I'm ${stance} ${topicShort}. I mean, it just makes sense to me. You see it everywhere, right? Like, the people who actually deal with this know what I'm talking about. That's pretty much my point.`,
+          `Honestly? I'm ${stance} this. I know that sounds simple, but — when I think about ${topicShort}, the other side just doesn't add up for me. I've seen it play out. That's enough for me to be ${stance} it.`,
+          `So, ${topicShort}. I'm ${stance} it. My main reason is — well, it just works that way in real life. You can argue all you want, but at the end of the day, people who try the opposite usually end up wishing they hadn't.`,
+        ];
+        const intermediateOpening = [
+          `I think the case for being ${stance} ${topicShort} is pretty solid. To be fair, the other side has a point or two — but the bigger picture lines up with my position. The trade-offs just make more sense this way.`,
+          `My position is ${stance} ${topicShort}. The reason is straightforward: when you look at how this plays out in practice, the alternative tends to create more problems than it solves. I'll admit it's not airtight, but it holds up.`,
+          `I'll keep this simple — I'm ${stance} ${topicShort}. The evidence I find most convincing is real-world: places that try the opposite end up dealing with consequences my side avoids. That asymmetry matters.`,
+        ];
+        const advancedOpening = [
           `I stand firmly ${stance} the proposition that ${topicShort}. When you look at the evidence — historical, empirical, and practical — the conclusion is clear. Those who argue ${contrary} are working from assumptions that don't survive contact with reality.`,
           `My position is ${stance} "${topicShort}" — and the reasoning is straightforward. The alternative my opponent will offer sounds reasonable on the surface. But once you examine what it actually requires, and what it ignores, the cracks become impossible to miss.`,
           `The motion before us — ${topicShort} — is not a close call. I argue ${stance} it because the people and systems most affected by this question are consistently better off when we take this position. The data, the logic, and the real-world outcomes all point the same way.`,
         ];
-        const rebuttalPool = [
+        const expertOpening = advancedOpening; // expert sharpens prose, but the topic-aware fallback can't fabricate that — keep parity.
+
+        const beginnerRebuttal = [
+          `Yeah, I hear what they're saying — but I still think I'm right about ${topicShort}. The thing is, their reason kind of falls apart when you actually try it. So I'm still ${stance} it.`,
+          `Okay, my opponent made some points. I'll be honest, one of them sounded okay. But the rest? Not really. I'm sticking with being ${stance} ${topicShort} because the real-world bit still matters more.`,
+          `I listened. I get it. But — same as before — being ${stance} ${topicShort} is the one that actually works. The other side keeps talking around the part that matters.`,
+        ];
+        const intermediateRebuttal = [
+          `My opponent's case has one decent reason, I'll give them that. But the rest leans on assumptions I don't think hold up — and when you remove those, the ${contrary} position falls apart. That's why I'm still ${stance} ${topicShort}.`,
+          `I'd push back on the strongest version of their argument: even granting it, it doesn't get them where they need to go. ${topicShort} still cuts in my favour because the outcomes track with my side.`,
+          `Honestly, the response from the other side missed the central issue. We're not debating whether ${topicShort} has any downsides — of course it does. We're debating whether those downsides outweigh the alternative. And on that question, I think the answer's still clear.`,
+        ];
+        const advancedRebuttal = [
           `My opponent raised some points about "${topicShort}" — but notice what they carefully avoided: the strongest version of my argument. I'll address what they said, and then I'll show you why the core of their position falls apart.`,
           `I've listened to the case ${contrary} my view on "${topicShort}". The problem is that their argument proves too much. If we accepted their logic, it would also mean accepting conclusions they would never defend. That tells us something important about where their reasoning breaks down.`,
           `The response from the other side missed the central issue. We're not debating whether "${topicShort}" has any downsides — of course it does. We're debating whether those downsides outweigh the alternative. And on that question, my opponent gave you nothing.`,
         ];
-        const pool = phase === "opening-ai" ? openingPool : rebuttalPool;
+        const expertRebuttal = advancedRebuttal;
+
+        const openingPools = {
+          Beginner: beginnerOpening,
+          Intermediate: intermediateOpening,
+          Advanced: advancedOpening,
+          Expert: expertOpening,
+        };
+        const rebuttalPools = {
+          Beginner: beginnerRebuttal,
+          Intermediate: intermediateRebuttal,
+          Advanced: advancedRebuttal,
+          Expert: expertRebuttal,
+        };
+        const pools = phase === "opening-ai" ? openingPools : rebuttalPools;
+        const pool = pools[skill] ?? pools.Intermediate;
         return pool[Math.floor(Math.random() * pool.length)];
       };
 
@@ -633,6 +710,17 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
     const oppName = opponent.name;
     const judgePrompt = `DEBATE TOPIC: "${prompt}"\n\n${userName} argued ${userStand}.\n${oppName} argued ${oppStand}.\n\nThis was a turn-based debate. Judge each speaker on the strength of their opening AND how well they engaged with the opponent's points in the rebuttal.`;
 
+    // Surface provider chain progress so the screen never looks frozen for
+    // 15+ seconds while Groq → OpenRouter → Cerebras → Gemini fall through.
+    let triedCount = 0;
+    const unsubscribe = onAIStatus(s => {
+      if (s.type === "trying") {
+        triedCount++;
+        if (triedCount === 1) setAnalyzeText("AI IS WEIGHING THE ARGUMENTS...");
+        else setAnalyzeText(`TRYING BACKUP PROVIDER (${triedCount})…`);
+      }
+    });
+
     try {
       const result = await judgeBattle(userName, userFull, judgePrompt, oppName, aiFull);
       const won = result.winner === "you";
@@ -705,6 +793,8 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
       });
       sfx.loss();
       setPhase("results");
+    } finally {
+      unsubscribe();
     }
   };
 
@@ -713,6 +803,7 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
     if (phase === "results") {
       sessionStorage.removeItem("debate_phase");
       sessionStorage.removeItem("debate_phase_start");
+      sessionStorage.removeItem("debate_transcripts");
     }
   }, [phase]);
 
@@ -723,6 +814,14 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
     try { recognitionRef.current?.stop(); } catch (_) {}
     if (aiStreamRef.current) clearTimeout(aiStreamRef.current);
     setRecordingActive(false);
+    // Only clear the persisted debate state if the user intentionally left
+    // (forfeit / close). For a plain refresh-during-debate, the component
+    // unmounts but we WANT the next mount to restore — so keep the keys.
+    if (isClosingRef.current) {
+      sessionStorage.removeItem("debate_phase");
+      sessionStorage.removeItem("debate_phase_start");
+      sessionStorage.removeItem("debate_transcripts");
+    }
   }, []);
 
   // ─── RENDER ────────────────────────────────────────────────────────────────
