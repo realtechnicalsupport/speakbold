@@ -83,6 +83,42 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [incomingRequests, setIncomingRequests] = useState<any[]>([]);
   const arenaChannel = useRef<any>(null);
 
+  // Write a new ELO value to the DB and confirm it landed by reading the row
+  // back. Surfaces a destructive toast on failure so silent RLS/migration
+  // issues become visible instead of leaving the leaderboard stuck at 1000.
+  // Returns the persisted value (or the optimistic target if the read-back
+  // fails so the in-session UI still moves).
+  const persistElo = async (userId: string, targetElo: number): Promise<number> => {
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .update({ elo: targetElo })
+        .eq("id", userId)
+        .select("elo")
+        .single();
+
+      if (error) {
+        console.error("[ArenaContext] ELO write FAILED:", error);
+        toast({
+          title: "Rating didn't save",
+          description: `Battle recorded, but your ELO couldn't be written (${error.message}). Check Supabase RLS / migrations.`,
+          variant: "destructive",
+        });
+        return targetElo;
+      }
+      const persisted = data?.elo ?? targetElo;
+      if (persisted !== targetElo) {
+        console.warn(`[ArenaContext] ELO write landed at ${persisted}, expected ${targetElo}`);
+      } else {
+        console.log(`[ArenaContext] ELO persisted: ${persisted}`);
+      }
+      return persisted;
+    } catch (e) {
+      console.error("[ArenaContext] persistElo threw:", e);
+      return targetElo;
+    }
+  };
+
   const refresh = useCallback(async (silent = false) => {
     if (!user) { setLoading(false); return; }
     if (!silent) setLoading(true);
@@ -294,14 +330,10 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }));
 
       // ── Persist ELO to DB ─────────────────────────────────────────────────
-      // Try the RPC first (enforces floor via GREATEST). Fall back to a direct
-      // UPDATE if the RPC doesn't exist or returns an error — this makes the
-      // system resilient to migration timing issues.
-      const { error: rpcErr } = await supabase.rpc('add_user_elo', { user_id: user.id, elo_amount: eloChange });
-      if (rpcErr) {
-        console.warn('[ArenaContext] add_user_elo RPC failed on forfeit, using direct update:', rpcErr);
-        await supabase.from("profiles").update({ elo: newElo }).eq("id", user.id);
-      }
+      // Direct UPDATE with read-back so failures are visible. Bypasses the
+      // add_user_elo RPC entirely — too many deployments have shipped without
+      // the migration, leaving battles that look like they counted but didn't.
+      const persistedElo = await persistElo(user.id, newElo);
 
       const isUuid = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-5][0-9a-f]{3}-[089ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
 
@@ -321,7 +353,7 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (fInsertErr) console.error("[ArenaContext] Forfeit battle insert failed:", fInsertErr);
 
       await refresh(true);
-      arenaEmitter.emit("elo:updated", { change: eloChange, newElo });
+      arenaEmitter.emit("elo:updated", { change: eloChange, newElo: persistedElo });
     } catch (e) {
       console.error("[ArenaContext] handleForfeit failed:", e);
     }
@@ -370,12 +402,13 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }));
 
       // ── Persist ELO to DB ─────────────────────────────────────────────────
+      // Direct UPDATE with read-back. We skip the add_user_elo RPC because
+      // many deployments are missing the migration, and a silent RPC failure
+      // followed by a silent fallback meant battles appeared to count but the
+      // DB never moved off 1000.
+      let persistedElo = newElo;
       if (eloChange !== 0) {
-        const { error: rpcErr } = await supabase.rpc('add_user_elo', { user_id: user.id, elo_amount: eloChange });
-        if (rpcErr) {
-          console.warn('[ArenaContext] add_user_elo RPC failed on completeDuel, using direct update:', rpcErr);
-          await supabase.from("profiles").update({ elo: newElo }).eq("id", user.id);
-        }
+        persistedElo = await persistElo(user.id, newElo);
       }
 
       const isUuid = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-5][0-9a-f]{3}-[089ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
@@ -423,7 +456,7 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       } catch { /* streak update is non-critical */ }
 
       await refresh(true);
-      arenaEmitter.emit("elo:updated", { change: eloChange, newElo });
+      arenaEmitter.emit("elo:updated", { change: eloChange, newElo: persistedElo });
     } catch (e) {
       console.error("[ArenaContext] completeDuel failed:", e);
     }
