@@ -4,6 +4,7 @@ import { useRecordings, useSyncedStreak } from "@/hooks/useRecordings";
 import { useLocalStorageState } from "@/hooks/useLocalStorageState";
 import { setTimerActive, setTimerSeconds } from "@/lib/timerState";
 import { setRecordingActive } from "@/lib/recordingState";
+import { isMobileDevice } from "@/lib/isMobileDevice";
 import { coachImpromptu, transcribeAudio, type ImpromptuCoachReport } from "@/services/geminiService";
 import {
   type Difficulty,
@@ -230,7 +231,10 @@ export function useImpromptuSession() {
           setSpeakSecondsLeft(durationRef.current);
           speakSecondsLeftRef.current = durationRef.current;
           setPhase("speaking");
-          if (recordEnabledRef.current) {
+          // Mobile devices need the recorder to run regardless of the toggle:
+          // we can't do live Web Speech reliably there, so the recorded blob
+          // is the only path to a transcript via server-side fallback.
+          if (recordEnabledRef.current || isMobileDevice()) {
             recorderStartRef.current?.();
             wasRecordingRef.current = true;
           }
@@ -284,6 +288,16 @@ export function useImpromptuSession() {
   // ── Speech recognition ──────────────────────────────────────────────────────
   useEffect(() => {
     if (phase !== "speaking" || isPaused) return;
+    // Skip live Web Speech on phones/tablets. The mobile engine ignores
+    // `continuous = true` and auto-stops every few seconds; the restart loop
+    // re-opens getUserMedia, causing the mic indicator to blink on/off and
+    // conflicting with the MediaRecorder's own stream. We transcribe the
+    // recorded audio server-side after the turn ends instead (handled in
+    // onRecordingComplete via the awaitingRecordingTranscriptRef path).
+    if (isMobileDevice()) {
+      awaitingRecordingTranscriptRef.current = true;
+      return;
+    }
     const SpeechRecognition = getSpeechRecognition();
     if (!SpeechRecognition) return;
 
@@ -433,7 +447,7 @@ export function useImpromptuSession() {
     setSpeakSecondsLeft(durationRef.current);
     speakSecondsLeftRef.current = durationRef.current;
     setPhase("speaking");
-    if (recordEnabledRef.current) {
+    if (recordEnabledRef.current || isMobileDevice()) {
       recorderStartRef.current?.();
       wasRecordingRef.current = true;
     }
@@ -479,7 +493,7 @@ export function useImpromptuSession() {
     setDurationState(drillDur);
 
     setPhase("speaking");
-    if (recordEnabledRef.current) {
+    if (recordEnabledRef.current || isMobileDevice()) {
       recorderStartRef.current?.();
       wasRecordingRef.current = true;
     }

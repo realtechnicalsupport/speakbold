@@ -5,8 +5,9 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { useRecordings } from "@/hooks/useRecordings";
 import { toast } from "@/hooks/use-toast";
-import { judgeBattle, generateAIArgument, speakWithDeepgramTTS, onAIStatus } from "@/services/geminiService";
+import { judgeBattle, generateAIArgument, speakWithDeepgramTTS, onAIStatus, transcribeAudio } from "@/services/geminiService";
 import { setRecordingActive } from "@/lib/recordingState";
+import { isMobileDevice } from "@/lib/isMobileDevice";
 import { MicrophoneBorder } from "@/components/MicrophoneBorder";
 import { RecorderPanel } from "@/components/RecorderPanel";
 import type { Duel, Gamemode, DuelPlayer } from "@/context/ArenaContext";
@@ -203,7 +204,13 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
   useEffect(() => { liveFinalRef.current = liveFinal; }, [liveFinal]);
   useEffect(() => { liveInterimRef.current = liveInterim; }, [liveInterim]);
   const recognitionRef = useRef<any>(null);
-  const speechSupported = !!getSpeechRecognition();
+  // On phones/tablets the Web Speech engine ignores `continuous = true` and
+  // auto-stops every few seconds; the restart loop cycles getUserMedia and
+  // makes the mic indicator visibly blink. We treat speech as unsupported on
+  // mobile so the live-transcript UI shows the "Recording" fallback, and the
+  // user's words get transcribed server-side from the recorded blob after
+  // each turn (see onRecorded handler).
+  const speechSupported = !!getSpeechRecognition() && !isMobileDevice();
 
   // ── AI streaming state ────────────────────────────────────────────────────
   const [aiStream, setAiStream] = useState("");
@@ -229,6 +236,14 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
   const isClosingRef = useRef(false);
   /** Set to true when autoAdvance fires while the tab is hidden — fires on tab show. */
   const pendingAutoAdvanceRef = useRef(false);
+  /** Which user phase the in-progress recording belongs to. Captured when the
+   *  recorder starts, since by the time onRecorded fires the phase has already
+   *  advanced. Used to route the mobile server-side transcript into the right
+   *  transcripts slot. */
+  const recordingPhaseRef = useRef<DebatePhase | null>(null);
+  /** Outstanding server-side transcription promises for mobile turns. The
+   *  judge must await these before scoring, or it'll see empty user turns. */
+  const pendingTranscriptionsRef = useRef<Promise<void>[]>([]);
 
   // ── Mic permission check ──────────────────────────────────────────────────
   // Prefer the Permissions API — it tells us the current state without
@@ -311,6 +326,9 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
     const cfg = PHASE_CONFIG[phase];
     if (cfg.speaker === "user" && phase !== "judging" && phase !== "results" && phase !== "prep") {
       if (!wasRecording.current) {
+        // Remember which turn this recording belongs to — by the time the
+        // recorder stops and `onRecorded` fires, `phase` has already advanced.
+        recordingPhaseRef.current = phase;
         recorderStartRef.current?.();
         wasRecording.current = true;
       }
@@ -322,6 +340,9 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
   }, [phase]);
 
   // ── Live transcription: start/stop with user turns ────────────────────────
+  // `speechSupported` is false on mobile/tablet (see definition above), which
+  // skips this effect entirely and routes transcription through the recorded
+  // blob in the onRecorded handler below.
   useEffect(() => {
     if (!speechSupported) return;
     const cfg = PHASE_CONFIG[phase];
@@ -810,6 +831,15 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
     setAnalyzeText("ASSEMBLING DEBATE TRANSCRIPT...");
     await new Promise(r => setTimeout(r, 400));
 
+    // On mobile, user turns are transcribed server-side after each recording
+    // finishes. Wait for those before reading transcriptsRef, otherwise the
+    // judge sees empty user turns and the user gets a fake 0–50 loss.
+    if (pendingTranscriptionsRef.current.length > 0) {
+      setAnalyzeText("TRANSCRIBING YOUR SPEECH...");
+      try { await Promise.all(pendingTranscriptionsRef.current); } catch { /* individual failures already logged */ }
+      pendingTranscriptionsRef.current = [];
+    }
+
     const t = transcriptsRef.current;
     const userFull = `OPENING:\n${t.userOpening || "(no opening)"}\n\nREBUTTAL:\n${t.userRebuttal || "(no rebuttal)"}`;
     const aiFull = `OPENING:\n${t.aiOpening || "(no opening)"}\n\nREBUTTAL:\n${t.aiRebuttal || "(no rebuttal)"}`;
@@ -1287,6 +1317,33 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
             recorderStopRef={fn => { recorderStopRef.current = fn; }}
             onRecorded={async (rec) => {
               setLastRecording(rec);
+
+              // Mobile transcript fallback: Web Speech is disabled on phones/
+              // tablets (it cycles the mic), so the recorded blob is our only
+              // source of truth for the user's words. Transcribe server-side
+              // and slot the text into the correct turn. The judge awaits
+              // these promises before scoring.
+              const recordedPhase = recordingPhaseRef.current;
+              recordingPhaseRef.current = null;
+              if (isMobileDevice() && recordedPhase) {
+                const key =
+                  recordedPhase === "opening-user" ? "userOpening" :
+                  recordedPhase === "rebuttal-user" ? "userRebuttal" : null;
+                if (key) {
+                  const p = (async () => {
+                    try {
+                      const text = (await transcribeAudio(rec.blob)).trim();
+                      if (text) {
+                        setTranscripts(prev => ({ ...prev, [key]: text }));
+                      }
+                    } catch (err) {
+                      console.warn("[Debate] Mobile server transcription failed:", err);
+                    }
+                  })();
+                  pendingTranscriptionsRef.current.push(p);
+                }
+              }
+
               if (user) {
                 await upload(rec.blob, {
                   promptText: `Debate (${phase}): ${prompt}`,
