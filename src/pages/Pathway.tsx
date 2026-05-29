@@ -18,6 +18,7 @@ import { transcribeAudio, judgePathwayDrill, speakWithDeepgramTTS } from "@/serv
 import { DebateBattle } from "@/components/DebateBattle";
 import { useArena, AI_PERSONAS } from "@/hooks/useArena";
 import { STARTING_ELO } from "@/hooks/arenaUtils";
+import { ChapterCelebration } from "@/components/ChapterCelebration";
 
 /** Build an AI opponent for an Orator debate drill from its personaSkill. */
 const makeDebateOpponent = (personaSkill?: string): any => {
@@ -1051,6 +1052,73 @@ const Pathway = () => {
   // placementOpen = inline banner visible; placementTestOpen = full-screen test running.
   const [placementTestOpen, setPlacementTestOpen] = useState(false);
 
+  // ── Chapter-complete celebration ────────────────────────────────────────
+  // Detects when a chapter flips from "in progress" to "complete" between
+  // renders and fires a one-shot overlay (confetti + win SFX + trophy card).
+  // We persist the per-user set of "already-celebrated" chapter IDs in
+  // localStorage so a page refresh doesn't re-fire the celebration for an
+  // old completion. Without that, anyone who already finished Chapter 1
+  // would get a fresh trophy every time they opened /pathway.
+  const [celebrated, setCelebrated] = useState<PathwayChapter | null>(null);
+  const celebratedIdsRef = useRef<Set<string>>(new Set());
+  const celebratedLoadedRef = useRef(false);
+  const CELEBRATED_LS_KEY = (uid: string) => `speakbold:pathway-celebrated:${uid}`;
+
+  // Hydrate the seen-set from localStorage once the user id is known.
+  useEffect(() => {
+    if (!user) return;
+    try {
+      const raw = localStorage.getItem(CELEBRATED_LS_KEY(user.id));
+      celebratedIdsRef.current = new Set<string>(raw ? JSON.parse(raw) : []);
+    } catch { celebratedIdsRef.current = new Set(); }
+    celebratedLoadedRef.current = true;
+  }, [user]);
+
+  // On every progress change, scan for chapters that are now complete but
+  // we haven't celebrated yet. Skip the very first hydration (loading=true)
+  // so opening /pathway as a returning user with multiple finished chapters
+  // doesn't dump a celebration queue on them.
+  useEffect(() => {
+    if (loading || !user || !celebratedLoadedRef.current) return;
+    const isDone = (id: string) => {
+      const s = getNodeStatus(id);
+      return s === "completed" || s === "tested-out";
+    };
+    for (const ch of chapters) {
+      if (celebratedIdsRef.current.has(ch.id)) continue;
+      const allDone = ch.lessons.every(l => isDone(l.id));
+      if (!allDone) continue;
+      // Only count "completed" — a chapter purely "tested-out" via placement
+      // wasn't earned by drilling, so skip the celebration there.
+      const anyCompleted = ch.lessons.some(l => getNodeStatus(l.id) === "completed");
+      if (!anyCompleted) {
+        // Mark seen so we don't keep re-checking, but don't celebrate.
+        celebratedIdsRef.current.add(ch.id);
+        try { localStorage.setItem(CELEBRATED_LS_KEY(user.id), JSON.stringify([...celebratedIdsRef.current])); } catch { /* private mode */ }
+        continue;
+      }
+      celebratedIdsRef.current.add(ch.id);
+      try { localStorage.setItem(CELEBRATED_LS_KEY(user.id), JSON.stringify([...celebratedIdsRef.current])); } catch { /* private mode */ }
+      setCelebrated(ch);
+      break; // fire one at a time — next render picks up the next chapter
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [progress, loading, user]);
+
+  // Detect tier unlock — fires "You've unlocked the X tier" copy in the
+  // celebration card when this chapter was the last one in its tier.
+  const unlockedTierName = useMemo(() => {
+    if (!celebrated) return null;
+    const tier = TIERS.find(t => t.id === celebrated.tier);
+    if (!tier) return null;
+    const tierChapters = chapters.filter(c => c.tier === tier.id);
+    const isLastInTier = tierChapters[tierChapters.length - 1]?.id === celebrated.id;
+    if (!isLastInTier) return null;
+    const tierIdx = TIERS.findIndex(t => t.id === tier.id);
+    const nextTier = TIERS[tierIdx + 1];
+    return nextTier ? nextTier.name : null;
+  }, [celebrated, chapters]);
+
   // Offer placement once to fresh users who haven't skipped it.
   useEffect(() => {
     if (loading || !user) return;
@@ -1319,6 +1387,11 @@ const Pathway = () => {
             onComplete={() => { completeLesson(activeDrill.id); setActiveDrill(null); }}
             completeDuel={completeDuel}
             handleForfeit={handleForfeit}
+            // Curriculum mode: forfeit shows "Leave this drill?" with no ELO
+            // penalty, and judging skips completeDuel so the match doesn't
+            // count toward Arena ELO. Lesson completion is handled by the
+            // onComplete callback above.
+            mode="pathway"
           />
         )}
         {activeDrill && activeDrill.type !== "debate" && activeDrill.type !== "duel" && (
@@ -1339,6 +1412,19 @@ const Pathway = () => {
           />
         )}
       </AnimatePresence>
+
+      {/* Chapter-complete celebration overlay — fires once per chapter
+          transition (see the effect above for the detection logic). */}
+      <ChapterCelebration
+        open={!!celebrated}
+        chapterName={celebrated?.name ?? ""}
+        chapterIndex={celebrated ? chapters.indexOf(celebrated) : 0}
+        level={celebrated?.level ?? ""}
+        color={celebrated?.color ?? "hsl(var(--primary))"}
+        drillCount={celebrated?.lessons.length ?? 0}
+        unlockedTier={unlockedTierName}
+        onClose={() => setCelebrated(null)}
+      />
     </main>
   );
 };
