@@ -24,6 +24,9 @@ export const Z = {
   panel: 100,
   /** Arena challenge modal / critical confirmation dialogs */
   critical: 150,
+  /** Active duel/debate screen — forced above chat panels, modals, and toasts
+   *  the instant the user accepts a battle. */
+  duelActive: 180,
   /** Onboarding modal */
   onboarding: 200,
   /** Tutorial overlay — must sit above onboarding */

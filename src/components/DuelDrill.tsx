@@ -477,7 +477,9 @@ export const DuelDrill = ({
       // Solid bg (no `glass` translucency) + dynamic viewport height so iOS
       // Safari URL-bar collapse doesn't reveal the page underneath.
       // Safe-area bottom padding keeps content above the iOS home indicator.
-      className="fixed inset-0 z-[60] bg-background overflow-y-auto overflow-x-hidden scrollbar-hide text-foreground flex flex-col"
+      // z-[180] (Z.duelActive) forces the duel screen above chat panels,
+      // confirmation modals, and toasts the moment a battle is accepted.
+      className="fixed inset-0 z-[180] bg-background overflow-y-auto overflow-x-hidden scrollbar-hide text-foreground flex flex-col"
       style={{
         minHeight: "100dvh",
         paddingBottom: "env(safe-area-inset-bottom)",

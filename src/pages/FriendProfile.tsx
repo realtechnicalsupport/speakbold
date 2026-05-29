@@ -126,7 +126,7 @@ export default function FriendProfile() {
   return (
     <div className="min-h-screen bg-background">
       <SiteHeader />
-      <main className="container max-w-lg pt-28 pb-32 lg:pb-12 px-4">
+      <main className="container max-w-lg lg:max-w-3xl pt-28 pb-32 lg:pb-12 px-4">
         {/* Back */}
         <button
           onClick={() => navigate("/friends")}
@@ -135,39 +135,44 @@ export default function FriendProfile() {
           <ArrowLeft className="h-4 w-4" /> Friends
         </button>
 
-        {/* Profile card */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="glass-card p-8 mb-6 text-center"
-        >
-          <div className="h-20 w-20 rounded-full bg-primary/10 border-2 border-primary/30 flex items-center justify-center mx-auto mb-4 text-primary text-4xl font-bold">
-            {profile.display_name[0]?.toUpperCase() ?? "?"}
-          </div>
-          <h1 className="speak-serif text-3xl tracking-tight mb-2">{profile.display_name}</h1>
-          <p className={cn("text-sm font-bold", rankColor.split(" ")[0])}>
-            {rankEmblem} {rank.name} {rank.tier}
-          </p>
-          <p className="text-xs text-muted-foreground opacity-40 mt-1">
-            Active {formatRelativeTime(profile.last_active_at)}
-          </p>
-        </motion.div>
-
-        {/* Stats */}
-        <div className="grid grid-cols-3 gap-3 mb-6">
-          {[
-            { icon: Flame, label: "Streak", value: `${streak}d`, color: "text-orange-400" },
-            { icon: Zap, label: "XP", value: profile.xp.toLocaleString(), color: "text-yellow-400" },
-            { icon: null, label: "ELO", value: profile.elo, color: "text-primary" },
-          ].map(({ icon: Icon, label, value, color }) => (
-            <div key={label} className="glass-card p-4 text-center">
-              {Icon && <Icon className={cn("h-5 w-5 mx-auto mb-1", color)} />}
-              {!Icon && <span className={cn("text-lg font-black", color)}>~</span>}
-              <p className={cn("text-xl font-black", color)}>{value}</p>
-              <p className="text-[10px] uppercase tracking-widest text-muted-foreground opacity-40">{label}</p>
+        {/* On desktop: profile card + stats side by side */}
+        <div className="lg:grid lg:grid-cols-[auto_1fr] lg:gap-8 lg:items-start mb-6">
+          {/* Profile card */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="glass-card p-8 mb-6 lg:mb-0 text-center lg:w-64 shrink-0"
+          >
+            <div className="h-20 w-20 rounded-full bg-primary/10 border-2 border-primary/30 flex items-center justify-center mx-auto mb-4 text-primary text-4xl font-bold">
+              {profile.display_name[0]?.toUpperCase() ?? "?"}
             </div>
-          ))}
-        </div>
+            <h1 className="speak-serif text-3xl tracking-tight mb-2">{profile.display_name}</h1>
+            <p className={cn("text-sm font-bold", rankColor.split(" ")[0])}>
+              {rankEmblem} {rank.name} {rank.tier}
+            </p>
+            <p className="text-xs text-muted-foreground opacity-40 mt-1">
+              Active {formatRelativeTime(profile.last_active_at)}
+            </p>
+          </motion.div>
+
+          {/* Stats — expand to fill on desktop */}
+          <div className="space-y-3">
+            <div className="grid grid-cols-3 lg:grid-cols-1 gap-3">
+            {[
+              { icon: Flame, label: "Streak", value: `${streak}d`, color: "text-orange-400" },
+              { icon: Zap, label: "XP", value: profile.xp.toLocaleString(), color: "text-yellow-400" },
+              { icon: null, label: "ELO", value: profile.elo, color: "text-primary" },
+            ].map(({ icon: Icon, label, value, color }) => (
+              <div key={label} className="glass-card p-4 lg:flex lg:items-center lg:gap-4 text-center lg:text-left">
+                {Icon && <Icon className={cn("h-5 w-5 mx-auto lg:mx-0 mb-1 lg:mb-0 shrink-0", color)} />}
+                {!Icon && <span className={cn("text-lg font-black shrink-0", color)}>~</span>}
+                <p className={cn("text-xl font-black lg:flex-1", color)}>{value}</p>
+                <p className="text-[10px] uppercase tracking-widest text-muted-foreground opacity-40">{label}</p>
+              </div>
+            ))}
+            </div>
+          </div>
+        </div>{/* end lg:grid */}
 
         {/* Action buttons */}
         <div className="flex gap-3">

@@ -90,7 +90,10 @@ const Lab = () => {
 
   return (
     <main className="min-h-screen bg-background relative overflow-hidden">
+      {/* Passive ambient glows */}
       <div className="absolute top-[10%] right-[-5%] w-[300px] h-[300px] md:w-[600px] md:h-[600px] bg-primary/5 rounded-full blur-[150px] animate-float opacity-30 pointer-events-none" />
+      <div className="absolute bottom-[5%] left-[-10%] w-[400px] h-[400px] bg-primary/3 rounded-full blur-[130px] opacity-20 pointer-events-none" style={{ animationDelay: "-4s" }} />
+      <div className="absolute top-[50%] left-[40%] w-[200px] h-[200px] bg-primary/4 rounded-full blur-[100px] opacity-15 pointer-events-none hidden lg:block" />
       <SiteHeader />
 
       <section className="px-4 md:container pt-20 md:pt-48 pb-32 lg:pb-16 relative z-10">

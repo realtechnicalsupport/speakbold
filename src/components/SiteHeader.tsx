@@ -154,6 +154,9 @@ const DuelRequestNotification = () => {
               <button
                 onClick={() => {
                   acceptDuelRequest(currentRequest);
+                  // Dismiss the notification immediately so it can't linger on
+                  // top of the duel screen while /arena is loading.
+                  setIncomingRequests(prev => prev.filter(r => r.id !== currentRequest.id));
                   navigate("/arena", { state: { acceptRequest: currentRequest } });
                 }}
                 className="flex-grow py-2 bg-primary text-white text-[10px] font-black uppercase tracking-widest rounded-lg hover:scale-105 active:scale-95 transition-all"
