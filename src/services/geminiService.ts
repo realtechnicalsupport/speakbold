@@ -89,19 +89,30 @@ const PROVIDER_TIMEOUT_MS: Record<"patient" | "fast", number> = {
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "";
 
-/** AbortController-backed fetch with a hard cap. Returns the Response or null
- *  on timeout (caller treats as failure). */
+/** Result of a bounded fetch: either a real response, a fast network failure
+ *  (CORS-blocked / DNS / connection refused / function not deployed), or a
+ *  timeout because the request took longer than the budget. Lumping these
+ *  into one "null" return loses a critical diagnostic — a CORS-blocked fetch
+ *  fails in ms but the user was shown "timed out (30s)", which led to chasing
+ *  a slow-provider ghost instead of the real "function not deployed" cause. */
+type FetchOutcome =
+  | { kind: "ok"; response: Response }
+  | { kind: "network-error"; error: unknown }
+  | { kind: "timeout" };
+
 async function fetchWithTimeout(
   input: RequestInfo,
   init: RequestInit,
   timeoutMs: number,
-): Promise<Response | null> {
+): Promise<FetchOutcome> {
   const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  let timedOut = false;
+  const t = setTimeout(() => { timedOut = true; ctrl.abort(); }, timeoutMs);
   try {
-    return await fetch(input, { ...init, signal: ctrl.signal });
-  } catch {
-    return null;
+    const response = await fetch(input, { ...init, signal: ctrl.signal });
+    return { kind: "ok", response };
+  } catch (error) {
+    return timedOut ? { kind: "timeout" } : { kind: "network-error", error };
   } finally {
     clearTimeout(t);
   }
@@ -140,7 +151,7 @@ export async function callAI(
 
   emitAIStatus({ type: "trying", provider: "server" });
 
-  const res = await fetchWithTimeout(`${SUPABASE_URL}/functions/v1/ai-text`, {
+  const outcome = await fetchWithTimeout(`${SUPABASE_URL}/functions/v1/ai-text`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -149,10 +160,18 @@ export async function callAI(
     body: JSON.stringify({ prompt, attempt: _attempt, temperature }),
   }, PROVIDER_TIMEOUT_MS[pace]);
 
-  if (!res) {
+  if (outcome.kind === "timeout") {
     emitAIStatus({ type: "failed", provider: "server", reason: "timeout" });
     throw new Error("[AI] Request timed out — the server-side provider chain didn't respond in time");
   }
+  if (outcome.kind === "network-error") {
+    emitAIStatus({ type: "failed", provider: "server", reason: "error" });
+    // CORS / 404 / connection refused all land here. Most common cause is the
+    // ai-text edge function not being deployed yet (the gateway 404s with no
+    // CORS headers, which the browser surfaces as a CORS preflight failure).
+    throw new Error("[AI] Could not reach ai-text edge function. Likely not deployed — run: supabase functions deploy ai-text");
+  }
+  const res = outcome.response;
   if (!res.ok) {
     emitAIStatus({ type: "failed", provider: "server", reason: "error" });
     const errText = await res.text().catch(() => res.status.toString());
@@ -206,7 +225,7 @@ export async function transcribeAudio(blob: Blob, _attempt = 0): Promise<string>
 
   // Transcription can take a while on the server-side chain (Deepgram is fast,
   // but the Whisper / Gemini fallbacks aren't). 30s budget.
-  const res = await fetchWithTimeout(`${SUPABASE_URL}/functions/v1/ai-transcribe`, {
+  const outcome = await fetchWithTimeout(`${SUPABASE_URL}/functions/v1/ai-transcribe`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -215,7 +234,14 @@ export async function transcribeAudio(blob: Blob, _attempt = 0): Promise<string>
     body: JSON.stringify({ audioBase64: base64, mimeType, attempt: _attempt }),
   }, 30000);
 
-  if (!res) throw new Error("[Transcribe] Edge function timed out (30s)");
+  if (outcome.kind === "timeout") throw new Error("[Transcribe] Edge function timed out (30s)");
+  if (outcome.kind === "network-error") {
+    // CORS / 404 / connection refused. The most common cause is the
+    // ai-transcribe edge function not being deployed — the gateway 404s
+    // without CORS headers, which the browser reports as a preflight failure.
+    throw new Error("[Transcribe] Could not reach ai-transcribe edge function. Likely not deployed — run: supabase functions deploy ai-transcribe");
+  }
+  const res = outcome.response;
   if (!res.ok) {
     const err = await res.text().catch(() => res.status.toString());
     throw new Error(`[Transcribe] Edge function error (${res.status}): ${err.slice(0, 200)}`);
