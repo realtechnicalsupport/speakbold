@@ -60,6 +60,15 @@ interface DebateBattleProps {
   onComplete: (score: number, prompt: string, mode: Gamemode, feedback: string) => void;
   completeDuel: (duelId: string, challengerName: string, creatorScore: number, challengerScore: number, feedback: string, duelObj: Duel, explicitWinner?: string, details?: { strengths?: string, oppStrengths?: string, oppFeedback?: string, exampleSpeech?: string }) => void;
   handleForfeit?: (duelId: string, isMe: boolean, duelObj: Duel) => Promise<void>;
+  /**
+   * Where this debate is being played.
+   * - "arena" (default): ranked match. Forfeit costs ELO, completion records
+   *   a duel row + moves ELO via completeDuel.
+   * - "pathway": curriculum drill. No ELO movement either way. Forfeit just
+   *   closes the drill (no penalty), judging skips completeDuel and only
+   *   fires onComplete so usePathway marks the lesson as done.
+   */
+  mode?: "arena" | "pathway";
 }
 
 // ─── Deepgram Aura voice pool ────────────────────────────────────────────────
@@ -109,7 +118,8 @@ function debateIdentity(prompt: string, opponentName: string): string {
   return `${prompt}|${opponentName}`;
 }
 
-export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, onComplete, completeDuel, handleForfeit }: DebateBattleProps) => {
+export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, onComplete, completeDuel, handleForfeit, mode = "arena" }: DebateBattleProps) => {
+  const isPathway = mode === "pathway";
   const { user } = useAuth();
   const { upload, refresh } = useRecordings("arena");
   const sfx = useSoundEffects();
@@ -906,21 +916,28 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
         timestamp: Date.now(),
       };
 
-      completeDuel(
-        synthDuel.id,
-        userName,
-        result.score,
-        result.oppScore ?? 0,
-        result.feedback,
-        synthDuel,
-        result.winner,
-        {
-          strengths: result.strengths,
-          oppStrengths: result.oppStrengths,
-          oppFeedback: result.oppFeedback,
-          exampleSpeech: result.exampleSpeech,
-        }
-      );
+      // Pathway debate drills SKIP completeDuel. completeDuel records the
+      // match in arena_battles AND moves ELO via submitBattleResult — neither
+      // of which should happen for curriculum drills. The lesson completion
+      // is handled separately by the onComplete callback (see Back to
+      // Pathway / Back to Arena button below).
+      if (!isPathway) {
+        completeDuel(
+          synthDuel.id,
+          userName,
+          result.score,
+          result.oppScore ?? 0,
+          result.feedback,
+          synthDuel,
+          result.winner,
+          {
+            strengths: result.strengths,
+            oppStrengths: result.oppStrengths,
+            oppFeedback: result.oppFeedback,
+            exampleSpeech: result.exampleSpeech,
+          }
+        );
+      }
 
       setVerdict({
         score: result.score,
@@ -1146,7 +1163,7 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
               onClick={onClose}
               className="w-full py-3 md:py-4 bg-transparent border border-border/60 text-foreground/70 rounded-2xl text-[10px] md:text-xs font-black uppercase tracking-widest hover:bg-muted/20 transition-all"
             >
-              Back to Arena
+              {isPathway ? "Back to Pathway" : "Back to Arena"}
             </button>
           </div>
         </motion.div>
@@ -1206,7 +1223,7 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
             }}
             className="w-full mt-2 md:mt-4 py-4 md:py-5 bg-primary text-white rounded-2xl text-xs md:text-sm font-black uppercase tracking-widest md:tracking-[0.4em] hover:scale-[1.02] active:scale-95 transition-all shadow-glow"
           >
-            Back to Arena
+            {isPathway ? "Back to Pathway" : "Back to Arena"}
           </button>
         </motion.div>
       )}
@@ -1369,14 +1386,31 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
               initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
               className="bg-muted border border-border rounded-[2rem] p-8 max-w-md w-full text-center space-y-6 shadow-2xl"
             >
-              <div className="h-16 w-16 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto text-red-500">
+              <div className={cn(
+                "h-16 w-16 rounded-full border flex items-center justify-center mx-auto",
+                isPathway
+                  ? "bg-foreground/5 border-border text-foreground/60"
+                  : "bg-red-500/10 border-red-500/20 text-red-500"
+              )}>
                 <AlertTriangle className="h-8 w-8" />
               </div>
-              <h3 className="speak-serif text-2xl italic">Forfeit the debate?</h3>
+              <h3 className="speak-serif text-2xl italic">
+                {isPathway ? "Leave this drill?" : "Forfeit the debate?"}
+              </h3>
               <p className="text-xs font-medium opacity-50 leading-relaxed">
-                Leaving mid-debate counts as a forfeit. You'll lose{" "}
-                <span className="font-black text-red-500">{FORFEIT_PENALTY} ELO</span>{" "}
-                and your AI opponent wins by default.
+                {isPathway ? (
+                  // Pathway debate drills are part of the curriculum, not a
+                  // ranked match. Leaving simply discards this attempt — no
+                  // ELO penalty, no forfeit log. The lesson stays available
+                  // to retry whenever they're ready.
+                  <>This is a practice drill, not a ranked match. Leaving discards this attempt — your ELO is unchanged and you can try again any time.</>
+                ) : (
+                  <>
+                    Leaving mid-debate counts as a forfeit. You'll lose{" "}
+                    <span className="font-black text-red-500">{FORFEIT_PENALTY} ELO</span>{" "}
+                    and your AI opponent wins by default.
+                  </>
+                )}
               </p>
               <div className="flex flex-col gap-2">
                 <button
@@ -1386,7 +1420,10 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
                     // if onClose causes some race that swallows the unmount
                     // cleanup, the next debate won't restore into this one.
                     clearDebateStorage();
-                    if (handleForfeit) {
+                    // Pathway drills SKIP the ELO-moving forfeit handler —
+                    // they're curriculum, not ranked play. Closing the modal
+                    // is enough; usePathway leaves the lesson unfinished.
+                    if (!isPathway && handleForfeit) {
                       const userName = user?.email?.split("@")[0] || "You";
                       const duelId = `debate-forfeit-${Date.now()}`;
                       const forfeitDuel: Duel = {
@@ -1404,15 +1441,20 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
                     }
                     onClose();
                   }}
-                  className="button-pill py-3 bg-transparent text-foreground/50 border border-border/50 hover:bg-red-500 hover:text-white hover:border-red-500 transition-all text-[10px] font-black uppercase tracking-wide"
+                  className={cn(
+                    "button-pill py-3 bg-transparent border transition-all text-[10px] font-black uppercase tracking-wide",
+                    isPathway
+                      ? "text-foreground/70 border-border/60 hover:bg-foreground/5 hover:text-foreground"
+                      : "text-foreground/50 border-border/50 hover:bg-red-500 hover:text-white hover:border-red-500"
+                  )}
                 >
-                  FORFEIT
+                  {isPathway ? "LEAVE DRILL" : "FORFEIT"}
                 </button>
                 <button
                   onClick={() => setShowAbandonConfirm(false)}
                   className="text-[10px] font-black uppercase tracking-wide opacity-40 hover:opacity-100 transition-opacity py-2"
                 >
-                  STAY IN DEBATE
+                  {isPathway ? "KEEP PRACTISING" : "STAY IN DEBATE"}
                 </button>
               </div>
             </motion.div>
