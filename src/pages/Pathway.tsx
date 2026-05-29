@@ -1053,57 +1053,108 @@ const Pathway = () => {
   const [placementTestOpen, setPlacementTestOpen] = useState(false);
 
   // ── Chapter-complete celebration ────────────────────────────────────────
-  // Detects when a chapter flips from "in progress" to "complete" between
-  // renders and fires a one-shot overlay (confetti + win SFX + trophy card).
-  // We persist the per-user set of "already-celebrated" chapter IDs in
-  // localStorage so a page refresh doesn't re-fire the celebration for an
-  // old completion. Without that, anyone who already finished Chapter 1
-  // would get a fresh trophy every time they opened /pathway.
+  // Fires the trophy overlay the instant a chapter flips from in-progress
+  // to complete inside THIS session. Two design rules drive the logic below:
+  //
+  //  1. The seen-set is React STATE (not a ref). Refs don't trigger
+  //     re-renders, which previously meant detection could race ahead of
+  //     hydration and re-fire celebrations on refresh.
+  //  2. The very first time we have a complete picture of the user's
+  //     progress (loading=false and seen-set hydrated), we take a SNAPSHOT
+  //     of everything already done and mark it seen without celebrating.
+  //     That kills the bug where a refresh — or jumping to Orator via
+  //     placement (which tested-out an entire stack of chapters in one
+  //     setProgress call) — would dump a celebration per chapter.
+  //
+  // Net effect: a celebration only ever fires when a chapter transitions
+  // from incomplete → complete during the current session, by drilling.
   const [celebrated, setCelebrated] = useState<PathwayChapter | null>(null);
-  const celebratedIdsRef = useRef<Set<string>>(new Set());
+  const [celebratedIds, setCelebratedIds] = useState<Set<string>>(new Set());
   const celebratedLoadedRef = useRef(false);
+  const initialSnapshotDoneRef = useRef(false);
   const CELEBRATED_LS_KEY = (uid: string) => `speakbold:pathway-celebrated:${uid}`;
 
-  // Hydrate the seen-set from localStorage once the user id is known.
+  // Hydrate seen-set from localStorage on user change. Also reset the
+  // snapshot flag so switching accounts re-snapshots against the new user's
+  // progress (their localStorage key + their DB state).
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setCelebratedIds(new Set());
+      celebratedLoadedRef.current = false;
+      initialSnapshotDoneRef.current = false;
+      return;
+    }
     try {
       const raw = localStorage.getItem(CELEBRATED_LS_KEY(user.id));
-      celebratedIdsRef.current = new Set<string>(raw ? JSON.parse(raw) : []);
-    } catch { celebratedIdsRef.current = new Set(); }
+      setCelebratedIds(new Set<string>(raw ? JSON.parse(raw) : []));
+    } catch { setCelebratedIds(new Set()); }
     celebratedLoadedRef.current = true;
+    initialSnapshotDoneRef.current = false;
   }, [user]);
 
-  // On every progress change, scan for chapters that are now complete but
-  // we haven't celebrated yet. Skip the very first hydration (loading=true)
-  // so opening /pathway as a returning user with multiple finished chapters
-  // doesn't dump a celebration queue on them.
+  // Persist the seen-set on change. Single source of truth for writes — every
+  // mutation flows through setCelebratedIds, so this one effect covers both
+  // the snapshot path and the in-session celebrate path.
+  useEffect(() => {
+    if (!user || !celebratedLoadedRef.current) return;
+    try {
+      localStorage.setItem(CELEBRATED_LS_KEY(user.id), JSON.stringify([...celebratedIds]));
+    } catch { /* private mode / quota — silent */ }
+  }, [celebratedIds, user]);
+
+  // Snapshot + detection. Runs on every progress change once we're past the
+  // initial loading + hydration gate.
   useEffect(() => {
     if (loading || !user || !celebratedLoadedRef.current) return;
+    // If a celebration is currently on screen, don't queue another one over
+    // the top of it. When the user closes it, `celebrated` flips to null and
+    // this effect re-runs naturally via the dep array.
+    if (celebrated) return;
+
     const isDone = (id: string) => {
       const s = getNodeStatus(id);
       return s === "completed" || s === "tested-out";
     };
+
+    // ── Initial snapshot pass ───────────────────────────────────────────
+    // Mark every currently-complete chapter as seen without firing. After
+    // this pass, only TRANSITIONS within the session will celebrate.
+    if (!initialSnapshotDoneRef.current) {
+      initialSnapshotDoneRef.current = true;
+      setCelebratedIds(prev => {
+        const next = new Set(prev);
+        for (const ch of chapters) {
+          if (ch.lessons.length === 0) continue;
+          if (ch.lessons.every(l => isDone(l.id))) next.add(ch.id);
+        }
+        return next;
+      });
+      return;
+    }
+
+    // ── Post-snapshot: find the first chapter that just transitioned ────
+    // Only one at a time. Closing the overlay re-runs this effect and the
+    // next unmarked-done chapter (if any) celebrates next.
     for (const ch of chapters) {
-      if (celebratedIdsRef.current.has(ch.id)) continue;
-      const allDone = ch.lessons.every(l => isDone(l.id));
-      if (!allDone) continue;
-      // Only count "completed" — a chapter purely "tested-out" via placement
-      // wasn't earned by drilling, so skip the celebration there.
-      const anyCompleted = ch.lessons.some(l => getNodeStatus(l.id) === "completed");
-      if (!anyCompleted) {
-        // Mark seen so we don't keep re-checking, but don't celebrate.
-        celebratedIdsRef.current.add(ch.id);
-        try { localStorage.setItem(CELEBRATED_LS_KEY(user.id), JSON.stringify([...celebratedIdsRef.current])); } catch { /* private mode */ }
-        continue;
-      }
-      celebratedIdsRef.current.add(ch.id);
-      try { localStorage.setItem(CELEBRATED_LS_KEY(user.id), JSON.stringify([...celebratedIdsRef.current])); } catch { /* private mode */ }
-      setCelebrated(ch);
-      break; // fire one at a time — next render picks up the next chapter
+      if (celebratedIds.has(ch.id)) continue;
+      if (ch.lessons.length === 0) continue;
+      if (!ch.lessons.every(l => isDone(l.id))) continue;
+
+      // Tested-out-only chapters get marked seen but DON'T celebrate — they
+      // were unlocked via placement, not earned by drilling. This handles
+      // the "jumped to Orator" case cleanly: placement flips a stack of
+      // chapters to tested-out in one go, all of them get marked here, none
+      // fire the overlay.
+      const earnedByDrilling = ch.lessons.some(
+        l => getNodeStatus(l.id) === "completed"
+      );
+
+      setCelebratedIds(prev => new Set(prev).add(ch.id));
+      if (earnedByDrilling) setCelebrated(ch);
+      break;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [progress, loading, user]);
+  }, [progress, loading, user, chapters, celebratedIds, celebrated]);
 
   // Detect tier unlock — fires "You've unlocked the X tier" copy in the
   // celebration card when this chapter was the last one in its tier.
