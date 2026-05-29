@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Users, Search, Bell, Link2, Clock, X, Plus, ChevronRight } from "lucide-react";
+import { useNavigate, Link } from "react-router-dom";
+import { Users, Search, Bell, Link2, Clock, X, Plus, ChevronRight, Trophy } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { SiteHeader } from "@/components/SiteHeader";
 import { FriendCard } from "@/components/FriendCard";
@@ -8,7 +8,9 @@ import { FriendRequestRow } from "@/components/FriendRequestRow";
 import { useFriends } from "@/hooks/useFriends";
 import { useFriendSearch } from "@/hooks/useFriendSearch";
 import { useFriendInvite } from "@/hooks/useFriendInvite";
-import { getRankEmblem } from "@/hooks/arenaUtils";
+import { useLeaderboard } from "@/hooks/useLeaderboard";
+import { useArena } from "@/hooks/useArena";
+import { getRankEmblem, getRankFromElo, getRankColor } from "@/hooks/arenaUtils";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 
@@ -63,10 +65,17 @@ export default function Friends() {
     ...outgoingRequests.map((f) => f.id),
   ]);
 
+  const { rows: leaderRows, loading: lbLoading } = useLeaderboard(5);
+  const { profile } = useArena();
+  const myRank = getRankFromElo(profile.elo);
+  const myRankColor = getRankColor(myRank);
+
   return (
     <div className="min-h-screen bg-background">
       <SiteHeader />
-      <main className="container max-w-2xl pt-28 pb-32 lg:pb-12 px-4">
+      <main className="container max-w-6xl pt-28 pb-32 lg:pb-12 px-4">
+      <div className="lg:grid lg:grid-cols-[1fr_260px] lg:gap-12 lg:items-start">
+        <div>{/* main content column */}
 
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
@@ -338,6 +347,74 @@ export default function Friends() {
             )}
           </div>
         )}
+        </div>{/* end main content column */}
+
+        {/* ── Desktop-only sidebar ──────────────────────────────────────────── */}
+        <aside className="hidden lg:flex flex-col gap-6 sticky top-28 self-start">
+
+          {/* My rank card */}
+          <div className={cn("glass-card p-5 border", myRankColor.split(" ").filter(c => c.startsWith("border")).join(" "))}>
+            <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40 mb-3">Your Rank</p>
+            <div className="flex items-center gap-3">
+              <span className="text-3xl">{getRankEmblem(myRank.name)}</span>
+              <div>
+                <p className={cn("text-base font-black", myRankColor.split(" ")[0])}>
+                  {myRank.name} {myRank.tier}
+                </p>
+                <p className="text-xs opacity-40 tabular-nums">{profile.elo} ELO</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Mini leaderboard */}
+          <div className="glass-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Top Speakers</p>
+              <Link to="/leaderboard" className="text-[10px] font-black uppercase tracking-widest text-primary opacity-60 hover:opacity-100 transition-opacity flex items-center gap-1">
+                All <ChevronRight className="h-3 w-3" />
+              </Link>
+            </div>
+            <div className="space-y-3">
+              {lbLoading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="h-8 rounded-lg bg-muted/20 animate-pulse" />
+                ))
+              ) : leaderRows.length === 0 ? (
+                <p className="text-xs opacity-30 text-center py-3">No ranked players yet</p>
+              ) : (
+                leaderRows.slice(0, 5).map((row, i) => {
+                  const r = getRankFromElo(row.elo);
+                  const medals = ["🏆", "🥈", "🥉"];
+                  return (
+                    <div key={row.id} className="flex items-center gap-2.5">
+                      <span className="w-5 text-center text-sm shrink-0">
+                        {medals[i] ?? <span className="text-[10px] font-black opacity-30">#{i + 1}</span>}
+                      </span>
+                      <span className="text-base shrink-0">{getRankEmblem(r.name)}</span>
+                      <p className="text-xs font-semibold truncate flex-1 min-w-0">{row.display_name}</p>
+                      <p className="text-[10px] font-black opacity-30 tabular-nums shrink-0">{row.elo}</p>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          {/* Friend count stat */}
+          <div className="glass-card p-5 flex items-center gap-4">
+            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+              <Users className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <p className="text-xl font-black tabular-nums">{friends.length}</p>
+              <p className="text-[10px] font-black uppercase tracking-widest opacity-40">
+                {friends.length === 1 ? "Friend" : "Friends"}
+              </p>
+            </div>
+          </div>
+        </aside>
+
+      </div>{/* end lg:grid */}
       </main>
     </div>
   );

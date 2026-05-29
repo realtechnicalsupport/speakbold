@@ -1037,7 +1037,8 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       // Solid bg + dynamic viewport height + safe-area bottom padding — same
       // mobile-stability fix applied to DuelDrill.
-      className="fixed inset-0 z-[60] bg-background overflow-y-auto overflow-x-hidden scrollbar-hide text-foreground flex flex-col"
+      // z-[180] (Z.duelActive) forces the screen above chat panels and modals.
+      className="fixed inset-0 z-[180] bg-background overflow-y-auto overflow-x-hidden scrollbar-hide text-foreground flex flex-col"
       style={{
         minHeight: "100dvh",
         paddingBottom: "env(safe-area-inset-bottom)",
