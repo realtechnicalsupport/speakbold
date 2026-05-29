@@ -38,7 +38,7 @@ const Arena = () => {
   const { 
     duels, profile, loading: arenaLoading, completeDuel, findMatch, completedDuels, refresh: refreshArena,
     onlineUsers, incomingRequests, setIncomingRequests, sendDuelRequest, acceptDuelRequest, sendReadyStatus,
-    broadcastBattleResult, broadcastAnalyzing, sendTranscript, sendForfeit, handleForfeit
+    broadcastBattleResult, broadcastAnalyzing, sendTranscript, sendForfeit, handleForfeit, requestCooldown
   } = useArena();
   const { user } = useAuth();
   const location = useLocation();
@@ -1315,8 +1315,9 @@ const Arena = () => {
                      />
                    </div>
 
-                   <button 
+                   <button
                      onClick={async () => {
+                        if (requestCooldown > 0) return;
                         let finalPrompt = challengePrompt.trim();
                         if (!finalPrompt) {
                           setGeneratingPrompt(true);
@@ -1332,13 +1333,15 @@ const Arena = () => {
                         setChallengePrompt("");
                         setChallengeMode("standard");
                      }}
-                     className="w-full py-4 bg-primary text-white rounded-xl text-sm font-black uppercase tracking-widest hover:scale-[1.02] active:scale-95 transition-all shadow-glow"
-                     disabled={generatingPrompt}
+                     className="w-full py-4 bg-primary text-white rounded-xl text-sm font-black uppercase tracking-widest hover:scale-[1.02] active:scale-95 transition-all shadow-glow disabled:opacity-50 disabled:scale-100 disabled:cursor-not-allowed"
+                     disabled={generatingPrompt || requestCooldown > 0}
                    >
                      {generatingPrompt ? (
                        <span className="flex items-center gap-2">
                          <Loader2 className="h-4 w-4 animate-spin" /> GENERATING PROMPT...
                        </span>
+                     ) : requestCooldown > 0 ? (
+                       `WAIT ${requestCooldown}s...`
                      ) : "SEND CHALLENGE"}
                    </button>
                 </div>
