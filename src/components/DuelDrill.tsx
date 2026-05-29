@@ -15,6 +15,7 @@ import { MicrophoneBorder } from "@/components/MicrophoneBorder";
 import { setRecordingActive } from "@/lib/recordingState";
 import { transcribeAudio, judgeBattle, generateAIArgument, generateArenaPrompt } from "@/services/geminiService";
 import { arenaEmitter, type ArenaEvents } from "@/lib/events";
+import { setTimerActive } from "@/lib/timerState";
 
 export const DuelDrill = ({
   duel, gamemode, onClose, onComplete, isCreating, sendReadyStatus, completeDuel, broadcastBattleResult, sendTranscript, broadcastAnalyzing, sendForfeit, handleForfeit, userElo
@@ -208,6 +209,14 @@ export const DuelDrill = ({
     setRecordingActive(isActuallyRecording);
     return () => setRecordingActive(false);
   }, [running, finished]);
+
+  // Lock the global UI while a battle is in progress: hides the MobileNav and
+  // any other layout that watches `timerActive`, so they can't poke through the
+  // backdrop on mobile.
+  useEffect(() => {
+    setTimerActive(true);
+    return () => setTimerActive(false);
+  }, []);
 
   useEffect(() => {
     if (userReady && !opponentReady) {
@@ -465,7 +474,14 @@ export const DuelDrill = ({
     <motion.div
       id="tutorial-arena-battle-view"
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[60] glass overflow-y-auto overflow-x-hidden scrollbar-hide text-foreground flex flex-col"
+      // Solid bg (no `glass` translucency) + dynamic viewport height so iOS
+      // Safari URL-bar collapse doesn't reveal the page underneath.
+      // Safe-area bottom padding keeps content above the iOS home indicator.
+      className="fixed inset-0 z-[60] bg-background overflow-y-auto overflow-x-hidden scrollbar-hide text-foreground flex flex-col"
+      style={{
+        minHeight: "100dvh",
+        paddingBottom: "env(safe-area-inset-bottom)",
+      }}
     >
       {preCount === null && (
         <div className="absolute top-0 left-0 right-0 h-1 bg-muted z-20">
@@ -506,8 +522,12 @@ export const DuelDrill = ({
       )}
 
       <div className={cn(
-        "px-4 md:container max-w-4xl mx-auto py-6 md:py-16 relative z-10 flex-grow flex flex-col min-h-[auto] md:min-h-0",
-        phase === "results" ? "justify-start" : "justify-center"
+        // pt-16 on mobile reserves space for the absolute "LEAVE BATTLE" button
+        // so the timer never collides with it. justify-start on mobile prevents
+        // tall content (timer + prompt + recorder + RecorderPanel) from being
+        // vertically centred and then clipped off-screen.
+        "px-4 md:container max-w-4xl mx-auto pt-16 pb-10 md:py-16 relative z-10 flex-grow flex flex-col justify-start",
+        phase === "results" ? "md:justify-start" : "md:justify-center"
       )}>
         <div className="absolute top-8 left-4 md:left-0 flex items-center gap-6">
           <button
