@@ -57,6 +57,7 @@ interface ArenaContextType {
   loading: boolean;
   onlineUsers: any[];
   incomingRequests: any[];
+  requestCooldown: number;
   refresh: (silent?: boolean) => Promise<void>;
   setIncomingRequests: React.Dispatch<React.SetStateAction<any[]>>;
   sendDuelRequest: (targetUserId: string, gamemode: Gamemode, prompt: string) => Promise<void>;
@@ -81,6 +82,8 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [loading, setLoading] = useState(true);
   const [onlineUsers, setOnlineUsers] = useState<any[]>([]);
   const [incomingRequests, setIncomingRequests] = useState<any[]>([]);
+  const [requestCooldown, setRequestCooldown] = useState(0);
+  const cooldownInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const arenaChannel = useRef<any>(null);
 
   // Authoritative battle-result submitter. Replaces the previous client-side
@@ -245,10 +248,9 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         });
         setDuels(formatted);
       }
-      // Brand-new accounts (or pre-v2 rows that defaulted to 0) get bumped to STARTING_ELO client-side
-      // until the DB migration backfills them. Floor everything at ELO_FLOOR so no UI ever shows < 100.
-      const rawElo = profData?.elo ?? STARTING_ELO;
-      const dbElo = rawElo < ELO_FLOOR ? STARTING_ELO : rawElo;
+      // Only substitute STARTING_ELO when the DB has no row at all (null).
+      // An explicit 0 (e.g. after a manual reset) is a real value and must be shown as-is.
+      const dbElo = profData?.elo ?? STARTING_ELO;
       setProfile({ elo: dbElo, wins, losses });
     } catch (e) { 
       console.error("[ArenaContext] Refresh failed:", e);
@@ -318,8 +320,24 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const sendDuelRequest = async (targetUserId: string, gamemode: Gamemode, prompt: string) => {
     if (!user || !arenaChannel.current) return;
+    if (requestCooldown > 0) return;
+
     await arenaChannel.current.send({ type: "broadcast", event: "duel-request", payload: { id: `req-${user.id}-${Date.now()}`, senderId: user.id, senderName: user.email?.split("@")[0], senderRank: getRankFromElo(profile.elo), targetUserId, gamemode, prompt } });
     toast({ title: "Request Sent", description: "Waiting for opponent..." });
+
+    // 10-second cooldown — prevents spamming requests
+    setRequestCooldown(10);
+    if (cooldownInterval.current) clearInterval(cooldownInterval.current);
+    cooldownInterval.current = setInterval(() => {
+      setRequestCooldown(prev => {
+        if (prev <= 1) {
+          clearInterval(cooldownInterval.current!);
+          cooldownInterval.current = null;
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
   };
 
   const acceptDuelRequest = async (request: any) => {
@@ -593,7 +611,7 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   return (
     <ArenaContext.Provider value={{
-      duels, profile, loading, onlineUsers, incomingRequests, refresh, setIncomingRequests,
+      duels, profile, loading, onlineUsers, incomingRequests, requestCooldown, refresh, setIncomingRequests,
       sendDuelRequest, acceptDuelRequest, sendReadyStatus, sendForfeit, handleForfeit, completeDuel, broadcastBattleResult,
       broadcastAnalyzing, sendTranscript, findMatch, updateStatus,
       completedDuels: duels.filter(d => d.status === "completed")

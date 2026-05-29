@@ -1048,6 +1048,12 @@ const Pathway = () => {
   const { user } = useAuth();
   const [activeDrill, setActiveDrill] = useState<PathwayLesson | null>(null);
   const [placementOpen, setPlacementOpen] = useState(false);
+
+  useEffect(() => {
+    const locked = !!activeDrill || placementTestOpen;
+    document.body.style.overflow = locked ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
+  }, [activeDrill, placementTestOpen]);
   // Tracks whether the full-screen PlacementTest modal is open.
   // placementOpen = inline banner visible; placementTestOpen = full-screen test running.
   const [placementTestOpen, setPlacementTestOpen] = useState(false);

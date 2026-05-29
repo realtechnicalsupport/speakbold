@@ -1,21 +1,24 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { Home, User, Map, FlaskConical, Swords } from "lucide-react";
+import { User, Map, FlaskConical, Swords, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
+import { useFriends } from "@/hooks/useFriends";
 
 import { ThemeToggle } from "./ThemeToggle";
 
 const NAV_ITEMS = [
-  { to: "/", icon: Home, label: "Home" },
   { to: "/pathway", icon: Map, label: "Path" },
   { to: "/lab", icon: FlaskConical, label: "Lab" },
   { to: "/arena", icon: Swords, label: "Arena" },
+  { to: "/friends", icon: Users, label: "Friends" },
   { to: "/profile", icon: User, label: "Profile" },
 ];
 
 export const MobileNav = () => {
   const { pathname } = useLocation();
   const { user } = useAuth();
+  const { incomingRequests } = useFriends();
+  const pendingCount = incomingRequests.length;
 
   if (!user) return null;
 
@@ -47,9 +50,8 @@ export const MobileNav = () => {
       >
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
-          const isActive = item.to === "/"
-            ? pathname === "/"
-            : pathname.startsWith(item.to);
+          const isActive = pathname.startsWith(item.to);
+          const hasBadge = item.to === "/friends" && pendingCount > 0;
 
           return (
             <NavLink
@@ -58,6 +60,7 @@ export const MobileNav = () => {
               id={item.to === "/arena" ? "nav-arena" : item.to === "/profile" ? "nav-profile" : undefined}
               aria-label={item.label}
               style={{
+                position: "relative",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -80,6 +83,20 @@ export const MobileNav = () => {
                   flexShrink: 0,
                 }}
               />
+              {hasBadge && (
+                <span
+                  style={{
+                    position: "absolute",
+                    top: "2px",
+                    right: "2px",
+                    height: "8px",
+                    width: "8px",
+                    borderRadius: "9999px",
+                    background: "hsl(var(--primary))",
+                    boxShadow: "0 0 6px hsl(var(--primary) / 0.6)",
+                  }}
+                />
+              )}
             </NavLink>
           );
         })}

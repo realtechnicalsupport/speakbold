@@ -22,9 +22,14 @@ const Login = () => {
   const location = useLocation();
   const { session } = useAuth();
 
-  // Post-login destination: prefer the page the user originally tried to
-  // reach (set by <RequireAuth> via location state), otherwise /pathway.
-  const redirectTo = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname || "/pathway";
+  // Post-login destination: prefer the page the user tried to reach (via
+  // RequireAuth location state), then a ?next= query param (invite flow),
+  // then fall back to /pathway.
+  const nextParam = new URLSearchParams(location.search).get("next");
+  const redirectTo =
+    (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ||
+    nextParam ||
+    "/pathway";
 
   useEffect(() => {
     if (session) navigate(redirectTo, { replace: true });

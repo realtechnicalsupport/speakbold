@@ -69,7 +69,10 @@ export const DuelDrill = ({
     : duel?.creator || (isCreating ? { name: "AI Debater", avatar: "🤖", rank: { name: "Adaptive", tier: "AI" } } : null);
 
   const [phase, setPhase] = useState<"drilling" | "analyzing" | "results">("drilling");
-  const [verdictResult, setVerdictResult] = useState<{ score: number, oppScore?: number, feedback: string, won: boolean, strengths: string, oppStrengths: string, exampleSpeech?: string } | null>(null);
+  const [verdictResult, setVerdictResult] = useState<{ score: number, oppScore?: number, feedback: string, won: boolean, strengths: string, oppStrengths: string, exampleSpeech?: string, byForfeit?: boolean } | null>(null);
+  // Once a forfeit verdict is shown, ignore late AI-result broadcasts so the
+  // victory-by-forfeit screen isn't overwritten by a losing score.
+  const forfeitedRef = useRef(false);
   const [analyzeText, setAnalyzeText] = useState("EXTRACTING AUDIO...");
   const [preCount, setPreCount] = useState<number | null>(null);
 
@@ -117,6 +120,7 @@ export const DuelDrill = ({
   // Listen for authoritative result, transcript, analyzing and forfeit from peer
   useEffect(() => {
     const handleResult = ({ duelId, score, feedback, oppFeedback, strengths, won, oppScore, oppStrengths, exampleSpeech }: ArenaEvents["arena:battle-result"]) => {
+      if (forfeitedRef.current) return; // forfeit verdict wins — ignore late judge results
       if (duel && duel.id === duelId && !isCreating) {
         const isHost = duel.creator.id === user?.id;
         if (!isHost) {
@@ -142,6 +146,7 @@ export const DuelDrill = ({
     };
 
     const handleAnalyzing = ({ duelId }: ArenaEvents["arena:battle-analyzing"]) => {
+      if (forfeitedRef.current) return; // never re-enter analyzing after a forfeit
       if (duel && duelId === duel.id && phase !== "analyzing") {
         setPhase("analyzing");
         setAnalyzeText("THE AI IS JUDGING...");
@@ -150,9 +155,20 @@ export const DuelDrill = ({
 
     const handleOpponentForfeit = ({ duelId, userId }: ArenaEvents["arena:battle-forfeit"]) => {
       if (duel && duelId === duel.id && userId !== user?.id) {
+        forfeitedRef.current = true;
         handleForfeit(duel.id, false, duel);
         toast({ title: "Opponent Forfeited", description: "You win by default! (+ELO awarded)", variant: "default" });
-        onClose();
+        // Show a victory-by-forfeit verdict screen instead of closing
+        setVerdictResult({
+          score: 0,
+          oppScore: 0,
+          feedback: `${opponent?.name ?? "Your opponent"} forfeited the match. You win by default.`,
+          won: true,
+          strengths: "Victory by forfeit",
+          oppStrengths: "—",
+          byForfeit: true,
+        });
+        setPhase("results");
       }
     };
 
@@ -712,26 +728,34 @@ export const DuelDrill = ({
 
             <div className="text-center mb-12 relative z-10">
               <h2 className={cn("text-sm font-black uppercase tracking-[1em] mb-4",
+                verdictResult.byForfeit ? "text-green-500" :
                 (verdictResult.score === 0 && (verdictResult.oppScore || 0) === 0) ? "text-yellow-500" :
                 verdictResult.won ? "text-green-500" : "text-red-500")}>
-                {(verdictResult.score === 0 && (verdictResult.oppScore || 0) === 0) ? "TIE" :
+                {verdictResult.byForfeit ? "VICTORY BY FORFEIT" :
+                  (verdictResult.score === 0 && (verdictResult.oppScore || 0) === 0) ? "TIE" :
                   verdictResult.won ? "YOU WON" : "YOU LOST"}
               </h2>
-              <div className="flex justify-center items-center gap-8">
-                <div className="text-center">
-                  <p className="text-sm opacity-40 uppercase tracking-widest font-black mb-2">YOU</p>
-                  <p className={cn("speak-serif text-6xl md:text-7xl italic", verdictResult.won ? "text-foreground font-black" : "opacity-40")}>{verdictResult.score}</p>
+              {verdictResult.byForfeit ? (
+                <p className="text-base md:text-lg opacity-70 mt-2">
+                  <span className="text-primary font-bold">{opponent?.name ?? "Opponent"}</span> forfeited the match.
+                </p>
+              ) : (
+                <div className="flex justify-center items-center gap-8">
+                  <div className="text-center">
+                    <p className="text-sm opacity-40 uppercase tracking-widest font-black mb-2">YOU</p>
+                    <p className={cn("speak-serif text-6xl md:text-7xl italic", verdictResult.won ? "text-foreground font-black" : "opacity-40")}>{verdictResult.score}</p>
+                  </div>
+                  {opponent && verdictResult.oppScore !== undefined && (
+                    <>
+                      <span className="text-sm opacity-20 uppercase tracking-widest font-black">VS</span>
+                      <div className="text-center">
+                        <p className="text-sm opacity-40 uppercase tracking-widest font-black mb-2">THEM</p>
+                        <p className={cn("speak-serif text-6xl md:text-7xl italic", !verdictResult.won ? "text-foreground font-black" : "opacity-40")}>{verdictResult.oppScore}</p>
+                      </div>
+                    </>
+                  )}
                 </div>
-                {opponent && verdictResult.oppScore !== undefined && (
-                  <>
-                    <span className="text-sm opacity-20 uppercase tracking-widest font-black">VS</span>
-                    <div className="text-center">
-                      <p className="text-sm opacity-40 uppercase tracking-widest font-black mb-2">THEM</p>
-                      <p className={cn("speak-serif text-6xl md:text-7xl italic", !verdictResult.won ? "text-foreground font-black" : "opacity-40")}>{verdictResult.oppScore}</p>
-                    </div>
-                  </>
-                )}
-              </div>
+              )}
             </div>
 
             <div className="space-y-6 relative z-10">
