@@ -149,12 +149,19 @@ const Impromptu = () => {
 
         {recorderPanel}
 
-        {autoFeedbackId && (
-          <RecordingFeedbackModal
-            recordingId={autoFeedbackId}
-            defaultOpen={true}
-            onClose={clearAutoFeedback}
-          />
+        {/* The inline <ImpromptuReview> is the primary result screen on this
+            track — the popup feedback modal used to auto-open over it and the
+            two clashed on mobile. We still mount the modal so the deeper
+            multi-dimension breakdown is reachable, but as a manual button
+            (`defaultOpen={false}`) instead of an auto-popup. */}
+        {autoFeedbackId && phase === "review" && (
+          <div className="mt-6 flex justify-center">
+            <RecordingFeedbackModal
+              recordingId={autoFeedbackId}
+              defaultOpen={false}
+              onClose={clearAutoFeedback}
+            />
+          </div>
         )}
       </TrackShell>
 
