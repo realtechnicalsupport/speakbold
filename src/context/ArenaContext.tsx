@@ -115,6 +115,15 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     fallbackNewElo: number;
     fallbackEloChange: number;
   }): Promise<{ newElo: number; eloChange: number }> => {
+    // Sanitise the opponent id once. Real users come through as a UUID; AI
+    // personas use synthetic ids like `ai-1234`. The edge function used to be
+    // permissive about non-UUIDs, but a stricter validation pass now rejects
+    // them when `isAi` is false — so we normalise here.
+    const rawOppId = input.opponent.id;
+    const cleanOppId = (typeof rawOppId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-5][0-9a-f]{3}-[089ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(rawOppId))
+      ? rawOppId
+      : null;
+
     try {
       const { data, error } = await supabase.functions.invoke<{
         ok?: boolean; newElo?: number; eloChange?: number; error?: string;
@@ -129,7 +138,7 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           myScore: input.myScore,
           oppScore: input.oppScore,
           opponent: {
-            id: input.opponent.id ?? null,
+            id: cleanOppId,
             name: input.opponent.name,
             avatar: input.opponent.avatar,
           },
@@ -138,7 +147,8 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           // server can bound-check + use it without trusting the client for
           // real users.
           _aiOppElo: input.isAi ? input.opponent.elo : undefined,
-          prompt: input.duelObj.prompt,
+          // arena_battles.prompt is NOT NULL — never send an empty string.
+          prompt: (input.duelObj.prompt && input.duelObj.prompt.trim()) || "(no prompt)",
           feedback: input.feedback,
           strengths: input.strengths,
           oppStrengths: input.oppStrengths,
@@ -148,10 +158,23 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       });
 
       if (error || data?.error) {
-        console.error("[ArenaContext] submitBattleResult failed:", error || data?.error);
+        // FunctionsHttpError swallows the response body; dig it out so the
+        // actual server-side reason shows up in the console + toast.
+        let serverMsg = (error as any)?.message || data?.error;
+        try {
+          const ctx = (error as any)?.context;
+          if (ctx && typeof ctx.json === "function") {
+            const body = await ctx.json();
+            if (body?.error) serverMsg = body.error;
+          } else if (ctx && typeof ctx.text === "function") {
+            const txt = await ctx.text();
+            if (txt) serverMsg = txt;
+          }
+        } catch { /* parsing failed — keep generic msg */ }
+        console.error("[ArenaContext] submitBattleResult failed:", serverMsg, error);
         toast({
           title: "Rating didn't save",
-          description: `Battle couldn't be recorded server-side (${error?.message || data?.error}). Showing local estimate.`,
+          description: `Battle couldn't be recorded (${serverMsg}). Showing local estimate.`,
           variant: "destructive",
         });
         return { newElo: input.fallbackNewElo, eloChange: input.fallbackEloChange };
