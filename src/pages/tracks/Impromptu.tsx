@@ -1,7 +1,6 @@
 import { useAuth } from "@/context/AuthContext";
 import { TrackShell } from "@/components/TrackShell";
 import { RecorderPanel } from "@/components/RecorderPanel";
-import { RecordingFeedbackModal } from "@/components/RecordingFeedback";
 import { AnimatePresence, motion } from "framer-motion";
 import { useImpromptuSession } from "@/hooks/useImpromptuSession";
 import { ImpromptuSetup } from "@/components/impromptu/ImpromptuSetup";
@@ -36,9 +35,8 @@ const Impromptu = () => {
     curveballVisible,
     coachReport,
     loadingCoach,
+    reviewWpm,
     speechSupported,
-    autoFeedbackId,
-    clearAutoFeedback,
     recordingBlobUrl,
     begin,
     pause,
@@ -128,7 +126,7 @@ const Impromptu = () => {
                 topic={topic}
                 duration={duration}
                 liveTranscript={liveTranscript}
-                wpm={wpm}
+                wpm={reviewWpm}
                 totalWords={totalWords}
                 fillerCount={fillerCount}
                 fillerTimes={fillerTimes}
@@ -148,21 +146,6 @@ const Impromptu = () => {
         </AnimatePresence>
 
         {recorderPanel}
-
-        {/* The inline <ImpromptuReview> is the primary result screen on this
-            track — the popup feedback modal used to auto-open over it and the
-            two clashed on mobile. We still mount the modal so the deeper
-            multi-dimension breakdown is reachable, but as a manual button
-            (`defaultOpen={false}`) instead of an auto-popup. */}
-        {autoFeedbackId && phase === "review" && (
-          <div className="mt-6 flex justify-center">
-            <RecordingFeedbackModal
-              recordingId={autoFeedbackId}
-              defaultOpen={false}
-              onClose={clearAutoFeedback}
-            />
-          </div>
-        )}
       </TrackShell>
 
       {/* ── PREP + SPEAKING: full-screen fixed overlay ─────────────────────── */}

@@ -45,6 +45,8 @@ const STEPS = [
   "Finding what to expand…",
   "Spotting what to cut…",
   "Writing your feedback…",
+  "Measuring your pace…",
+  "Almost there…",
 ];
 
 const LoadingCoach = () => {

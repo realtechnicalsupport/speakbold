@@ -102,6 +102,10 @@ export function useImpromptuSession() {
   // ── Review ─────────────────────────────────────────────────────────────────
   const [coachReport, setCoachReport] = useState<ImpromptuCoachReport | null>(null);
   const [loadingCoach, setLoadingCoach] = useState(false);
+  /** Final WPM frozen for the review screen. The live `wpm` is only valid during
+   *  the speaking phase; this holds the figure actually computed for coaching —
+   *  on mobile it comes from the server-side transcription of the recording. */
+  const [reviewWpm, setReviewWpm] = useState(0);
 
   // ── Recording ──────────────────────────────────────────────────────────────
   const recorderStartRef = useRef<(() => void) | undefined>(undefined);
@@ -167,6 +171,7 @@ export function useImpromptuSession() {
     const finalWpm = finalElapsed > 3
       ? Math.round((finalWords / Math.max(1, finalElapsed)) * 60)
       : 0;
+    setReviewWpm(finalWpm);
 
     if (finalTranscript.trim().length < 15) {
       // The browser's live transcript is empty. If we recorded audio, defer
@@ -400,6 +405,7 @@ export function useImpromptuSession() {
     setFillerCount(0);
     setFillerTimes([]);
     setCoachReport(null);
+    setReviewWpm(0);
     setAutoFeedbackId(null);
     setCurveballVisible(false);
     curveballFiredRef.current = false;
@@ -474,6 +480,7 @@ export function useImpromptuSession() {
     setFillerCount(0);
     setFillerTimes([]);
     setCoachReport(null);
+    setReviewWpm(0);
     setAutoFeedbackId(null);
     setSpeakingExpired(false);
     wasRecordingRef.current = false;
@@ -517,6 +524,7 @@ export function useImpromptuSession() {
     setCurveballVisible(false);
     curveballFiredRef.current = false;
     setCoachReport(null);
+    setReviewWpm(0);
     setLoadingCoach(false);
     setSpeakingExpired(false);
     wasRecordingRef.current = false;
@@ -607,6 +615,7 @@ export function useImpromptuSession() {
             // Actual spoken time from the recording is more accurate than the timer.
             const secs = durationMs > 0 ? durationMs / 1000 : durationRef.current;
             const fbWpm = secs > 3 ? Math.round((words / secs) * 60) : 0;
+            setReviewWpm(fbWpm);
 
             const report = await coachImpromptu(
               topicRef.current,
@@ -687,6 +696,7 @@ export function useImpromptuSession() {
     // Review
     coachReport,
     loadingCoach,
+    reviewWpm,
     recordingBlobUrl,
 
     // Misc

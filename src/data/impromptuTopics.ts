@@ -1,5 +1,5 @@
-export type Difficulty = "Easy" | "Medium" | "Hard";
-export type Category = "Personal" | "Opinion" | "Creative" | "Business" | "Philosophical";
+export type Difficulty = "Easy" | "Medium" | "Hard" | "News";
+export type Category = "Personal" | "Opinion" | "Creative" | "Business" | "Philosophical" | "Current Affairs";
 
 export interface ImpromptuTopic {
   id: string;
@@ -44,6 +44,7 @@ export const PREP_TIME: Record<Difficulty, number> = {
   Easy: 15,
   Medium: 10,
   Hard: 5,
+  News: 10,
 };
 
 export const TARGET_WPM = { min: 120, max: 160 };
@@ -379,6 +380,171 @@ export const TOPIC_BANK: ImpromptuTopic[] = [
     category: "Philosophical", difficulty: "Hard", framework: "What · So What · Now What",
     hints: ["What independent local businesses actually provide beyond their products or services", "The systemic reason they're disappearing — not just 'big companies are bad'", "What can realistically be done, and what is probably lost permanently regardless"],
     curveballs: ["Now defend the chain or franchise — argue that consistency and affordability are genuine, underrated values.", "A small business owner in the room just closed their shop last week. Speak to them directly."],
+  },
+
+  // ── News — Current Affairs / Real-World Issues ───────────────────────────────
+  // Evergreen topics that are continuously "in the news" — framed neutrally and
+  // analytically, steered away from partisan or hot-button subjects.
+  {
+    id: "n1",
+    text: "Companies are racing to adopt AI tools. How should a business decide where AI actually belongs — and where it doesn't?",
+    category: "Current Affairs", difficulty: "News", framework: "What · So What · Now What",
+    hints: ["Where AI genuinely adds value vs. where it's hype", "What's at stake if a company gets this decision wrong", "A practical rule of thumb anyone could apply"],
+    curveballs: ["Now argue that most companies should slow down their AI adoption, not speed it up.", "A worker in the room is afraid AI will take their job. Speak to them directly."],
+  },
+  {
+    id: "n2",
+    text: "Electric vehicles are everywhere in the headlines. What's the single biggest thing still holding back mainstream adoption?",
+    category: "Current Affairs", difficulty: "News", framework: "What · So What · Now What",
+    hints: ["Name the barrier specifically — cost, charging, range, or something else", "Why it matters more than the alternatives", "What would actually move the needle"],
+    curveballs: ["Now argue that the focus on electric cars distracts from better solutions like public transit.", "Convince a driver who loves their petrol car to seriously consider switching."],
+  },
+  {
+    id: "n3",
+    text: "As remote and hybrid work become permanent, what does this mean for the future of city centres?",
+    category: "Current Affairs", difficulty: "News", framework: "Past · Present · Future",
+    hints: ["What city centres were originally built around", "What's changing now that offices sit half-empty", "What a thriving city centre could look like in ten years"],
+    curveballs: ["Now argue that remote work will ultimately make cities better, not worse.", "Make the case for why offices will come roaring back."],
+  },
+  {
+    id: "n4",
+    text: "Online courses can teach almost any skill for free. What does this mean for the value of a traditional degree?",
+    category: "Current Affairs", difficulty: "News", framework: "Past · Present · Future",
+    hints: ["What a degree used to guarantee", "What's shifting as skills become freely learnable online", "What employers will actually value in the future"],
+    curveballs: ["Now argue that a traditional degree is more valuable than ever.", "Convince a teenager deciding between university and teaching themselves."],
+  },
+  {
+    id: "n5",
+    text: "Private companies are now leading space exploration. Is that a good thing for humanity?",
+    category: "Current Affairs", difficulty: "News", framework: "PREP",
+    hints: ["Your position — commit to it without hedging", "The single strongest reason in your favour", "A concrete example of private space progress (or its risks)", "Restate your case with conviction"],
+    curveballs: ["Now argue the opposite of the position you just took.", "Someone says that money should be spent on Earth's problems first. Respond to them."],
+  },
+  {
+    id: "n6",
+    text: "The world is shifting toward renewable energy. What's the most underappreciated challenge in making that shift actually work?",
+    category: "Current Affairs", difficulty: "News", framework: "What · So What · Now What",
+    hints: ["Name the challenge — go beyond 'it's expensive'", "Why this challenge is so easy to overlook", "What needs to happen to address it"],
+    curveballs: ["Now argue that we're moving far too slowly and should be much more aggressive.", "A worker whose job depends on fossil fuels is worried about the future. Address them."],
+  },
+  {
+    id: "n7",
+    text: "Housing affordability is a headline in nearly every major city. What's one change that would genuinely help — and why is it so hard to do?",
+    category: "Current Affairs", difficulty: "News", framework: "What · So What · Now What",
+    hints: ["The specific change you'd push for", "Why it would actually help, not just sound good", "Why it hasn't happened already"],
+    curveballs: ["Now argue that the problem is overstated in at least some places.", "Make your case to a homeowner who fears your change would lower their property value."],
+  },
+  {
+    id: "n8",
+    text: "Mental health is discussed more openly than ever. Has that awareness translated into real change — or just more talk?",
+    category: "Current Affairs", difficulty: "News", framework: "Past · Present · Future",
+    hints: ["How mental health was treated in the past", "What's genuinely different today — and what isn't", "What real progress would look like next"],
+    curveballs: ["Now argue that all the awareness has, in some ways, made things worse.", "Convince a workplace to move from talking about wellbeing to actually funding it."],
+  },
+  {
+    id: "n9",
+    text: "Many people feel their attention spans are shrinking. How much of that is really down to social media — and what can we do about it?",
+    category: "Current Affairs", difficulty: "News", framework: "PREP",
+    hints: ["Your claim — how big a role does social media really play?", "The mechanism — how these apps reshape attention", "Evidence or a relatable example", "One realistic step forward"],
+    curveballs: ["Now argue that blaming social media lets us off the hook too easily.", "Convince someone who sees nothing wrong with five hours of scrolling a day."],
+  },
+  {
+    id: "n10",
+    text: "The gig economy promised flexibility and freedom. For workers, has it actually delivered?",
+    category: "Current Affairs", difficulty: "News", framework: "PREP",
+    hints: ["Your verdict — be clear", "The strongest point for your side", "A concrete example of a gig worker's day-to-day reality", "The concession you'd make, and why your view still holds"],
+    curveballs: ["Now argue the opposite side just as convincingly.", "Propose the single change that would make gig work genuinely fairer."],
+  },
+  {
+    id: "n11",
+    text: "AI can now write, draw, and compose. What does that mean for human creativity — a threat, a tool, or something else?",
+    category: "Current Affairs", difficulty: "News", framework: "What · So What · Now What",
+    hints: ["Where AI-generated content actually stands today", "Why it matters for people who create for a living", "How creators should respond"],
+    curveballs: ["Now argue the position opposite to the one you just took.", "A young artist asks whether it's even worth learning their craft anymore. Answer them."],
+  },
+  {
+    id: "n12",
+    text: "Cities and companies keep pledging to cut single-use plastic. Why is it so hard — and what would actually make a difference?",
+    category: "Current Affairs", difficulty: "News", framework: "What · So What · Now What",
+    hints: ["Why single-use plastic is so deeply entrenched", "Why most pledges quietly fall short", "The one change that would move the needle most"],
+    curveballs: ["Now argue that individual recycling efforts are a distraction from the real fix.", "Convince a small business owner that cutting plastic is worth the added cost."],
+  },
+  {
+    id: "n13",
+    text: "You're the CEO of a major airline. Defend your company's carbon offset programme to a room of climate scientists who have read the small print.",
+    category: "Current Affairs", difficulty: "News", framework: "PREP",
+    hints: ["Acknowledge what they already know — don't pretend the criticisms aren't real", "The strongest honest case for offsets as a bridge, not a solution", "What the airline is doing beyond offsets that they may not have heard", "The ask: what you need from them, not just what you're promising"],
+    curveballs: ["A scientist stands up and says offsets are 'organised lying.' Respond directly.", "Now argue from their side — make the case that offsets do more harm than good by letting companies avoid real cuts."],
+  },
+  {
+    id: "n14",
+    text: "Explain the concept of a 'cost of living crisis' to someone who has never once worried about paying a bill.",
+    category: "Current Affairs", difficulty: "News", framework: "Story Arc",
+    hints: ["Find an analogy from their world — don't lecture", "Walk them through one specific week in someone else's life", "The decision that person has to make that your audience has never had to"],
+    curveballs: ["They say: 'but people just need to budget better.' Respond without losing them.", "Now flip it — make the case that financial stress, at some level, sharpens decision-making."],
+  },
+  {
+    id: "n15",
+    text: "Make the case that doomscrolling is a completely rational response to the state of the world right now.",
+    category: "Current Affairs", difficulty: "News", framework: "PREP",
+    hints: ["Your claim — defend it seriously, not as a joke", "The logic: why staying informed, even compulsively, makes sense", "What doomscrolling is actually doing that people who dismiss it don't understand", "The concession — and why your position still holds"],
+    curveballs: ["Now argue that doomscrolling is one of the most self-destructive habits of the modern era.", "Convince a therapist who spends their week treating anxiety caused by news consumption."],
+  },
+  {
+    id: "n16",
+    text: "You have 90 seconds to convince a city council not to cut the budget for public libraries.",
+    category: "Current Affairs", difficulty: "News", framework: "What · So What · Now What",
+    hints: ["Lead with what a library actually is in 2025 — not just books", "The specific people who lose most when it closes — make them real", "The cost of cutting it vs. the cost of keeping it — reframe the numbers"],
+    curveballs: ["A councillor says: 'everything a library does, a smartphone does better.' Answer them.", "Now argue the other side: given tight budgets, libraries are not the highest-impact use of public money."],
+  },
+  {
+    id: "n17",
+    text: "Convince a room of shareholders that the decision that made the most money last quarter was also the worst one the company made.",
+    category: "Current Affairs", difficulty: "News", framework: "Past · Present · Future",
+    hints: ["Name the type of decision — be specific enough to be credible", "What it cost that won't show up in this year's numbers", "What a company that thinks in decades looks like vs. one that thinks in quarters"],
+    curveballs: ["A shareholder says: 'that's what competitors are doing too, so it's table stakes.' Respond.", "Now make the steelman case: short-term profit maximisation is exactly what shareholders are owed."],
+  },
+  {
+    id: "n18",
+    text: "Argue that the best investment a government can make in public health costs almost nothing.",
+    category: "Current Affairs", difficulty: "News", framework: "PREP",
+    hints: ["Name the intervention — be specific, not vague ('more exercise')","The evidence that cheap, unsexy interventions outperform expensive ones", "Why this isn't what gets funded — and what that reveals about how decisions get made", "The ask"],
+    curveballs: ["A health minister says: 'if it were that simple, we'd already be doing it.' Respond.", "Now argue that underfunding health systems is a choice, not a budget constraint, and cheap fixes let governments off the hook."],
+  },
+  {
+    id: "n19",
+    text: "Convince a group of tech founders that moving fast and breaking things has broken something important.",
+    category: "Current Affairs", difficulty: "News", framework: "What · So What · Now What",
+    hints: ["Name the thing that got broken — specifically, not abstractly", "Why speed felt like the right call at the time — show you understand the logic", "What building carefully actually looks like, and why it isn't the same as moving slowly"],
+    curveballs: ["A founder says: 'the alternative is irrelevance — slow companies die.' Respond.", "Now defend the move-fast philosophy: argue that over-caution has its own body count."],
+  },
+  {
+    id: "n20",
+    text: "Make the case that traffic jams are a sign of a city that is working, not failing.",
+    category: "Current Affairs", difficulty: "News", framework: "PREP",
+    hints: ["Your claim — own the provocation", "The mechanism: what congestion actually signals about economic activity and density", "Where your argument breaks down — and why it still holds overall"],
+    curveballs: ["Now argue the obvious counter: congestion is a policy failure and the data on productivity loss proves it.", "Apply your argument to a specific city that is held up as a traffic success story — and stress-test it."],
+  },
+  {
+    id: "n21",
+    text: "You're addressing a room of coal miners whose plant is closing in six months. Tell them what comes next.",
+    category: "Current Affairs", difficulty: "News", framework: "Story Arc",
+    hints: ["Don't open with policy — open with the room", "Be honest about the timeline: what is actually available, and when", "What you're asking of them — and what you owe them in return"],
+    curveballs: ["Someone shouts: 'you said this transition would be just.' Respond.", "Now argue from the other side: that delaying plant closures for social reasons is borrowing against the climate."],
+  },
+  {
+    id: "n22",
+    text: "Argue that the loneliness epidemic is a design problem, not a personal failure.",
+    category: "Current Affairs", difficulty: "News", framework: "What · So What · Now What",
+    hints: ["What we've designed out of everyday life that used to create incidental connection", "Why framing loneliness as individual weakness is convenient for the people who built that design", "One specific change — to a place, a policy, or a platform — that would actually help"],
+    curveballs: ["Now argue that technology is actually the most powerful antidote to loneliness we've ever had.", "Convince a company that its product is contributing to the problem — and that fixing it is in their interest."],
+  },
+  {
+    id: "n23",
+    text: "Make the case that a four-day school week would produce better-educated children.",
+    category: "Current Affairs", difficulty: "News", framework: "PREP",
+    hints: ["Your claim — don't hedge", "What the evidence from places that have tried it actually shows", "What happens to the fifth day — and why that matters as much as the cut", "The strongest objection and your answer to it"],
+    curveballs: ["A parent says: 'this is just about saving money, dressed up as pedagogy.' Respond.", "Now argue that school hours are irrelevant — the real variable is what happens inside them."],
   },
 ];
 
