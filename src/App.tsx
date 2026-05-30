@@ -80,8 +80,7 @@ const App = () => {
       "\n" +
       "  DEV TOOLS AVAILABLE:\n" +
       "  > resetOnboarding()  - Clear all progress and restart experience\n" +
-      "  > startTutorial()    - Force start the Pathway tutorial\n" +
-      "  > startArenaTutorial() - Jump to the Arena competition tutorial\n",
+      "  > startTutorial()    - Force start the first-steps tutorial overlay\n",
       "background: #111; color: #fff; font-weight: bold; padding: 4px 8px; border-radius: 4px 0 0 4px;",
       "background: #ff5500; color: #fff; font-weight: bold; padding: 4px 8px; border-radius: 0 4px 4px 0;",
       "background: transparent; color: inherit;",

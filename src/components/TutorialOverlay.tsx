@@ -7,11 +7,12 @@ import { supabase } from "@/integrations/supabase/client";
 
 // ── Checklist definition ──────────────────────────────────────────────────────
 const CHECKLIST = [
-  { id: "first-drill",       label: "Complete your first drill" },
-  { id: "visit-lab",         label: "Explore the Lab" },
-  { id: "visit-arena",       label: "Check out the Arena" },
-  { id: "visit-profile",     label: "Visit your Profile" },
-  { id: "visit-leaderboard", label: "See the Leaderboard" },
+  { id: "first-drill",   label: "Complete your first drill" },
+  { id: "visit-pathway", label: "Find your Pathway" },
+  { id: "visit-lab",     label: "Explore the Lab" },
+  { id: "visit-arena",   label: "Step into the Arena" },
+  { id: "visit-friends", label: "Meet your friends" },
+  { id: "visit-profile", label: "Check your Profile" },
 ] as const;
 
 const TOTAL = CHECKLIST.length;
@@ -36,10 +37,11 @@ function saveCollapsed(uid: string, val: boolean) {
 
 // Route → step-id map (module-scope, stable)
 const ROUTE_STEPS: Record<string, string> = {
-  "/lab":         "visit-lab",
-  "/arena":       "visit-arena",
-  "/profile":     "visit-profile",
-  "/leaderboard": "visit-leaderboard",
+  "/pathway": "visit-pathway",
+  "/lab":     "visit-lab",
+  "/arena":   "visit-arena",
+  "/friends": "visit-friends",
+  "/profile": "visit-profile",
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

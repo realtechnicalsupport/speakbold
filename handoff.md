@@ -234,7 +234,21 @@ Each AI persona gets a deterministic Deepgram Aura voice. Falls back to `SpeechS
 
 ## Lab — Impromptu track (`src/pages/tracks/Impromptu.tsx`)
 
+### Results screen
 After a session, the inline `<ImpromptuReview>` is the **sole** AI feedback screen (coaching via `coachImpromptu`: score ring, pace/filler metrics, framework check, cut/expand, next-focus, model speech, transcript). The redundant `RecordingFeedbackModal` ("Practice Feedback" popup, backed by `analyze-recording`) was removed — when mounted with a `trigger` it actually rendered a second visible "AI FEEDBACK" button, duplicating the inline review. Recordings still upload (`autoFeedbackId` set in `useImpromptuSession`) for the profile page; only the duplicate feedback UI is gone.
+
+### WPM handling (desktop vs. mobile)
+- The hook's live `wpm` is only valid **during** the speaking phase (`phase === "speaking"`). For the review screen it would always read 0, so `useImpromptuSession` now holds a separate **`reviewWpm`** state, set from the figure actually computed for coaching: `finalWpm` in `transitionToReview` (desktop, live transcript) and `fbWpm` in `onRecordingComplete` (mobile, server-side transcription of the recording). `ImpromptuReview` receives `reviewWpm`; `ImpromptuStage` keeps the live `wpm`.
+- On mobile there is no live transcript (live Web Speech is skipped — see below), so the **live HUD + voice bars are hidden** on mobile in `ImpromptuStage` via `liveMetrics = speechSupported && !isMobileDevice()`. WPM/words only appear on the review screen once the recording is analysed.
+
+### Difficulty tiers + topic bank (`src/data/impromptuTopics.ts`)
+- `Difficulty = "Easy" | "Medium" | "Hard" | "News"`. **News** is the 4th tier (category `"Current Affairs"`, `PREP_TIME.News = 10`, sky-blue in the UI) — current-affairs / real-world-issue prompts that demand quick thinking + persuasion (role-play under pressure, hostile-audience persuasion, defend-the-counterintuitive, explain-to-an-outsider). Topics `n1`–`n23` live in `TOPIC_BANK`. Curated static bank, **not** API/LLM-generated (LLMs hallucinate fake news; a news-API + reframe pass was discussed but deferred).
+- `ImpromptuSetup.tsx` difficulty styling is driven by lookup maps **`DIFF_STYLE`** (by color name) and **`DIFF_PILL`** (by level) — add new tiers there rather than extending nested ternaries. Selector grid is `grid-cols-2 md:grid-cols-4`.
+- **No exhaustion safeguard:** `getRandomTopic` samples the pool randomly *with replacement* and never excludes seen topics; the `SEEN_KEY` "done" eye badge is cosmetic only. Completing all topics doesn't dead-end — it just recycles. A prefer-unseen-with-reset selection was discussed but not built.
+
+### Live speech vs. recording path (mobile/tablet)
+- Desktop runs live Web Speech recognition. Phones **and tablets** skip it (the mobile speech engine ignores `continuous = true`, auto-stops on silence, and the restart loop blinks the mic) — instead the audio is recorded and transcribed server-side after the turn. The branch is gated by `isMobileDevice()` (`src/lib/isMobileDevice.ts`).
+- `isMobileDevice()` was hardened with a **capability-based fallback** beyond the UA list: a device is treated as touch-primary when the primary pointer is coarse **and** no fine pointer (mouse/trackpad) exists (`(pointer: coarse)` + `!(any-pointer: fine)` + `maxTouchPoints > 0`). This catches tablets the UA list missed (some Android builds, "request desktop site" mode) that were wrongly hitting the desktop path and showing the silence-triggered mic stop/start. Desktops (mouse) and touchscreen laptops (trackpad = fine pointer) are correctly excluded. **Known gap:** a non-Apple tablet used with an attached keyboard/trackpad exposes a fine pointer and would still slip through.
 
 ---
 
