@@ -1,6 +1,7 @@
 import { Pause, Play, Square, Zap } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { isMobileDevice } from "@/lib/isMobileDevice";
 import type { ImpromptuTopic } from "@/data/impromptuTopics";
 import { ImpromptuHUD } from "./ImpromptuHUD";
 
@@ -67,6 +68,12 @@ export const ImpromptuStage = ({
   const isLow = secondsLeft > 0 && secondsLeft <= 10;
   const isActive = !isPaused && secondsLeft > 0;
 
+  // Mobile skips live Web Speech (recorded audio is transcribed server-side after
+  // the turn), so there's no live transcript to drive WPM/word metrics here. Hide
+  // the live HUD + voice bars on mobile — the figures only arrive on the review
+  // screen once the recording is analysed.
+  const liveMetrics = speechSupported && !isMobileDevice();
+
   // SVG ring
   const r = 115;
   const circ = 2 * Math.PI * r;
@@ -103,7 +110,7 @@ export const ImpromptuStage = ({
         <p className="text-sm italic opacity-70 flex-1 leading-snug">"{topic.text}"</p>
 
         <div className="flex items-center gap-3 shrink-0">
-          {speechSupported && (
+          {liveMetrics && (
             <VoiceBars active={isActive && totalWords > 0} />
           )}
           {!isPaused ? (
@@ -209,7 +216,7 @@ export const ImpromptuStage = ({
         </div>
 
         {/* HUD */}
-        {speechSupported && (
+        {liveMetrics && (
           <div className="w-full max-w-[280px]">
             <ImpromptuHUD
               wpm={wpm}
