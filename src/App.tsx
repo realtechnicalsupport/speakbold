@@ -26,6 +26,10 @@ import Leaderboard from "./pages/Leaderboard";
 import Pathway from "./pages/Pathway";
 import Lab from "./pages/Lab";
 import Arena from "./pages/Arena";
+import Friends from "./pages/Friends";
+import FriendProfile from "./pages/FriendProfile";
+import FriendInviteLanding from "./pages/FriendInviteLanding";
+import { FriendsProvider } from "./context/FriendsContext";
 import { useEventReminders } from "./hooks/useEventReminders";
 import { AuthProvider } from "./context/AuthContext";
 import { ThemeProvider } from "./components/theme-provider";
@@ -76,8 +80,7 @@ const App = () => {
       "\n" +
       "  DEV TOOLS AVAILABLE:\n" +
       "  > resetOnboarding()  - Clear all progress and restart experience\n" +
-      "  > startTutorial()    - Force start the Pathway tutorial\n" +
-      "  > startArenaTutorial() - Jump to the Arena competition tutorial\n",
+      "  > startTutorial()    - Force start the first-steps tutorial overlay\n",
       "background: #111; color: #fff; font-weight: bold; padding: 4px 8px; border-radius: 4px 0 0 4px;",
       "background: #ff5500; color: #fff; font-weight: bold; padding: 4px 8px; border-radius: 0 4px 4px 0;",
       "background: transparent; color: inherit;",
@@ -89,6 +92,7 @@ const App = () => {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <ArenaProvider>
+          <FriendsProvider>
           <ThemeProvider defaultTheme="dark" storageKey="speakbold-theme">
             <TooltipProvider>
               <Toaster />
@@ -147,6 +151,12 @@ const App = () => {
                   <Route path="/events" element={<RequireAuth><Events /></RequireAuth>} />
                   <Route path="/events/new" element={<RequireAuth><CreateEvent /></RequireAuth>} />
                   <Route path="/events/:id" element={<RequireAuth><EventDetail /></RequireAuth>} />
+                  <Route path="/friends" element={<RequireAuth><Friends /></RequireAuth>} />
+                  <Route path="/friends/requests" element={<RequireAuth><Friends /></RequireAuth>} />
+                  <Route path="/friends/invite" element={<RequireAuth><Friends /></RequireAuth>} />
+                  <Route path="/friends/:userId" element={<RequireAuth><FriendProfile /></RequireAuth>} />
+                  {/* Public — invite landing works for signed-out users */}
+                  <Route path="/friends/invite/:token" element={<FriendInviteLanding />} />
 
                   <Route path="*" element={<NotFound />} />
                 </Routes>
@@ -161,6 +171,7 @@ const App = () => {
           </ReminderWrapper>
         </TooltipProvider>
       </ThemeProvider>
+          </FriendsProvider>
       </ArenaProvider>
     </AuthProvider>
   </QueryClientProvider>

@@ -5,6 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
 import { ThemeToggle } from "./ThemeToggle";
 import { useArena } from "@/hooks/useArena";
+import { FriendsBadge } from "./FriendsBadge";
 
 const NAV = [
   { to: "/pathway", label: "Pathway" },
@@ -72,6 +73,7 @@ export const SiteHeader = () => {
           {/* Leaderboard trophy: hide on mobile (use MobileNav), show on tablet+ */}
           <div className="hidden lg:flex items-center gap-6 pr-6 border-r border-border/60">
             <ThemeToggle />
+            <FriendsBadge />
             <Link to="/leaderboard" id="nav-leaderboard" className={cn(
               "transition-all duration-500",
               pathname === "/leaderboard" ? "text-primary" : "opacity-30 hover:opacity-100"
@@ -152,6 +154,9 @@ const DuelRequestNotification = () => {
               <button
                 onClick={() => {
                   acceptDuelRequest(currentRequest);
+                  // Dismiss the notification immediately so it can't linger on
+                  // top of the duel screen while /arena is loading.
+                  setIncomingRequests(prev => prev.filter(r => r.id !== currentRequest.id));
                   navigate("/arena", { state: { acceptRequest: currentRequest } });
                 }}
                 className="flex-grow py-2 bg-primary text-white text-[10px] font-black uppercase tracking-widest rounded-lg hover:scale-105 active:scale-95 transition-all"

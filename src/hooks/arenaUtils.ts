@@ -37,8 +37,9 @@ export const getRankColor = (rank: Rank) => {
 // ── Constants exposed to the rest of the app ────────────────────────────────
 /** Default ELO assigned to a brand-new account. Lands them at Silver II. */
 export const STARTING_ELO = 1000;
-/** Hard lower bound — accounts cannot fall below this even after many losses. */
-export const ELO_FLOOR = 100;
+/** Hard lower bound — ELO cannot go negative. Set to 0 so a manual reset
+ *  to 0 isn't silently raised back to 100 by the floor on the next loss. */
+export const ELO_FLOOR = 0;
 /** One tier (III / II / I) inside a rank. */
 export const TIER_SPAN = 200;
 /** Total range of a single rank (3 tiers). */

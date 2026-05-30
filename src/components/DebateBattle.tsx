@@ -7,6 +7,7 @@ import { useRecordings } from "@/hooks/useRecordings";
 import { toast } from "@/hooks/use-toast";
 import { judgeBattle, generateAIArgument, speakWithDeepgramTTS, onAIStatus, transcribeAudio } from "@/services/geminiService";
 import { setRecordingActive } from "@/lib/recordingState";
+import { setTimerActive } from "@/lib/timerState";
 import { isMobileDevice } from "@/lib/isMobileDevice";
 import { MicrophoneBorder } from "@/components/MicrophoneBorder";
 import { RecorderPanel } from "@/components/RecorderPanel";
@@ -330,6 +331,13 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
     setRecordingActive(userTurn);
     return () => setRecordingActive(false);
   }, [phase]);
+
+  // Hide MobileNav (and anything else that watches `timerActive`) while the
+  // debate is open so it can't bleed through the backdrop on mobile.
+  useEffect(() => {
+    setTimerActive(true);
+    return () => setTimerActive(false);
+  }, []);
 
   // ── Start user recording when user turn starts ────────────────────────────
   useEffect(() => {
@@ -1027,7 +1035,14 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
   return (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[60] glass overflow-y-auto overflow-x-hidden scrollbar-hide text-foreground flex flex-col"
+      // Solid bg + dynamic viewport height + safe-area bottom padding — same
+      // mobile-stability fix applied to DuelDrill.
+      // z-[180] (Z.duelActive) forces the screen above chat panels and modals.
+      className="fixed inset-0 z-[180] bg-background overflow-y-auto overflow-x-hidden scrollbar-hide text-foreground flex flex-col"
+      style={{
+        minHeight: "100dvh",
+        paddingBottom: "env(safe-area-inset-bottom)",
+      }}
     >
       {/* Top progress bar (per phase) */}
       {!showResults && !showJudging && phase !== "prep" && cfg.duration > 0 && (

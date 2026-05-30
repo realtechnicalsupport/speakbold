@@ -57,6 +57,7 @@ interface ArenaContextType {
   loading: boolean;
   onlineUsers: any[];
   incomingRequests: any[];
+  requestCooldown: number;
   refresh: (silent?: boolean) => Promise<void>;
   setIncomingRequests: React.Dispatch<React.SetStateAction<any[]>>;
   sendDuelRequest: (targetUserId: string, gamemode: Gamemode, prompt: string) => Promise<void>;
@@ -81,6 +82,8 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [loading, setLoading] = useState(true);
   const [onlineUsers, setOnlineUsers] = useState<any[]>([]);
   const [incomingRequests, setIncomingRequests] = useState<any[]>([]);
+  const [requestCooldown, setRequestCooldown] = useState(0);
+  const cooldownInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const arenaChannel = useRef<any>(null);
 
   // Authoritative battle-result submitter. Replaces the previous client-side
@@ -112,6 +115,15 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     fallbackNewElo: number;
     fallbackEloChange: number;
   }): Promise<{ newElo: number; eloChange: number }> => {
+    // Sanitise the opponent id once. Real users come through as a UUID; AI
+    // personas use synthetic ids like `ai-1234`. The edge function used to be
+    // permissive about non-UUIDs, but a stricter validation pass now rejects
+    // them when `isAi` is false — so we normalise here.
+    const rawOppId = input.opponent.id;
+    const cleanOppId = (typeof rawOppId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-5][0-9a-f]{3}-[089ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(rawOppId))
+      ? rawOppId
+      : null;
+
     try {
       const { data, error } = await supabase.functions.invoke<{
         ok?: boolean; newElo?: number; eloChange?: number; error?: string;
@@ -126,7 +138,7 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           myScore: input.myScore,
           oppScore: input.oppScore,
           opponent: {
-            id: input.opponent.id ?? null,
+            id: cleanOppId,
             name: input.opponent.name,
             avatar: input.opponent.avatar,
           },
@@ -135,7 +147,8 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           // server can bound-check + use it without trusting the client for
           // real users.
           _aiOppElo: input.isAi ? input.opponent.elo : undefined,
-          prompt: input.duelObj.prompt,
+          // arena_battles.prompt is NOT NULL — never send an empty string.
+          prompt: (input.duelObj.prompt && input.duelObj.prompt.trim()) || "(no prompt)",
           feedback: input.feedback,
           strengths: input.strengths,
           oppStrengths: input.oppStrengths,
@@ -145,10 +158,23 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       });
 
       if (error || data?.error) {
-        console.error("[ArenaContext] submitBattleResult failed:", error || data?.error);
+        // FunctionsHttpError swallows the response body; dig it out so the
+        // actual server-side reason shows up in the console + toast.
+        let serverMsg = (error as any)?.message || data?.error;
+        try {
+          const ctx = (error as any)?.context;
+          if (ctx && typeof ctx.json === "function") {
+            const body = await ctx.json();
+            if (body?.error) serverMsg = body.error;
+          } else if (ctx && typeof ctx.text === "function") {
+            const txt = await ctx.text();
+            if (txt) serverMsg = txt;
+          }
+        } catch { /* parsing failed — keep generic msg */ }
+        console.error("[ArenaContext] submitBattleResult failed:", serverMsg, error);
         toast({
           title: "Rating didn't save",
-          description: `Battle couldn't be recorded server-side (${error?.message || data?.error}). Showing local estimate.`,
+          description: `Battle couldn't be recorded (${serverMsg}). Showing local estimate.`,
           variant: "destructive",
         });
         return { newElo: input.fallbackNewElo, eloChange: input.fallbackEloChange };
@@ -245,10 +271,9 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         });
         setDuels(formatted);
       }
-      // Brand-new accounts (or pre-v2 rows that defaulted to 0) get bumped to STARTING_ELO client-side
-      // until the DB migration backfills them. Floor everything at ELO_FLOOR so no UI ever shows < 100.
-      const rawElo = profData?.elo ?? STARTING_ELO;
-      const dbElo = rawElo < ELO_FLOOR ? STARTING_ELO : rawElo;
+      // Only substitute STARTING_ELO when the DB has no row at all (null).
+      // An explicit 0 (e.g. after a manual reset) is a real value and must be shown as-is.
+      const dbElo = profData?.elo ?? STARTING_ELO;
       setProfile({ elo: dbElo, wins, losses });
     } catch (e) { 
       console.error("[ArenaContext] Refresh failed:", e);
@@ -318,8 +343,24 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const sendDuelRequest = async (targetUserId: string, gamemode: Gamemode, prompt: string) => {
     if (!user || !arenaChannel.current) return;
+    if (requestCooldown > 0) return;
+
     await arenaChannel.current.send({ type: "broadcast", event: "duel-request", payload: { id: `req-${user.id}-${Date.now()}`, senderId: user.id, senderName: user.email?.split("@")[0], senderRank: getRankFromElo(profile.elo), targetUserId, gamemode, prompt } });
     toast({ title: "Request Sent", description: "Waiting for opponent..." });
+
+    // 10-second cooldown — prevents spamming requests
+    setRequestCooldown(10);
+    if (cooldownInterval.current) clearInterval(cooldownInterval.current);
+    cooldownInterval.current = setInterval(() => {
+      setRequestCooldown(prev => {
+        if (prev <= 1) {
+          clearInterval(cooldownInterval.current!);
+          cooldownInterval.current = null;
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
   };
 
   const acceptDuelRequest = async (request: any) => {
@@ -593,7 +634,7 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   return (
     <ArenaContext.Provider value={{
-      duels, profile, loading, onlineUsers, incomingRequests, refresh, setIncomingRequests,
+      duels, profile, loading, onlineUsers, incomingRequests, requestCooldown, refresh, setIncomingRequests,
       sendDuelRequest, acceptDuelRequest, sendReadyStatus, sendForfeit, handleForfeit, completeDuel, broadcastBattleResult,
       broadcastAnalyzing, sendTranscript, findMatch, updateStatus,
       completedDuels: duels.filter(d => d.status === "completed")

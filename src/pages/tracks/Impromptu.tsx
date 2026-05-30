@@ -1,7 +1,6 @@
 import { useAuth } from "@/context/AuthContext";
 import { TrackShell } from "@/components/TrackShell";
 import { RecorderPanel } from "@/components/RecorderPanel";
-import { RecordingFeedbackModal } from "@/components/RecordingFeedback";
 import { AnimatePresence, motion } from "framer-motion";
 import { useImpromptuSession } from "@/hooks/useImpromptuSession";
 import { ImpromptuSetup } from "@/components/impromptu/ImpromptuSetup";
@@ -36,9 +35,8 @@ const Impromptu = () => {
     curveballVisible,
     coachReport,
     loadingCoach,
+    reviewWpm,
     speechSupported,
-    autoFeedbackId,
-    clearAutoFeedback,
     recordingBlobUrl,
     begin,
     pause,
@@ -128,7 +126,7 @@ const Impromptu = () => {
                 topic={topic}
                 duration={duration}
                 liveTranscript={liveTranscript}
-                wpm={wpm}
+                wpm={reviewWpm}
                 totalWords={totalWords}
                 fillerCount={fillerCount}
                 fillerTimes={fillerTimes}
@@ -148,14 +146,6 @@ const Impromptu = () => {
         </AnimatePresence>
 
         {recorderPanel}
-
-        {autoFeedbackId && (
-          <RecordingFeedbackModal
-            recordingId={autoFeedbackId}
-            defaultOpen={true}
-            onClose={clearAutoFeedback}
-          />
-        )}
       </TrackShell>
 
       {/* ── PREP + SPEAKING: full-screen fixed overlay ─────────────────────── */}

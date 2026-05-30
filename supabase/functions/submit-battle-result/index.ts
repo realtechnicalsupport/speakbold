@@ -25,7 +25,7 @@ const json = (body: unknown, status = 200) =>
 
 // ─── ELO constants — must mirror src/hooks/arenaUtils.ts ───────────────────
 const STARTING_ELO = 1000;
-const ELO_FLOOR = 100;
+const ELO_FLOOR = 0; // Floor at 0 not 100 — prevents raising a reset ELO back up on loss.
 const FORFEIT_PENALTY = 30;
 const PLACEMENT_MATCHES_REQUIRED = 5;
 const AI_DAMPING = 0.75;
@@ -238,9 +238,31 @@ Deno.serve(async (req) => {
             : null),
     };
 
-    const { error: insertErr } = await admin
+    let { error: insertErr } = await admin
       .from("arena_battles")
       .insert(battlePayload);
+
+    // PostgREST cache may not know about newer verdict-detail columns yet (the
+    // 20260510 migration may not have been applied / cache refreshed). Detect
+    // a missing-column error and retry without those optional fields.
+    if (insertErr) {
+      const msg = (insertErr.message || "").toLowerCase();
+      const isMissingCol =
+        msg.includes("could not find") ||
+        msg.includes("schema cache") ||
+        (insertErr as any).code === "PGRST204";
+      if (isMissingCol) {
+        console.warn("[submit-battle-result] schema cache missing optional cols, retrying lean:", insertErr.message);
+        const lean = { ...battlePayload };
+        delete (lean as any).strengths;
+        delete (lean as any).opp_strengths;
+        delete (lean as any).opp_feedback;
+        delete (lean as any).example_speech;
+        const retry = await admin.from("arena_battles").insert(lean);
+        insertErr = retry.error;
+      }
+    }
+
     if (insertErr) {
       console.error("[submit-battle-result] battle insert failed:", insertErr);
       // Don't move ELO if we couldn't record the match.

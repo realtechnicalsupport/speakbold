@@ -20,3 +20,10 @@ export type ArenaEvents = {
 };
 
 export const arenaEmitter = mitt<ArenaEvents>();
+
+export type FriendsEvents = {
+  "friends:request-received": { from: { id: string; display_name: string } };
+  "friends:request-accepted": { by: { id: string; display_name: string } };
+};
+
+export const friendsEmitter = mitt<FriendsEvents>();

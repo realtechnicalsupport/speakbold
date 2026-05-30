@@ -31,7 +31,55 @@ const DIFFICULTIES: { level: Difficulty; color: string; dots: number; label: str
   { level: "Easy", color: "emerald", dots: 1, label: "Personal · Narrative" },
   { level: "Medium", color: "amber", dots: 2, label: "Opinion · Evidence" },
   { level: "Hard", color: "red", dots: 3, label: "Debate · Philosophy" },
+  { level: "News", color: "sky", dots: 3, label: "Current Affairs · Real Issues" },
 ];
+
+// Per-color class lookups — keeps the difficulty-themed styling in one place so
+// new tiers only need an entry here rather than another nested ternary.
+const DIFF_STYLE: Record<string, {
+  selected: string;   // selected selector-card border/bg/shadow
+  dotActive: string;  // active difficulty dot
+  textActive: string; // active label text
+  glow: string;       // ambient glow on the topic card
+  badge: string;      // difficulty badge on the topic card
+}> = {
+  emerald: {
+    selected: "border-emerald-500/60 bg-emerald-500/8 shadow-[0_0_20px_rgba(52,211,153,0.1)]",
+    dotActive: "bg-emerald-400",
+    textActive: "text-emerald-400",
+    glow: "bg-[radial-gradient(ellipse_at_30%_0%,rgba(52,211,153,0.3),transparent_60%)]",
+    badge: "text-emerald-400 border-emerald-400/30 bg-emerald-400/5",
+  },
+  amber: {
+    selected: "border-amber-500/60 bg-amber-500/8 shadow-[0_0_20px_rgba(251,191,36,0.1)]",
+    dotActive: "bg-amber-400",
+    textActive: "text-amber-400",
+    glow: "bg-[radial-gradient(ellipse_at_30%_0%,rgba(251,191,36,0.3),transparent_60%)]",
+    badge: "text-amber-400 border-amber-400/30 bg-amber-400/5",
+  },
+  red: {
+    selected: "border-red-500/60 bg-red-500/8 shadow-[0_0_20px_rgba(248,113,113,0.1)]",
+    dotActive: "bg-red-400",
+    textActive: "text-red-400",
+    glow: "bg-[radial-gradient(ellipse_at_30%_0%,rgba(248,113,113,0.3),transparent_60%)]",
+    badge: "text-red-400 border-red-400/30 bg-red-400/5",
+  },
+  sky: {
+    selected: "border-sky-500/60 bg-sky-500/8 shadow-[0_0_20px_rgba(56,189,248,0.1)]",
+    dotActive: "bg-sky-400",
+    textActive: "text-sky-400",
+    glow: "bg-[radial-gradient(ellipse_at_30%_0%,rgba(56,189,248,0.3),transparent_60%)]",
+    badge: "text-sky-400 border-sky-400/30 bg-sky-400/5",
+  },
+};
+
+// Difficulty pill on recent-session rows — keyed directly off the stored level.
+const DIFF_PILL: Record<Difficulty, string> = {
+  Easy: "text-emerald-400 border-emerald-400/25 bg-emerald-400/5",
+  Medium: "text-amber-400 border-amber-400/25 bg-amber-400/5",
+  Hard: "text-red-400 border-red-400/25 bg-red-400/5",
+  News: "text-sky-400 border-sky-400/25 bg-sky-400/5",
+};
 
 const DURATIONS = [30, 60, 90, 120];
 
@@ -317,47 +365,39 @@ export const ImpromptuSetup = ({
           )}
 
           {/* Difficulty selector */}
-          <div className="grid grid-cols-3 gap-3">
-            {DIFFICULTIES.map(d => (
-              <button
-                key={d.level}
-                onClick={() => onSetDifficulty(d.level)}
-                className={cn(
-                  "relative p-4 rounded-2xl border-2 transition-all duration-300 text-left group overflow-hidden",
-                  difficulty === d.level
-                    ? d.color === "emerald" ? "border-emerald-500/60 bg-emerald-500/8 shadow-[0_0_20px_rgba(52,211,153,0.1)]"
-                      : d.color === "amber" ? "border-amber-500/60 bg-amber-500/8 shadow-[0_0_20px_rgba(251,191,36,0.1)]"
-                      : "border-red-500/60 bg-red-500/8 shadow-[0_0_20px_rgba(248,113,113,0.1)]"
-                    : "border-border/40 bg-muted/3 hover:border-border/80"
-                )}
-              >
-                <div className="flex gap-1 mb-3">
-                  {[1, 2, 3].map(n => (
-                    <div key={n} className={cn(
-                      "h-1.5 w-4 rounded-full transition-all duration-300",
-                      n <= d.dots
-                        ? difficulty === d.level
-                          ? d.color === "emerald" ? "bg-emerald-400"
-                            : d.color === "amber" ? "bg-amber-400"
-                            : "bg-red-400"
-                          : "bg-foreground/20"
-                        : "bg-foreground/6"
-                    )} />
-                  ))}
-                </div>
-                <p className={cn(
-                  "text-xs font-black uppercase tracking-[0.3em] transition-colors",
-                  difficulty === d.level
-                    ? d.color === "emerald" ? "text-emerald-400"
-                      : d.color === "amber" ? "text-amber-400"
-                      : "text-red-400"
-                    : "text-foreground/40"
-                )}>
-                  {d.level}
-                </p>
-                <p className="text-[9px] font-medium opacity-30 mt-0.5 hidden md:block">{d.label}</p>
-              </button>
-            ))}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {DIFFICULTIES.map(d => {
+              const style = DIFF_STYLE[d.color];
+              const selected = difficulty === d.level;
+              return (
+                <button
+                  key={d.level}
+                  onClick={() => onSetDifficulty(d.level)}
+                  className={cn(
+                    "relative p-4 rounded-2xl border-2 transition-all duration-300 text-left group overflow-hidden",
+                    selected ? style.selected : "border-border/40 bg-muted/3 hover:border-border/80"
+                  )}
+                >
+                  <div className="flex gap-1 mb-3">
+                    {[1, 2, 3].map(n => (
+                      <div key={n} className={cn(
+                        "h-1.5 w-4 rounded-full transition-all duration-300",
+                        n <= d.dots
+                          ? selected ? style.dotActive : "bg-foreground/20"
+                          : "bg-foreground/6"
+                      )} />
+                    ))}
+                  </div>
+                  <p className={cn(
+                    "text-xs font-black uppercase tracking-[0.3em] transition-colors",
+                    selected ? style.textActive : "text-foreground/40"
+                  )}>
+                    {d.level}
+                  </p>
+                  <p className="text-[9px] font-medium opacity-30 mt-0.5 hidden md:block">{d.label}</p>
+                </button>
+              );
+            })}
           </div>
 
           {/* Topic card — the hero */}
@@ -373,9 +413,7 @@ export const ImpromptuSetup = ({
               {/* Ambient glow */}
               <div className={cn(
                 "absolute inset-0 opacity-20 pointer-events-none transition-all duration-700",
-                diff.color === "emerald" ? "bg-[radial-gradient(ellipse_at_30%_0%,rgba(52,211,153,0.3),transparent_60%)]"
-                  : diff.color === "amber" ? "bg-[radial-gradient(ellipse_at_30%_0%,rgba(251,191,36,0.3),transparent_60%)]"
-                  : "bg-[radial-gradient(ellipse_at_30%_0%,rgba(248,113,113,0.3),transparent_60%)]"
+                DIFF_STYLE[diff.color].glow
               )} />
 
               <div className="relative z-10 p-8 md:p-12 space-y-6 bg-muted/5">
@@ -389,9 +427,7 @@ export const ImpromptuSetup = ({
                   <div className="flex items-center gap-3">
                     <span className={cn(
                       "text-[10px] font-black uppercase tracking-[0.4em] px-3 py-1.5 rounded-full border",
-                      diff.color === "emerald" ? "text-emerald-400 border-emerald-400/30 bg-emerald-400/5"
-                        : diff.color === "amber" ? "text-amber-400 border-amber-400/30 bg-amber-400/5"
-                        : "text-red-400 border-red-400/30 bg-red-400/5"
+                      DIFF_STYLE[diff.color].badge
                     )}>
                       {topic.difficulty}
                     </span>
@@ -500,9 +536,7 @@ export const ImpromptuSetup = ({
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span className={cn(
                                   "text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border",
-                                  s.difficulty === "Easy" ? "text-emerald-400 border-emerald-400/25 bg-emerald-400/5"
-                                    : s.difficulty === "Medium" ? "text-amber-400 border-amber-400/25 bg-amber-400/5"
-                                    : "text-red-400 border-red-400/25 bg-red-400/5"
+                                  DIFF_PILL[s.difficulty]
                                 )}>
                                   {s.difficulty}
                                 </span>
