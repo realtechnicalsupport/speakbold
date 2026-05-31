@@ -216,6 +216,35 @@ Deno.serve(async (req) => {
 
     const newElo = Math.max(ELO_FLOOR, myElo + eloChange);
 
+    // ── PvP: rate the OPPONENT too, from the SAME single judgment ───────────
+    // Fixes the "only the host gets rated" bug: previously the challenger's
+    // client never persisted its ELO. Now one authoritative call moves both
+    // ratings (and still writes exactly one battle row). Excluded:
+    //   • AI opponents (no profile row)
+    //   • custom solo + ties (no ELO movement)
+    //   • forfeits (each side calls this independently and is rated there)
+    let oppNewElo = oppElo;
+    let oppEloChange = 0;
+    const rateOpponent = !!opponentId && !body.isAi && !body.isCustom && !body.isTie && !body.isForfeit;
+    if (rateOpponent) {
+      const { count: oppMatches } = await admin
+        .from("arena_battles")
+        .select("id", { count: "exact", head: true })
+        .or(`challenger_id.eq.${opponentId},opponent_id.eq.${opponentId}`);
+      oppEloChange = computeEloChange({
+        myElo: oppElo,
+        oppElo: myElo,
+        myScore: oppScore,
+        oppScore: myScore,
+        matchesPlayed: oppMatches ?? 0,
+        mode: body.gamemode,
+        isAi: false,
+        isTie: false,
+        isForfeit: null,
+      });
+      oppNewElo = Math.max(ELO_FLOOR, oppElo + oppEloChange);
+    }
+
     // ── Write the battle row first, then ELO. ──────────────────────────────
     // If the row insert fails (RLS, missing columns) we still bail before
     // moving ELO so the leaderboard never drifts from the battle log.
@@ -270,25 +299,36 @@ Deno.serve(async (req) => {
     }
 
     if (eloChange !== 0) {
-      const { data: written, error: writeErr } = await admin
+      const { error: writeErr } = await admin
         .from("profiles")
         .update({ elo: newElo })
-        .eq("id", userId)
-        .select("elo")
-        .single();
+        .eq("id", userId);
       if (writeErr) {
         console.error("[submit-battle-result] elo write failed:", writeErr);
         return json({ error: `elo write failed: ${writeErr.message}` }, 500);
       }
-      return json({
-        ok: true,
-        newElo: written?.elo ?? newElo,
-        eloChange,
-        matchesPlayed: (matchesPlayed ?? 0) + 1,
-      });
     }
 
-    return json({ ok: true, newElo, eloChange: 0, matchesPlayed: (matchesPlayed ?? 0) + 1 });
+    // Persist the opponent's new rating (best-effort — the caller's rating is
+    // already saved, so a failure here shouldn't fail the whole request).
+    if (rateOpponent && oppEloChange !== 0) {
+      const { error: oppWriteErr } = await admin
+        .from("profiles")
+        .update({ elo: oppNewElo })
+        .eq("id", opponentId);
+      if (oppWriteErr) {
+        console.error("[submit-battle-result] opponent elo write failed:", oppWriteErr);
+      }
+    }
+
+    return json({
+      ok: true,
+      newElo,
+      eloChange,
+      oppNewElo,
+      oppEloChange,
+      matchesPlayed: (matchesPlayed ?? 0) + 1,
+    });
 
   } catch (e) {
     console.error("[submit-battle-result] unhandled:", e);

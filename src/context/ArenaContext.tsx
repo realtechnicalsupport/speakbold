@@ -7,6 +7,11 @@ import { getRankFromElo, computeEloChange, STARTING_ELO, ELO_FLOOR, FORFEIT_PENA
 import { arenaEmitter } from "@/lib/events";
 import { logSkillEvent } from "@/lib/skillEvents";
 import { arenaToDims } from "@/lib/skillScoring";
+import { markPracticedDay } from "@/lib/streak";
+
+// Real users have a UUID id; AI personas use synthetic ids like `ai-1234`.
+const isUuid = (s?: string | null): s is string =>
+  typeof s === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-5][0-9a-f]{3}-[089ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(s);
 
 export type Gamemode = "blitz" | "standard" | "debate" | "pitch";
 export type RankTier = "III" | "II" | "I";
@@ -116,7 +121,7 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     /** Fallback ELO to display if the server is unreachable. */
     fallbackNewElo: number;
     fallbackEloChange: number;
-  }): Promise<{ newElo: number; eloChange: number }> => {
+  }): Promise<{ newElo: number; eloChange: number; oppNewElo?: number; oppEloChange?: number }> => {
     // Sanitise the opponent id once. Real users come through as a UUID; AI
     // personas use synthetic ids like `ai-1234`. The edge function used to be
     // permissive about non-UUIDs, but a stricter validation pass now rejects
@@ -128,7 +133,7 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     try {
       const { data, error } = await supabase.functions.invoke<{
-        ok?: boolean; newElo?: number; eloChange?: number; error?: string;
+        ok?: boolean; newElo?: number; eloChange?: number; oppNewElo?: number; oppEloChange?: number; error?: string;
       }>("submit-battle-result", {
         body: {
           duelId: input.duelObj.id,
@@ -185,7 +190,7 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const newElo = data?.newElo ?? input.fallbackNewElo;
       const eloChange = data?.eloChange ?? input.fallbackEloChange;
       console.log(`[ArenaContext] battle submitted: ${eloChange >= 0 ? "+" : ""}${eloChange} → ${newElo}`);
-      return { newElo, eloChange };
+      return { newElo, eloChange, oppNewElo: data?.oppNewElo, oppEloChange: data?.oppEloChange };
     } catch (e) {
       console.error("[ArenaContext] submitBattleResult threw:", e);
       toast({
@@ -324,6 +329,14 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       .on("broadcast", { event: "battle-analyzing" }, ({ payload }) => arenaEmitter.emit("arena:battle-analyzing", payload))
       .on("broadcast", { event: "battle-transcript" }, ({ payload }) => arenaEmitter.emit("arena:battle-transcript", payload))
       .on("broadcast", { event: "battle-forfeit" }, ({ payload }) => arenaEmitter.emit("arena:battle-forfeit", payload))
+      // PvP rating sync: the host's authoritative call re-rated us server-side;
+      // reflect our new ELO + animate it without writing a duplicate battle row.
+      .on("broadcast", { event: "elo-sync" }, ({ payload }) => {
+        if (!payload || payload.targetUserId !== user.id) return;
+        setProfile(prev => ({ ...prev, elo: payload.newElo }));
+        arenaEmitter.emit("elo:updated", { change: payload.change, newElo: payload.newElo });
+        refresh(true);
+      })
       .subscribe(async (status) => {
         if (status === "SUBSCRIBED") {
           await channel.track({
@@ -521,7 +534,7 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       // both the arena_battles row AND profiles.elo atomically. Replaces the
       // old client-UPDATE path which let any user PATCH their own rating.
       const opponent = isChallenger ? duelObj.creator : duelObj.challenger;
-      const { newElo: serverElo, eloChange: serverDelta } = await submitBattleResult({
+      const { newElo: serverElo, eloChange: serverDelta, oppNewElo, oppEloChange } = await submitBattleResult({
         duelObj,
         isAi: isAI,
         isTie: tie,
@@ -543,6 +556,18 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         fallbackEloChange: eloChange,
       });
 
+      // ── PvP: the server also re-rated the real opponent from this single
+      // judgment. Push their new ELO so their client animates + reflects it,
+      // without writing a duplicate battle row. (No-op for AI opponents.)
+      const opponentIsRealUser = isUuid(opponent?.id);
+      if (opponentIsRealUser && typeof oppNewElo === "number" && typeof oppEloChange === "number" && oppEloChange !== 0 && arenaChannel.current) {
+        arenaChannel.current.send({
+          type: "broadcast",
+          event: "elo-sync",
+          payload: { targetUserId: opponent!.id, newElo: oppNewElo, change: oppEloChange },
+        });
+      }
+
       // Reconcile with the server-authoritative ELO if it differs
       if (!isCustom && serverElo !== newElo) {
         setProfile(prev => ({ ...prev, elo: serverElo }));
@@ -552,21 +577,10 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       // ── Mark daily practice streak ────────────────────────────────────────
       // Arena battles count toward the daily streak just like Pathway drills.
-      try {
-        const today = new Date();
-        const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
-        const { data: row } = await supabase.from("streaks").select("count, last_day").eq("user_id", user.id).maybeSingle();
-        if (!row) {
-          // First ever streak entry
-          await supabase.from("streaks").insert({ user_id: user.id, count: 1, last_day: todayStr });
-        } else if (row.last_day !== todayStr) {
-          // New day — extend or reset streak
-          const gap = Math.round((new Date(todayStr + 'T00:00:00').getTime() - new Date(row.last_day + 'T00:00:00').getTime()) / 86_400_000);
-          const next = gap === 1 ? (row.count ?? 0) + 1 : 1;
-          await supabase.from("streaks").update({ count: next, last_day: todayStr }).eq("user_id", user.id);
-        }
-        // else: already practiced today — no change
-      } catch { /* streak update is non-critical */ }
+      // Routed through the shared helper so it also logs practice_days (profile
+      // activity chart) and tracks best_count — instead of the old direct write
+      // that diverged from the rest of the app's streak system.
+      await markPracticedDay(user.id);
 
       await refresh(true);
       arenaEmitter.emit("elo:updated", { change: persistedDelta, newElo: persistedElo });

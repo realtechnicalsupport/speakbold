@@ -13,9 +13,29 @@ import { toast } from "@/hooks/use-toast";
 import { RecorderPanel } from "@/components/RecorderPanel";
 import { MicrophoneBorder } from "@/components/MicrophoneBorder";
 import { setRecordingActive } from "@/lib/recordingState";
-import { transcribeAudio, judgeBattle, generateAIArgument, generateArenaPrompt } from "@/services/geminiService";
+import { transcribeAudio, judgeBattle, generateAIArgument, generateArenaPrompt, speakWithDeepgramTTS } from "@/services/geminiService";
 import { arenaEmitter, type ArenaEvents } from "@/lib/events";
 import { setTimerActive } from "@/lib/timerState";
+
+// Filler list mirrors FILLER_WORDS in useImpromptuSession (inlined to keep this
+// component self-contained). Used to feed delivery signals into the judge.
+const FILLER_WORDS = ["um", "uh", "like", "you know", "so", "basically", "right", "actually", "literally", "kind of", "sort of"];
+const countFillers = (text: string): number => {
+  const lower = text.toLowerCase();
+  return FILLER_WORDS.reduce(
+    (n, w) => n + (lower.match(new RegExp(`\\b${w.replace(/ /g, "\\s+")}\\b`, "g"))?.length ?? 0),
+    0
+  );
+};
+
+// Stable Deepgram Aura voice per opponent name, so an opponent always "sounds"
+// the same when you play back their speech.
+const ARENA_VOICES = ["aura-orion-en", "aura-luna-en", "aura-stella-en", "aura-athena-en", "aura-zeus-en", "aura-asteria-en", "aura-arcas-en"];
+const voiceForName = (name?: string): string => {
+  if (!name) return ARENA_VOICES[0];
+  const hash = name.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
+  return ARENA_VOICES[hash % ARENA_VOICES.length];
+};
 
 export const DuelDrill = ({
   duel, gamemode, onClose, onComplete, isCreating, sendReadyStatus, completeDuel, broadcastBattleResult, sendTranscript, broadcastAnalyzing, sendForfeit, handleForfeit, userElo
@@ -64,6 +84,35 @@ export const DuelDrill = ({
   const promptToUse = duel ? duel.prompt : customPrompt;
   const [lastRecording, setLastRecording] = useState<{ blob: Blob; durationMs: number } | null>(null);
   const [showModelSpeech, setShowModelSpeech] = useState(false);
+
+  // Reveal + voice the opponent's actual speech on the results screen — gives
+  // the AI (or peer) you "battled" real presence instead of an invisible score.
+  const [showOppSpeech, setShowOppSpeech] = useState(false);
+  const [oppTtsLoading, setOppTtsLoading] = useState(false);
+  const [oppTtsPlaying, setOppTtsPlaying] = useState(false);
+  const oppAudioRef = useRef<HTMLAudioElement | null>(null);
+  useEffect(() => () => { oppAudioRef.current?.pause(); }, []);
+  const toggleOppTts = async () => {
+    const text = oppTranscriptRef.current;
+    if (!text || text === "[NO_TRANSCRIPT_RECEIVED]") return;
+    if (oppAudioRef.current) {
+      if (!oppAudioRef.current.paused) { oppAudioRef.current.pause(); setOppTtsPlaying(false); }
+      else { oppAudioRef.current.play().catch(() => {}); setOppTtsPlaying(true); }
+      return;
+    }
+    setOppTtsLoading(true);
+    try {
+      const audio = await speakWithDeepgramTTS(text, voiceForName(opponent?.name));
+      audio.onended = () => setOppTtsPlaying(false);
+      oppAudioRef.current = audio;
+      audio.play().catch(() => {});
+      setOppTtsPlaying(true);
+    } catch {
+      toast({ title: "Voice unavailable", description: "Couldn't play your opponent's speech right now." });
+    } finally {
+      setOppTtsLoading(false);
+    }
+  };
 
   const opponent = duel?.creator.id === user?.id
     ? duel?.challenger
@@ -346,8 +395,15 @@ export const DuelDrill = ({
       const hostName = duel?.creator.name || user?.email?.split("@")[0] || "Host";
       const challengerName = duel?.challenger?.name || "Opponent";
 
+      // Measure the user's delivery from the real audio so the judge weighs HOW
+      // they spoke (pace + fillers), not just the words.
+      const myWords = myTranscript.split(/\s+/).filter(Boolean).length;
+      const recSecs = lastRecording?.durationMs ? lastRecording.durationMs / 1000 : duration;
+      const hostWpm = recSecs > 3 ? Math.round((myWords / recSecs) * 60) : 0;
+      const hostFillers = countFillers(myTranscript);
+
       const judgeResult = await Promise.race([
-        judgeBattle(hostName, myTranscript, promptToUse, challengerName, finalOppTranscript || undefined),
+        judgeBattle(hostName, myTranscript, promptToUse, challengerName, finalOppTranscript || undefined, { hostWpm, hostFillers }),
         timeoutPromise
       ]) as any;
 
@@ -805,6 +861,43 @@ export const DuelDrill = ({
                       >
                         <p className="speak-serif text-lg italic leading-relaxed opacity-80 whitespace-pre-wrap">"{verdictResult.exampleSpeech}"</p>
                         <p className="text-[10px] font-bold uppercase tracking-widest opacity-30 mt-4 italic">Note: This is a high-level example incorporating all coach feedback.</p>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
+
+              {/* Opponent reveal — see (and hear) what you actually battled */}
+              {oppTranscript && oppTranscript.trim() && oppTranscript !== "[NO_TRANSCRIPT_RECEIVED]" && !verdictResult.byForfeit && (
+                <div className="bg-background/40 border border-border rounded-2xl overflow-hidden">
+                  <div className="flex items-center justify-between px-6 py-4 gap-3">
+                    <button
+                      onClick={() => setShowOppSpeech(!showOppSpeech)}
+                      className="flex items-center gap-2 min-w-0 hover:opacity-80 transition-opacity"
+                    >
+                      <p className="text-sm font-black uppercase tracking-[0.3em] text-orange-500 truncate">
+                        What {opponent?.name ?? "your opponent"} said
+                      </p>
+                      {showOppSpeech ? <ChevronUp className="h-4 w-4 text-orange-500 shrink-0" /> : <ChevronDown className="h-4 w-4 text-orange-500 shrink-0" />}
+                    </button>
+                    <button
+                      onClick={toggleOppTts}
+                      disabled={oppTtsLoading}
+                      className="shrink-0 inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-orange-500/30 text-orange-500 text-[10px] font-black uppercase tracking-widest hover:bg-orange-500/10 transition-all disabled:opacity-50"
+                    >
+                      {oppTtsLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Mic className="h-3 w-3" />}
+                      {oppTtsLoading ? "Loading" : oppTtsPlaying ? "Stop" : "Hear it"}
+                    </button>
+                  </div>
+                  <AnimatePresence>
+                    {showOppSpeech && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="px-6 pb-6"
+                      >
+                        <p className="speak-serif text-base italic leading-relaxed opacity-70 whitespace-pre-wrap">"{oppTranscript}"</p>
                       </motion.div>
                     )}
                   </AnimatePresence>
