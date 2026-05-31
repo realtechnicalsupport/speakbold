@@ -189,9 +189,9 @@ const Profile = () => {
           ))}
         </div>
 
-        {/* ── Coach pointer — the adaptive plan now lives in its own hub ── */}
+        {/* ── Coach pointer — the adaptive plan now headlines The Lab ── */}
         <Link
-          to="/coach"
+          to="/lab"
           className="group flex items-center justify-between gap-4 rounded-[2rem] border border-primary/20 bg-gradient-to-br from-primary/[0.06] via-muted/5 to-transparent p-6 md:p-8 mb-10 md:mb-14 hover:border-primary/40 transition-all overflow-hidden relative"
         >
           <div className="absolute -top-16 -right-16 h-40 w-40 rounded-full bg-primary/10 blur-[80px] pointer-events-none" />

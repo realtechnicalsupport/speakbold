@@ -5,6 +5,8 @@ import { toast } from "@/hooks/use-toast";
 import { generateArenaPrompt } from "@/services/geminiService";
 import { getRankFromElo, computeEloChange, STARTING_ELO, ELO_FLOOR, FORFEIT_PENALTY } from "@/hooks/arenaUtils";
 import { arenaEmitter } from "@/lib/events";
+import { logSkillEvent } from "@/lib/skillEvents";
+import { arenaToDims } from "@/lib/skillScoring";
 
 export type Gamemode = "blitz" | "standard" | "debate" | "pitch";
 export type RankTier = "III" | "II" | "I";
@@ -490,6 +492,19 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
 
     const newElo = Math.max(ELO_FLOOR, myElo + eloChange);
+
+    // Feed this battle into the AI Coach (opponent-weighted so a hard matchup
+    // doesn't misleadingly tank the skill radar). Real battles only — custom
+    // solo sessions aren't a competitive skill signal.
+    if (!isCustom && myScore > 0) {
+      logSkillEvent({
+        userId: user.id,
+        source: "arena",
+        scores: arenaToDims({ score: myScore, myElo, oppElo, mode: duelObj.gamemode }),
+        overall: myScore,
+        meta: { mode: duelObj.gamemode, isAi: isAI },
+      });
+    }
 
     try {
       // ── Optimistic local update ───────────────────────────────────────────

@@ -6,6 +6,8 @@ import { setTimerActive, setTimerSeconds } from "@/lib/timerState";
 import { setRecordingActive } from "@/lib/recordingState";
 import { isMobileDevice } from "@/lib/isMobileDevice";
 import { coachImpromptu, transcribeAudio, type ImpromptuCoachReport } from "@/services/geminiService";
+import { logSkillEvent } from "@/lib/skillEvents";
+import { impromptuToDims } from "@/lib/skillScoring";
 import {
   type Difficulty,
   type ImpromptuTopic,
@@ -142,6 +144,29 @@ export function useImpromptuSession() {
   const { markPracticed } = useSyncedStreak();
   const { addSession, history, stats } = useImpromptuHistory();
 
+  // Feed this drill into the AI Coach's skill profile (derived from the metrics
+  // we already compute — no extra AI call).
+  const logImpromptuSkill = useCallback(
+    (report: ImpromptuCoachReport, wpm: number, fillerCount: number, totalWords: number) => {
+      const fwTotal = report.frameworkCheck?.length ?? 0;
+      const fwHits = report.frameworkCheck?.filter((f) => f.hit).length ?? 0;
+      logSkillEvent({
+        userId: user?.id,
+        source: "impromptu",
+        scores: impromptuToDims({
+          score: report.score,
+          wpm,
+          fillerCount,
+          totalWords,
+          frameworkHitRate: fwTotal > 0 ? fwHits / fwTotal : 0,
+        }),
+        overall: report.score,
+        meta: { topicId: topicRef.current?.id, difficulty: topicRef.current?.difficulty },
+      });
+    },
+    [user?.id]
+  );
+
   // ── Derived metrics ─────────────────────────────────────────────────────────
   const totalWords = useMemo(
     () => liveTranscript.split(/\s+/).filter(Boolean).length,
@@ -219,6 +244,7 @@ export function useImpromptuSession() {
         totalWords: finalWords,
         verdict: report.verdict,
       });
+      logImpromptuSkill(report, finalWpm, finalFillers, finalWords);
     } catch {
       setCoachReport(null);
     }
@@ -637,6 +663,7 @@ export function useImpromptuSession() {
               totalWords: words,
               verdict: report.verdict,
             });
+            logImpromptuSkill(report, fbWpm, fillers, words);
           } else {
             setCoachReport(null);
           }

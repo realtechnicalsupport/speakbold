@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
+import { logSkillEvent } from "@/lib/skillEvents";
+import { pathwayToDims } from "@/lib/skillScoring";
 
 export type NodeStatus = "locked" | "available" | "completed" | "tested-out";
 export type NodeType = "lesson" | "test" | "debate" | "duel";
@@ -491,6 +493,14 @@ export const usePathway = () => {
       if (!user) return;
       if (score !== undefined) {
         setDrillScores(prev => ({ ...prev, [id]: [...(prev[id] ?? []), score] }));
+        // Feed this drill into the AI Coach's skill profile.
+        logSkillEvent({
+          userId: user.id,
+          source: "pathway",
+          scores: pathwayToDims(score),
+          overall: score,
+          meta: { lessonId: id },
+        });
       }
       setProgress(prev => {
         const next = { ...prev, [id]: "completed" as NodeStatus };

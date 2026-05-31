@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { BodyLanguageCamera } from "@/components/BodyLanguageCamera";
+import { CoachHub } from "@/components/CoachHub";
 
 // ─── Lab Tools ─────────────────────────────────────────────────────
 const LAB_TOOLS = [
@@ -106,22 +107,28 @@ const Lab = () => {
               exit={{ opacity: 0 }}
               transition={{ duration: 0.3 }}
             >
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="space-y-6 mb-16 max-w-2xl"
-              >
-                <div className="flex items-center gap-4 text-xs font-black uppercase tracking-[0.3em] text-primary">
-                  <FlaskConical className="h-4 w-4" />
-                  THE LAB
-                </div>
-                <h1 className="speak-serif text-4xl md:text-7xl tracking-tighter leading-[0.85]">
-                  Free <span className="text-primary italic">Practice.</span>
-                </h1>
-                <p className="text-base md:text-xl font-medium opacity-40 leading-relaxed">
-                  Practice specific skills on your own terms outside of the main path.
-                </p>
-              </motion.div>
+              {/* ── Main feature: the adaptive AI coach ── */}
+              <CoachHub />
+
+              {/* ── Focused practice: the 4 tracks, below the coach ── */}
+              <div className="border-t border-border/60 pt-12 md:pt-20 mt-12 md:mt-20">
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  className="space-y-4 mb-10 max-w-2xl"
+                >
+                  <div className="flex items-center gap-4 text-xs font-black uppercase tracking-[0.3em] text-primary">
+                    <FlaskConical className="h-4 w-4" />
+                    FOCUSED PRACTICE
+                  </div>
+                  <h2 className="speak-serif text-3xl md:text-5xl tracking-tighter leading-[0.9]">
+                    Or pick a <span className="text-primary italic">focus.</span>
+                  </h2>
+                  <p className="text-base md:text-lg font-medium opacity-40 leading-relaxed">
+                    Practice a specific skill on your own terms, outside the coach's plan.
+                  </p>
+                </motion.div>
 
               <div id="lab-grid" className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {LAB_TOOLS.map((tool, index) => {
@@ -165,6 +172,7 @@ const Lab = () => {
                     </motion.div>
                   );
                 })}
+              </div>
               </div>
             </motion.div>
           ) : (

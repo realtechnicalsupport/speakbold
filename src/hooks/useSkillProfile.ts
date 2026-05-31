@@ -19,26 +19,38 @@ export const useSkillProfile = () => {
     }
     setLoading(true);
     try {
-      const { data: fb } = await supabase
-        .from("recording_feedback")
-        .select("scores, created_at, summary")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(30);
+      // The Coach learns from EVERY surface: standalone recordings
+      // (recording_feedback) PLUS drills/arena/free-practice (skill_events).
+      // Both carry the same partial-dimension `scores` shape.
+      const [fbRes, evRes, profRes] = await Promise.all([
+        supabase
+          .from("recording_feedback")
+          .select("scores, created_at, summary")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(40),
+        (supabase as any)
+          .from("skill_events")
+          .select("scores, created_at")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(60),
+        supabase.from("profiles").select("weaknesses").eq("id", user.id).maybeSingle(),
+      ]);
 
-      // Drop invalid attempts (no meaningful speech).
-      const valid: ScoredFeedback[] = (fb || [])
+      // Drop invalid recording attempts (no meaningful speech).
+      const fromRecordings: ScoredFeedback[] = (fbRes.data || [])
         .filter((r: any) => !String(r?.summary ?? "").startsWith("[INVALID]"))
         .map((r: any) => ({ scores: r.scores ?? {}, created_at: r.created_at }));
 
-      const { data: prof } = await supabase
-        .from("profiles")
-        .select("weaknesses")
-        .eq("id", user.id)
-        .maybeSingle();
-      const weaknesses: string[] = (prof as any)?.weaknesses ?? [];
+      // skill_events table may not exist yet (pre-migration) → evRes.error.
+      const fromEvents: ScoredFeedback[] = (evRes.data || [])
+        .map((r: any) => ({ scores: r.scores ?? {}, created_at: r.created_at }));
 
-      setProfile(computeSkillProfile(valid, weaknesses));
+      const merged = [...fromRecordings, ...fromEvents];
+      const weaknesses: string[] = (profRes.data as any)?.weaknesses ?? [];
+
+      setProfile(computeSkillProfile(merged, weaknesses));
     } catch (err) {
       console.error("[useSkillProfile] failed to compute profile", err);
       setProfile(null);
