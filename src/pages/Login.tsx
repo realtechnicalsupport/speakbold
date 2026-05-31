@@ -38,7 +38,7 @@ const Login = () => {
   const redirectTo =
     (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ||
     nextParam ||
-    "/pathway";
+    "/coach";
 
   useEffect(() => {
     if (session) navigate(redirectTo, { replace: true });

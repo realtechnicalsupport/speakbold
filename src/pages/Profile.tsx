@@ -8,7 +8,6 @@ import { useSyncedStreak, useRecordings, usePracticeDays } from "@/hooks/useReco
 import { useMyXp } from "@/hooks/useLeaderboard";
 import { getLevel } from "@/lib/xp-system";
 import { cn } from "@/lib/utils";
-import { TailoredPlanCard } from "@/components/TailoredPlanCard";
 import { FriendsCompare } from "@/components/FriendsCompare";
 import { EditProfileDialog } from "@/components/EditProfileDialog";
 
@@ -190,8 +189,24 @@ const Profile = () => {
           ))}
         </div>
 
-        {/* ── Tailored plan (performance-based) ── */}
-        <TailoredPlanCard />
+        {/* ── Coach pointer — the adaptive plan now lives in its own hub ── */}
+        <Link
+          to="/coach"
+          className="group flex items-center justify-between gap-4 rounded-[2rem] border border-primary/20 bg-gradient-to-br from-primary/[0.06] via-muted/5 to-transparent p-6 md:p-8 mb-10 md:mb-14 hover:border-primary/40 transition-all overflow-hidden relative"
+        >
+          <div className="absolute -top-16 -right-16 h-40 w-40 rounded-full bg-primary/10 blur-[80px] pointer-events-none" />
+          <div className="relative z-10 flex items-center gap-4">
+            <div className="h-12 w-12 shrink-0 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+              <Sparkles className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.4em] text-primary mb-1">Your AI Coach</p>
+              <p className="speak-serif text-xl md:text-2xl italic tracking-tight">See today's tailored plan</p>
+              <p className="text-xs opacity-50 mt-0.5">Your skill radar and personalized drills.</p>
+            </div>
+          </div>
+          <ArrowRight className="relative z-10 h-5 w-5 opacity-30 group-hover:opacity-100 group-hover:translate-x-1 transition-all shrink-0" />
+        </Link>
 
         {/* ── Tabs ── */}
         <Tabs defaultValue="activity" className="w-full">

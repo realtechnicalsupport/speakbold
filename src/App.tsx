@@ -24,6 +24,7 @@ import CreateEvent from "./pages/CreateEvent";
 import EventDetail from "./pages/EventDetail";
 import Leaderboard from "./pages/Leaderboard";
 import Pathway from "./pages/Pathway";
+import Coach from "./pages/Coach";
 import Lab from "./pages/Lab";
 import Arena from "./pages/Arena";
 import Friends from "./pages/Friends";
@@ -145,6 +146,7 @@ const App = () => {
                   <Route path="/profile" element={<RequireAuth><Profile /></RequireAuth>} />
                   <Route path="/report" element={<RequireAuth><ProgressReport /></RequireAuth>} />
                   <Route path="/leaderboard" element={<RequireAuth><Leaderboard /></RequireAuth>} />
+                  <Route path="/coach" element={<RequireAuth><Coach /></RequireAuth>} />
                   <Route path="/pathway" element={<RequireAuth><Pathway /></RequireAuth>} />
                   <Route path="/lab" element={<RequireAuth><Lab /></RequireAuth>} />
                   <Route path="/arena" element={<RequireAuth><Arena /></RequireAuth>} />

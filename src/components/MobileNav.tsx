@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { User, Map, FlaskConical, Swords, Users } from "lucide-react";
+import { User, Map, FlaskConical, Swords, Users, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { useFriends } from "@/hooks/useFriends";
@@ -7,6 +7,7 @@ import { useFriends } from "@/hooks/useFriends";
 import { ThemeToggle } from "./ThemeToggle";
 
 const NAV_ITEMS = [
+  { to: "/coach", icon: Sparkles, label: "Coach" },
   { to: "/pathway", icon: Map, label: "Path" },
   { to: "/lab", icon: FlaskConical, label: "Lab" },
   { to: "/arena", icon: Swords, label: "Arena" },
@@ -41,7 +42,7 @@ export const MobileNav = () => {
           border: "1px solid hsl(var(--border) / 0.6)",
           borderRadius: "9999px",
           height: "4rem",
-          padding: "0 1.25rem",
+          padding: "0 0.6rem",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
@@ -64,8 +65,8 @@ export const MobileNav = () => {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                width: "2.5rem",
-                height: "2.5rem",
+                width: "2.25rem",
+                height: "2.25rem",
                 borderRadius: "9999px",
                 transition: "color 0.3s, background 0.3s, border-color 0.3s",
                 color: isActive ? "hsl(var(--primary))" : "hsl(var(--foreground) / 0.25)",
@@ -100,7 +101,7 @@ export const MobileNav = () => {
             </NavLink>
           );
         })}
-        <div className="w-px h-6 bg-border/40 mx-1 shrink-0" />
+        <div className="w-px h-6 bg-border/40 mx-0.5 shrink-0" />
         <ThemeToggle />
       </div>
     </nav>

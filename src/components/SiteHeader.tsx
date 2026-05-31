@@ -8,6 +8,7 @@ import { useArena } from "@/hooks/useArena";
 import { FriendsBadge } from "./FriendsBadge";
 
 const NAV = [
+  { to: "/coach", label: "Coach" },
   { to: "/pathway", label: "Pathway" },
   { to: "/lab", label: "The Lab" },
   { to: "/arena", label: "Practice Lounge" },
