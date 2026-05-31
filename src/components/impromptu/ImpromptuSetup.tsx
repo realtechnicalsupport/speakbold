@@ -423,20 +423,20 @@ export const ImpromptuSetup = ({
                 </div>
 
                 {/* Top bar */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2 flex-wrap min-w-0">
                     <span className={cn(
-                      "text-[10px] font-black uppercase tracking-[0.4em] px-3 py-1.5 rounded-full border",
+                      "text-[10px] font-black uppercase tracking-[0.25em] md:tracking-[0.4em] px-3 py-1.5 rounded-full border shrink-0",
                       DIFF_STYLE[diff.color].badge
                     )}>
                       {topic.difficulty}
                     </span>
-                    <span className="text-[10px] font-black uppercase tracking-[0.4em] opacity-25">
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em] md:tracking-[0.4em] opacity-25 min-w-0 truncate">
                       {topic.category}
                     </span>
                     {/* Seen indicator */}
                     {isTopicSeen && (
-                      <span className="flex items-center gap-1 text-[9px] font-black uppercase tracking-widest opacity-25">
+                      <span className="flex items-center gap-1 text-[9px] font-black uppercase tracking-widest opacity-25 shrink-0">
                         <Eye className="h-2.5 w-2.5" />
                         done
                       </span>
@@ -446,7 +446,7 @@ export const ImpromptuSetup = ({
                   <button
                     onClick={onShuffle}
                     aria-label="Shuffle topic"
-                    className="group h-10 w-10 rounded-full border border-border/50 flex items-center justify-center hover:border-primary/40 hover:bg-primary/5 transition-all"
+                    className="group h-10 w-10 rounded-full border border-border/50 flex items-center justify-center hover:border-primary/40 hover:bg-primary/5 transition-all shrink-0"
                   >
                     <Shuffle className="h-3.5 w-3.5 opacity-30 group-hover:opacity-100 group-hover:rotate-180 transition-all duration-500" />
                   </button>
