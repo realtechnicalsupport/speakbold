@@ -2,10 +2,12 @@
 import { Link } from "react-router-dom";
 import { usePathway, TIERS, ALL_LESSONS, type PathwayLesson, type NodeStatus, type PathwayChapter, type PathwayTier, type TierId } from "@/hooks/usePathway";
 import { PlacementTest } from "@/components/PlacementTest";
+import { PlacementGate } from "@/components/PlacementGate";
 import { SiteHeader } from "@/components/SiteHeader";
 import { RecorderPanel } from "@/components/RecorderPanel";
 import { useRecordings, useSyncedStreak } from "@/hooks/useRecordings";
 import { useAuth } from "@/context/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -1047,10 +1049,44 @@ const Pathway = () => {
   const { profile: arenaProfile, completeDuel, handleForfeit } = useArena();
   const { user } = useAuth();
   const [activeDrill, setActiveDrill] = useState<PathwayLesson | null>(null);
-  const [placementOpen, setPlacementOpen] = useState(false);
   // Tracks whether the full-screen PlacementTest modal is open.
-  // placementOpen = inline banner visible; placementTestOpen = full-screen test running.
   const [placementTestOpen, setPlacementTestOpen] = useState(false);
+  // Has the user resolved placement (taken the test or skipped)? localStorage is
+  // an instant cache for this device; profiles.placement_done is the source of
+  // truth so the decision follows them across devices. `placementChecked` gates
+  // the first render until the server answer is in, so a cross-device skipper
+  // never flashes the gate.
+  const [placementSkipped, setPlacementSkipped] = useState(false);
+  const [placementChecked, setPlacementChecked] = useState(false);
+  useEffect(() => {
+    if (!user) {
+      setPlacementSkipped(false);
+      setPlacementChecked(false);
+      return;
+    }
+    const key = `speakbold:placement-skipped:${user.id}`;
+    const localDone = localStorage.getItem(key) === "1";
+    setPlacementSkipped(localDone); // instant: no flash for returning users on this device
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("placement_done")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (cancelled) return;
+      const dbDone = !!(data as any)?.placement_done;
+      const done = localDone || dbDone;
+      setPlacementSkipped(done);
+      if (done) localStorage.setItem(key, "1");
+      // Repair: skipped locally but the server didn't record it → backfill.
+      if (localDone && !dbDone) {
+        await supabase.from("profiles").update({ placement_done: true }).eq("id", user.id);
+      }
+      setPlacementChecked(true);
+    })();
+    return () => { cancelled = true; };
+  }, [user]);
 
   useEffect(() => {
     const locked = !!activeDrill || placementTestOpen;
@@ -1176,14 +1212,6 @@ const Pathway = () => {
     return nextTier ? nextTier.name : null;
   }, [celebrated, chapters]);
 
-  // Offer placement once to fresh users who haven't skipped it.
-  useEffect(() => {
-    if (loading || !user) return;
-    const skipped = localStorage.getItem(`speakbold:placement-skipped:${user.id}`) === "1";
-    const placed = Object.values(progress).some(s => s === "completed" || s === "tested-out");
-    if (!skipped && !placed) setPlacementOpen(true);
-  }, [loading, user, progress]);
-
   // Dev console helpers — window.speakbold.*
   useEffect(() => {
     if (!user) return;
@@ -1196,20 +1224,26 @@ const Pathway = () => {
         }
         applyPlacement(tier as TierId);
         localStorage.setItem(`speakbold:placement-skipped:${user.id}`, "1");
-        setPlacementOpen(false);
+        supabase.from("profiles").update({ placement_done: true }).eq("id", user.id);
+        setPlacementSkipped(true);
         console.log(`[SpeakBold] Placed into: ${tier}`);
       },
       resetPlacement: () => {
         localStorage.removeItem(`speakbold:placement-skipped:${user.id}`);
+        supabase.from("profiles").update({ placement_done: false }).eq("id", user.id);
         const fresh: Record<string, NodeStatus> = {};
         ALL_LESSONS.forEach((l, i) => { fresh[l.id] = i === 0 ? "available" : "locked"; });
         debugSetProgress(fresh);
-        setPlacementOpen(false);
-        console.log("[SpeakBold] Progress cleared — placement offer will reappear on next visit.");
+        setPlacementSkipped(false);
+        setPlacementChecked(true);
+        setPlacementTestOpen(false);
+        console.log("[SpeakBold] Progress cleared — placement gate will reappear.");
       },
       showPlacement: () => {
         localStorage.removeItem(`speakbold:placement-skipped:${user.id}`);
-        setPlacementOpen(true);
+        supabase.from("profiles").update({ placement_done: false }).eq("id", user.id);
+        setPlacementSkipped(false);
+        setPlacementChecked(true);
         setPlacementTestOpen(true);
         console.log("[SpeakBold] Placement test opened.");
       },
@@ -1258,14 +1292,21 @@ const Pathway = () => {
 
   const handlePlace = (tier: TierId) => {
     applyPlacement(tier);
-    if (user) localStorage.setItem(`speakbold:placement-skipped:${user.id}`, "1");
-    setPlacementOpen(false);
+    if (user) {
+      localStorage.setItem(`speakbold:placement-skipped:${user.id}`, "1");
+      supabase.from("profiles").update({ placement_done: true }).eq("id", user.id);
+    }
+    setPlacementSkipped(true);
     setPlacementTestOpen(false);
   };
 
   const handleSkipPlacement = () => {
-    if (user) localStorage.setItem(`speakbold:placement-skipped:${user.id}`, "1");
-    setPlacementOpen(false);
+    if (user) {
+      localStorage.setItem(`speakbold:placement-skipped:${user.id}`, "1");
+      supabase.from("profiles").update({ placement_done: true }).eq("id", user.id);
+    }
+    setPlacementSkipped(true);
+    setPlacementTestOpen(false);
   };
 
   // Derive current drill (first available across all chapters)
@@ -1291,7 +1332,19 @@ const Pathway = () => {
     [chapters, getNodeStatus]
   );
 
-  if (loading) {
+  // A fresh user must resolve placement — take the test or explicitly skip —
+  // before the pathway becomes accessible. Anyone who has already been placed
+  // or made any progress is past the gate.
+  const placedAlready = useMemo(
+    () => Object.values(progress).some((s) => s === "completed" || s === "tested-out"),
+    [progress],
+  );
+  const needsPlacement = !!user && !placementSkipped && !placedAlready;
+  // Wait for the server placement check before first paint — but only when it
+  // could still flip the decision (not locally resolved, not already placed).
+  const awaitingPlacementCheck = !!user && !placementChecked && !placementSkipped && !placedAlready;
+
+  if (loading || awaitingPlacementCheck) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center space-y-8">
         <motion.div
@@ -1313,51 +1366,21 @@ const Pathway = () => {
 
       <SiteHeader />
 
+      {needsPlacement ? (
+        // Gate: pathway is inaccessible until placement is taken or skipped.
+        // While the test modal is open we render nothing here (it covers the
+        // screen); cancelling the test returns to the gate, not the pathway.
+        placementTestOpen ? null : (
+          <PlacementGate
+            userName={user?.email?.split("@")[0] || "Speaker"}
+            onTakeTest={() => setPlacementTestOpen(true)}
+            onSkip={handleSkipPlacement}
+          />
+        )
+      ) : (
+        <>
       {/* Hero with Next-Drill CTA */}
       <section className="px-4 md:container pt-20 md:pt-44 pb-8 lg:pb-16 relative z-10">
-
-        {/* ── Placement banner — inline, non-blocking ─────────────────────── */}
-        <AnimatePresence>
-          {placementOpen && !placementTestOpen && (
-            <motion.div
-              key="placement-banner"
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.35, ease: "circOut" }}
-              className="max-w-4xl mx-auto mb-8 md:mb-10"
-            >
-              <div className="rounded-[2rem] border border-primary/20 bg-primary/5 p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  <div className="h-10 w-10 rounded-[1rem] bg-primary/15 text-primary flex items-center justify-center flex-shrink-0">
-                    <Compass className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold">Find your starting tier</p>
-                    <p className="text-xs opacity-50 mt-0.5">
-                      60-second speaking test — skip anytime and start from the beginning.
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 pl-14 sm:pl-0 flex-shrink-0">
-                  <button
-                    onClick={handleSkipPlacement}
-                    className="text-xs font-black uppercase tracking-widest opacity-30 hover:opacity-80 transition-opacity"
-                  >
-                    Skip
-                  </button>
-                  <button
-                    onClick={() => setPlacementTestOpen(true)}
-                    className="button-pill px-5 py-2.5 bg-primary text-white flex items-center gap-2 hover:scale-[1.02] active:scale-100 transition-transform"
-                  >
-                    <Play className="h-3.5 w-3.5 fill-current" />
-                    <span className="text-xs font-black uppercase tracking-wide">Take the 60s test</span>
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
 
         <NextDrillHero
           currentDrill={currentDrill}
@@ -1431,6 +1454,8 @@ const Pathway = () => {
           </motion.div>
         )}
       </section>
+        </>
+      )}
 
       <AnimatePresence>
         {activeDrill && activeDrill.type === "debate" && (
