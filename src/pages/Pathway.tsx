@@ -1,6 +1,6 @@
 ﻿import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { usePathway, TIERS, ALL_LESSONS, type PathwayLesson, type NodeStatus, type PathwayChapter, type PathwayTier, type TierId } from "@/hooks/usePathway";
+import { usePathway, TIERS, ALL_LESSONS, getLessonTier, type PathwayLesson, type NodeStatus, type PathwayChapter, type PathwayTier, type TierId } from "@/hooks/usePathway";
 import { PlacementTest } from "@/components/PlacementTest";
 import { PlacementGate } from "@/components/PlacementGate";
 import { SiteHeader } from "@/components/SiteHeader";
@@ -716,7 +716,7 @@ const LessonDrill = ({
         return;
       }
 
-      const result = await judgePathwayDrill(userName, transcript, lesson.title, lesson.objective, lesson.prompt, passScore);
+      const result = await judgePathwayDrill(userName, transcript, lesson.title, lesson.objective, lesson.prompt, passScore, getLessonTier(lesson));
       clearTimeout(timeout);
       setAiResult(result);
       setPhase("results");

@@ -390,6 +390,14 @@ const CHAPTERS: PathwayChapter[] = [
 
 export const ALL_LESSONS = CHAPTERS.flatMap(c => c.lessons);
 
+// Tier a lesson belongs to (via its chapter) — drives how leniently the AI
+// judge scores it (gentler at Beginner, stricter at Orator).
+const CHAPTER_TIER: Record<string, TierId> = Object.fromEntries(
+  CHAPTERS.map(c => [c.id, c.tier])
+);
+export const getLessonTier = (lesson: { chapterId: string }): TierId =>
+  CHAPTER_TIER[lesson.chapterId] ?? "beginner";
+
 export const usePathway = () => {
   const { user } = useAuth();
   const [chapters] = useState<PathwayChapter[]>(CHAPTERS);

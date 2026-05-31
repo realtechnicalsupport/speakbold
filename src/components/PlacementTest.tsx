@@ -105,7 +105,9 @@ export const PlacementTest = ({ userName, onPlace, onSkip }: {
         userName, transcript,
         "Placement Assessment",
         "Speak clearly and persuasively about a real experience.",
-        PLACEMENT_PROMPT, 60
+        // Neutral grading for placement — tier banding below depends on it, so
+        // it must NOT use the lenient Beginner calibration.
+        PLACEMENT_PROMPT, 60, "intermediate"
       );
       clearTimeout(timeout);
       setResult({ tier: tierForScore(judged.score), feedback: judged.feedback });
