@@ -1,11 +1,26 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageCircle, X, Send, Loader2, Sparkles, Navigation } from "lucide-react";
+import { MessageCircle, X, Send, Loader2, Sparkles, Navigation, Mic, Target } from "lucide-react";
 import { useChat } from "@/context/ChatContext";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { useTimerActive } from "@/lib/timerState";
+import { generateCoachDrill } from "@/services/geminiService";
+import { getSkillProfileFor } from "@/lib/coachContext";
+import { CoachDrillRunner } from "@/components/CoachDrillRunner";
+import type { AdaptiveDrill } from "@/lib/skillProfile";
+
+// Suggested openers shown on an empty chat — discoverability for what the coach can do.
+const SUGGESTIONS = [
+  "What should I practice today?",
+  "Give me a drill for my weakest skill",
+  "How am I doing?",
+  "Run a mock interview",
+];
+
+const getSR = (): any =>
+  typeof window !== "undefined" ? (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition : null;
 
 // Session flag so dismissing the FAB hides it until the next tab open. We use
 // sessionStorage (not localStorage) so the coach reappears next session — the
@@ -18,6 +33,47 @@ export const AICoachChat = () => {
   const [inputText, setInputText] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+
+  // Launch a coach drill straight from chat (record → judge → back into radar).
+  const [activeDrill, setActiveDrill] = useState<AdaptiveDrill | null>(null);
+  const [drillLoading, setDrillLoading] = useState(false);
+  const startDrill = async (dimension?: string) => {
+    if (!user || drillLoading) return;
+    setDrillLoading(true);
+    try {
+      const profile = await getSkillProfileFor(user.id);
+      const drill = await generateCoachDrill(profile, dimension as any);
+      setIsOpen(false);
+      setActiveDrill(drill);
+    } catch (e) {
+      console.warn("[AICoachChat] drill generation failed", e);
+    } finally {
+      setDrillLoading(false);
+    }
+  };
+
+  // Voice input — speak to the coach (on-brand for a speaking app).
+  const [listening, setListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+  const voiceSupported = !!getSR();
+  const toggleVoice = () => {
+    const SR = getSR();
+    if (!SR) return;
+    if (listening) { recognitionRef.current?.stop(); return; }
+    const rec = new SR();
+    rec.lang = "en-US";
+    rec.interimResults = true;
+    rec.continuous = false;
+    rec.onresult = (e: any) => {
+      const t = Array.from(e.results).map((r: any) => r[0].transcript).join("");
+      setInputText(t);
+    };
+    rec.onend = () => setListening(false);
+    rec.onerror = () => setListening(false);
+    recognitionRef.current = rec;
+    setListening(true);
+    try { rec.start(); } catch { setListening(false); }
+  };
   // Hide the FAB during timed drills — same signal MobileNav uses. Coach
   // popping over a live recording panel is purely distracting.
   const timerActive = useTimerActive();
@@ -149,10 +205,22 @@ export const AICoachChat = () => {
             {/* Messages Area */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
               {messages.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-center p-6 opacity-50">
-                  <MessageCircle className="h-12 w-12 mb-4 text-primary opacity-50" />
-                  <p className="text-sm font-black uppercase tracking-widest">How can I help you improve today?</p>
-                  <p className="text-[11px] mt-2 italic">Ask about public speaking techniques or ask me to take you to a specific page.</p>
+                <div className="h-full flex flex-col items-center justify-center text-center px-4">
+                  <MessageCircle className="h-12 w-12 mb-4 text-primary opacity-40" />
+                  <p className="text-sm font-black uppercase tracking-widest opacity-60">How can I help you improve?</p>
+                  <p className="text-[11px] mt-2 italic opacity-40">Ask for advice, a drill, a mock interview — or to be taken anywhere in the app.</p>
+                  <div className="flex flex-wrap justify-center gap-2 mt-6">
+                    {SUGGESTIONS.map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => sendMessage(s)}
+                        disabled={isLoading}
+                        className="px-3 py-2 rounded-full border border-primary/25 bg-primary/[0.04] text-[11px] font-semibold text-primary/80 hover:bg-primary/10 hover:border-primary/40 transition-all disabled:opacity-50"
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               ) : (
                 messages.map((msg, idx) => (
@@ -191,6 +259,19 @@ export const AICoachChat = () => {
                           Take Me There
                         </motion.button>
                       )}
+
+                      {msg.action === "start_drill" && (
+                        <motion.button
+                          initial={{ opacity: 0, y: 5 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          onClick={() => startDrill(msg.drill_dimension)}
+                          disabled={drillLoading}
+                          className="flex items-center gap-2 px-4 py-2 bg-primary text-white shadow-glow rounded-xl text-xs font-black uppercase tracking-widest hover:scale-[1.03] transition-all w-fit group disabled:opacity-50"
+                        >
+                          {drillLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Target className="h-3 w-3 group-hover:rotate-12 transition-transform" />}
+                          {drillLoading ? "Preparing…" : "Start this drill"}
+                        </motion.button>
+                      )}
                     </div>
                   </motion.div>
                 ))
@@ -214,10 +295,28 @@ export const AICoachChat = () => {
                   type="text"
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
-                  placeholder="Ask for advice or say 'Take me to the Arena'..."
+                  placeholder={listening ? "Listening…" : "Ask, request a drill, or 'Take me to the Arena'…"}
                   disabled={isLoading}
-                  className="w-full bg-muted/30 border border-border rounded-full pl-6 pr-14 py-4 text-sm focus:border-primary focus:outline-none transition-colors disabled:opacity-50"
+                  className={cn(
+                    "w-full bg-muted/30 border rounded-full pl-6 py-4 text-sm focus:border-primary focus:outline-none transition-colors disabled:opacity-50",
+                    voiceSupported ? "pr-24" : "pr-14",
+                    listening ? "border-primary" : "border-border",
+                  )}
                 />
+                {voiceSupported && (
+                  <button
+                    type="button"
+                    onClick={toggleVoice}
+                    aria-label={listening ? "Stop voice input" : "Speak to the coach"}
+                    className={cn(
+                      "absolute right-12 h-10 w-10 rounded-full flex items-center justify-center transition-all",
+                      listening ? "bg-primary/15 text-primary" : "text-foreground/40 hover:text-primary hover:bg-muted/40",
+                    )}
+                  >
+                    {listening && <span className="absolute inset-0 rounded-full bg-primary/20 animate-ping" />}
+                    <Mic className="h-4 w-4 relative" />
+                  </button>
+                )}
                 <button
                   type="submit"
                   disabled={!inputText.trim() || isLoading}
@@ -230,6 +329,11 @@ export const AICoachChat = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Coach drill launched from chat — record → judge → into the radar */}
+      {activeDrill && (
+        <CoachDrillRunner drill={activeDrill} onClose={() => setActiveDrill(null)} />
+      )}
     </>
   );
 };

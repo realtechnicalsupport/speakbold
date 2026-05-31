@@ -95,7 +95,7 @@ export interface AdaptivePlan {
 }
 
 const ROLLING_WINDOW = 10; // most-recent N recordings feed the averages
-const MIN_SAMPLES = 3; // below this total => cold start
+const MIN_SAMPLES = 1; // one scored session activates the coach (exits cold start)
 const STALE_DAYS = 14;
 const TREND_THRESHOLD = 5; // points of change to count as improving/declining
 

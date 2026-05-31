@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./AuthContext";
 import { chatWithAssistant } from "@/services/geminiService";
+import { buildCoachContext } from "@/lib/coachContext";
 import { useLocation, useNavigate } from "react-router-dom";
 
 export type ChatMessage = {
@@ -10,6 +11,8 @@ export type ChatMessage = {
   content: string;
   created_at?: string;
   navigate_to?: string;
+  action?: "start_drill";
+  drill_dimension?: string;
 };
 
 interface ChatContextType {
@@ -71,22 +74,30 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
       content: text
     });
 
-    // Prepare context for AI
-    const currentContext = {
+    // Prepare context for AI — the user's real coaching state (skills, streak,
+    // rank, plan). Falls back to the minimal context if the lookup fails.
+    let currentContext: any = {
       pathname: location.pathname,
       userName: user.email?.split("@")[0] || "User",
     };
+    try {
+      currentContext = await buildCoachContext(user.id, location.pathname, user.email?.split("@")[0] || "User");
+    } catch (e) {
+      console.warn("[ChatContext] coach context unavailable", e);
+    }
 
     // Call AI
     const historyForAi = [...messages, newUserMsg].slice(-10); // Send last 10 messages for context
     const aiResponse = await chatWithAssistant(historyForAi, currentContext);
 
     const aiMsgId = crypto.randomUUID();
-    const newAiMsg: ChatMessage = { 
-      id: aiMsgId, 
-      role: "assistant", 
+    const newAiMsg: ChatMessage = {
+      id: aiMsgId,
+      role: "assistant",
       content: aiResponse.text,
-      navigate_to: aiResponse.navigateTo 
+      navigate_to: aiResponse.navigateTo,
+      action: aiResponse.action,
+      drill_dimension: aiResponse.drillDimension,
     };
 
     // Update UI

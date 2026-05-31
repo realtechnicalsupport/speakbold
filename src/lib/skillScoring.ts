@@ -69,6 +69,26 @@ export function arenaToDims(p: {
   return dims;
 }
 
+/**
+ * Coach drill → the targeted dimension (from the AI judge) plus measurable
+ * delivery signals derived from the same speech (pace from WPM, clarity from
+ * filler density). One drill enriches several spokes honestly.
+ */
+export function coachToDims(p: {
+  score: number;
+  targetDimension: Dimension;
+  wpm?: number;
+  fillerCount?: number;
+  totalWords?: number;
+}): DimScores {
+  const dims: DimScores = { [p.targetDimension]: clamp(p.score) };
+  if (typeof p.wpm === "number" && p.wpm > 0) dims.pace = paceScore(p.wpm);
+  if (typeof p.fillerCount === "number" && typeof p.totalWords === "number" && p.totalWords > 0) {
+    dims.clarity = clarityScore(p.fillerCount, p.totalWords);
+  }
+  return dims;
+}
+
 /** Pass-through of audio-analysis scores (recording_feedback shape). */
 export function analyzeToDims(scores: Record<string, number>): DimScores {
   const out: DimScores = {};

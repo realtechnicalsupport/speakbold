@@ -108,3 +108,46 @@ The whole pitch lives or dies on making the adaptive loop *visible fast*. Budget
 - **History storage:** decision 4 above.
 - **Nav crowding:** decision 5 above.
 - **Cold-start in demos:** §6 — the biggest experiential risk.
+
+---
+
+## 9. Phase 6 — Coach-native practice (the AI makes & runs its own drills)
+
+**Goal:** the Coach stops merely *routing* you to other tracks — it generates a drill for your weakest dimension, **runs it inside the Coach** (record → transcribe → dimension-focused AI judge → feedback), and feeds the result straight back into your skill profile as a `source: "coach"` event. The whole improve-loop closes inside the Coach.
+
+### Already exists (reuse — don't rebuild)
+- `generateAdaptivePlan` → `AdaptiveDrill[]` with `prompt`, `targetDimension`, `durationSeconds`, `rationale`. **Generation half is done.**
+- `coachToDims(...)` + the `"coach"` source in `skillEvents.ts` — the normalizer for a coach drill (target dim from the judge + pace/clarity derived from the same speech). **Scaffolding already in place.**
+- `RecorderPanel` + `transcribeAudio` + the `LessonDrill` runner pattern (phases `idle → recording → analyzing → results`, TTS coach voice, retry, mic-error guards).
+- `useSkillProfile` already merges `skill_events`, so a finished coach drill **moves the radar immediately** + fires the celebration on first activation.
+
+### New pieces to build
+1. **`judgeCoachDrill(prompt, transcript, dimension, durationSeconds)`** in `geminiService` — a *dimension-focused* judge returning `{ score, feedback, strengths, improvement, exampleLine }`. The rubric shifts per target dimension:
+   - Clarity → filler words / articulation / concision
+   - Structure → opening · throughline · close
+   - Confidence → assertiveness vs hedging
+   - Message Quality → substance / specificity
+   - Pace → handled numerically from WPM (not the LLM)
+   Mirrors `judgePathwayDrill` but targeted; deterministic fallback on failure.
+2. **`<CoachDrill>`** — a self-contained modal runner modeled on `LessonDrill`: shows the AI prompt + target-skill badge, records for `durationSeconds`, transcribes, calls `judgeCoachDrill`, shows focused feedback (+ optional TTS). On finish:
+   - `logSkillEvent({ source: "coach", scores: coachToDims({ score, targetDimension, wpm, fillerCount, totalWords }), overall, meta })`
+   - `markPracticed()` (streak) + optional recording upload.
+3. **Launch from CoachHub** — "Today's session" rows open `<CoachDrill>` **in-coach** instead of routing to a track. (If `targetDimension === "delivery"`, route to the **camera** track instead — audio can't score body language.)
+4. **(Optional) On-demand generation** — a *"Give me another {dimension} drill"* button → `generateCoachDrill(dimension, profile)` (single-drill variant) → opens `CoachDrill` immediately. Unlimited targeted practice on tap.
+
+### Data flow
+weakest dimension → AI prompt → `CoachDrill` records → `transcribeAudio` → `judgeCoachDrill` (dimension-focused score) → `coachToDims` → `skill_events(source: coach)` → `useSkillProfile` merge → radar + plan update.
+
+### Decisions to confirm (before building)
+1. **Judge:** new dimension-focused `judgeCoachDrill` *(recommended — sharper, on-target feedback)* vs reuse the generic `judgePathwayDrill`.
+2. **Routing:** replace the plan rows' track-routing with the in-coach `CoachDrill` run *(recommended)* — keep an "open full track" secondary link, or drop it?
+3. **On-demand generator** (`generateCoachDrill` + "another drill" button): build now or defer?
+4. **`delivery` target** → route to the camera/body-language track *(recommended)* since an audio drill can't measure it.
+
+### Risks
+- Each coach drill = 1 transcription + 1 judge call (cost/latency) — same envelope as existing drills.
+- Mic permission / no-speech → reuse `LessonDrill`'s guards.
+- Pace/clarity need WPM + filler counts: desktop live Web Speech gives them directly; mobile derives from the transcribed text (mirror impromptu).
+
+### Build sequence
+`judgeCoachDrill` + fallback → `<CoachDrill>` runner → wire CoachHub rows (delivery → camera) → log `skill_event(source: coach)` → *(optional)* `generateCoachDrill` + "another drill" button.

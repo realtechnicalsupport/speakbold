@@ -7,6 +7,7 @@ export type SkillSource =
   | "pathway"
   | "arena"
   | "recording"
+  | "coach"
   | "interview"
   | "public-speaking";
 
