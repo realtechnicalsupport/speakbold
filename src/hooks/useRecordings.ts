@@ -177,12 +177,14 @@ const daysBetween = (a: string, b: string) =>
 export const useSyncedStreak = () => {
   const { user } = useAuth();
   const [count, setCount] = useState(0);
+  const [best, setBest] = useState(0);
   const [lastDay, setLastDay] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) {
       // Reset state when user logs out
       setCount(0);
+      setBest(0);
       setLastDay(null);
       return;
     }
@@ -193,13 +195,17 @@ export const useSyncedStreak = () => {
         .eq("user_id", user.id)
         .maybeSingle();
       if (data) {
+        // best is the longest run ever — never decreases, even when the current
+        // streak breaks. Fall back to current count for pre-migration rows.
+        const storedBest = Math.max((data as any).best_count ?? 0, data.count ?? 0);
+        setBest(storedBest);
         // auto-break if gap >1 day
         if (data.last_day && daysBetween(data.last_day, todayKey()) >1) {
           setCount(0);
           setLastDay(data.last_day);
           await supabase
             .from("streaks")
-            .update({ count: 0 })
+            .update({ count: 0, best_count: storedBest })
             .eq("user_id", user.id);
         } else {
           setCount(data.count ?? 0);
@@ -207,6 +213,7 @@ export const useSyncedStreak = () => {
         }
       } else {
         setCount(0);
+        setBest(0);
         setLastDay(null);
       }
     })();
@@ -218,12 +225,58 @@ export const useSyncedStreak = () => {
     if (lastDay === today) return;
     const gap = lastDay ? daysBetween(lastDay, today) : Infinity;
     const next = gap === 1 ? count + 1 : 1;
+    const nextBest = Math.max(best, next);
     setCount(next);
+    setBest(nextBest);
     setLastDay(today);
     await supabase
       .from("streaks")
-      .upsert({ user_id: user.id, count: next, last_day: today }, { onConflict: "user_id" });
-  }, [user, lastDay, count]);
+      .upsert(
+        { user_id: user.id, count: next, best_count: nextBest, last_day: today },
+        { onConflict: "user_id" },
+      );
+    // Log the practiced day — the single source the activity chart reads from,
+    // so it can never disagree with the streak. (No-op until the migration is
+    // applied; the error is swallowed by the client.)
+    await supabase
+      .from("practice_days")
+      .upsert({ user_id: user.id, day: today }, { onConflict: "user_id,day" });
+  }, [user, lastDay, count, best]);
 
-  return { count, practicedToday: lastDay === todayKey(), markPracticed };
+  return { count, best, practicedToday: lastDay === todayKey(), markPracticed };
+};
+
+/**
+ * The set of calendar days (YYYY-MM-DD) the user has practiced — the same data
+ * that drives the streak. The profile activity chart + "days practiced" stat
+ * read from here so they stay consistent with the streak counter.
+ */
+export const usePracticeDays = () => {
+  const { user } = useAuth();
+  const [days, setDays] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!user) {
+      setDays(new Set());
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      const { data } = await supabase
+        .from("practice_days")
+        .select("day")
+        .eq("user_id", user.id);
+      if (!cancelled) {
+        setDays(new Set((data ?? []).map((r: any) => String(r.day).slice(0, 10))));
+        setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  return { days, count: days.size, loading };
 };

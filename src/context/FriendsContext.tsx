@@ -13,6 +13,7 @@ export interface Friend {
   elo: number;
   rank: ReturnType<typeof getRankFromElo>;
   streak: number;
+  bestStreak: number;
   lastActiveAt: string | null;
   status: FriendStatus;
   acceptedAt: string | null;
@@ -84,7 +85,7 @@ export const FriendsProvider = ({ children }: { children: React.ReactNode }) => 
           .in("id", otherIds),
         (supabase as any)
           .from("streaks")
-          .select("user_id, count")
+          .select("user_id, count, best_count")
           .in("user_id", otherIds),
         (supabase as any)
           .from("user_xp")
@@ -96,7 +97,11 @@ export const FriendsProvider = ({ children }: { children: React.ReactNode }) => 
       for (const p of profilesRes.data ?? []) profileMap[p.id] = p;
 
       const streakMap: Record<string, number> = {};
-      for (const s of streaksRes.data ?? []) streakMap[s.user_id] = s.count ?? 0;
+      const bestStreakMap: Record<string, number> = {};
+      for (const s of streaksRes.data ?? []) {
+        streakMap[s.user_id] = s.count ?? 0;
+        bestStreakMap[s.user_id] = Math.max(s.best_count ?? 0, s.count ?? 0);
+      }
 
       const xpMap: Record<string, number> = {};
       for (const x of xpRes.data ?? []) xpMap[x.user_id] = x.total_xp ?? 0;
@@ -132,6 +137,7 @@ export const FriendsProvider = ({ children }: { children: React.ReactNode }) => 
           elo,
           rank: getRankFromElo(elo),
           streak: streakMap[otherId] ?? 0,
+          bestStreak: bestStreakMap[otherId] ?? 0,
           lastActiveAt: profile.last_active_at ?? null,
           status,
           acceptedAt: row.accepted_at ?? null,

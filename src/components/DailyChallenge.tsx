@@ -1,7 +1,7 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Play, Pause, RotateCcw, Flame, CheckCircle2, Sparkles, ShieldCheck, Target, Microscope, Zap, Clock } from "lucide-react";
-import { useStreak } from "@/hooks/useStreak";
+import { useSyncedStreak } from "@/hooks/useRecordings";
 import { RecorderPanel } from "@/components/RecorderPanel";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -55,7 +55,7 @@ export const DailyChallenge = () => {
   const [running, setRunning] = useState(false);
   const [finished, setFinished] = useState(false);
   const ref = useRef<number | null>(null);
-  const { count, practicedToday, markPracticed } = useStreak();
+  const { count, practicedToday, markPracticed } = useSyncedStreak();
   const sectionRef = useRef(null);
   const isInView = useFramerInView(sectionRef, { once: true, margin: "-100px" });
   

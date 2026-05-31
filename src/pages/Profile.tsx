@@ -1,14 +1,17 @@
-﻿import { useEffect, useMemo, useState } from "react";
+﻿import { useMemo } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { Flame, Trophy, Mic, Calendar, Sparkles, Target, Lock, Check, ArrowRight, Zap, Play, ShieldCheck, Microscope, FileText } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/context/AuthContext";
-import { useSyncedStreak, useRecordings } from "@/hooks/useRecordings";
+import { useSyncedStreak, useRecordings, usePracticeDays } from "@/hooks/useRecordings";
 import { useMyXp } from "@/hooks/useLeaderboard";
+import { getLevel } from "@/lib/xp-system";
 import { cn } from "@/lib/utils";
 import { DailyChallenges } from "@/components/DailyChallenges";
 import { TailoredPlanCard } from "@/components/TailoredPlanCard";
+import { FriendsCompare } from "@/components/FriendsCompare";
+import { EditProfileDialog } from "@/components/EditProfileDialog";
 
 type Challenge = {
   id: string;
@@ -33,27 +36,23 @@ const CHALLENGES: Challenge[] = [
 
 const Profile = () => {
   const { user, loading } = useAuth();
-  const { count: streak, practicedToday } = useSyncedStreak();
+  // `best` is now DB-backed (streaks.best_count) — survives browser clears and
+  // device switches, and is what friends compare against.
+  const { count: streak, practicedToday, best: bestStreak } = useSyncedStreak();
   const { items } = useRecordings();
   const { xp: userXP } = useMyXp();
-  const [bestStreak, setBestStreak] = useState<number>(0);
-
-  useEffect(() => {
-    const key = "speakbold.bestStreak";
-    const stored = Number(localStorage.getItem(key) ?? "0");
-    const best = Math.max(stored, streak);
-    if (best !== stored) localStorage.setItem(key, String(best));
-    setBestStreak(best);
-  }, [streak]);
+  // Activity chart + "days practiced" both read the practice log — same source
+  // as the streak — so they can't disagree with the streak counter.
+  const { days: practiceDays, count: practiceDayCount } = usePracticeDays();
+  const level = getLevel(userXP ?? 0);
 
   const stats = useMemo(() => {
-    const days = new Set(items.map((r) => r.created_at.slice(0, 10))).size;
     const totalMs = items.reduce((acc, r) => acc + (r.duration_ms ?? 0), 0);
-    return { recordings: items.length, days, minutes: Math.round(totalMs / 60000) };
+    return { recordings: items.length, minutes: Math.round(totalMs / 60000) };
   }, [items]);
 
   const valueFor = (m: Challenge["metric"]) =>
-    m === "recordings" ? stats.recordings : m === "streak" ? Math.max(streak, bestStreak) : stats.days;
+    m === "recordings" ? stats.recordings : m === "streak" ? Math.max(streak, bestStreak) : practiceDayCount;
 
   const initials = (user?.email ?? "?").slice(0, 2).toUpperCase();
   const displayName = (user?.user_metadata as any)?.display_name ?? user?.email?.split("@")[0] ?? "Speaker";
@@ -65,7 +64,7 @@ const Profile = () => {
     const d = new Date();
     d.setDate(d.getDate() - (6 - i));
     const key = d.toISOString().slice(0, 10);
-    const hit = items.some((r) => r.created_at.slice(0, 10) === key);
+    const hit = practiceDays.has(key);
     return { key, hit, label: d.toLocaleDateString(undefined, { weekday: "short" })[0] };
   });
 
@@ -98,9 +97,12 @@ const Profile = () => {
 
           {/* Identity */}
           <div className="flex-1 min-w-0 space-y-4 md:space-y-6">
-            <div className="flex items-center gap-3 text-xs font-black uppercase tracking-widest text-primary">
-              <ShieldCheck className="h-4 w-4" />
-              Active member
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 text-xs font-black uppercase tracking-widest text-primary">
+                <ShieldCheck className="h-4 w-4" />
+                Active member
+              </div>
+              <EditProfileDialog userId={user.id} currentName={displayName} />
             </div>
             <h1 className="speak-serif text-3xl md:text-6xl lg:text-8xl leading-[0.9] tracking-tighter">
               Hello, <span className="text-primary italic">{displayName}</span>.
@@ -120,31 +122,47 @@ const Profile = () => {
                 <span className="text-xs md:text-xs font-black uppercase tracking-[0.2em]">VIEW PROGRESS REPORT</span>
               </Link>
               {userXP !== undefined && (
-                <div className="flex flex-col">
-                  <span className="text-[11px] md:text-xs font-black uppercase tracking-[0.3em] opacity-40">TOTAL XP</span>
-                  <span className="speak-serif text-xl md:text-3xl italic text-primary">{userXP} XP</span>
+                <div className="flex flex-col gap-1.5 min-w-[180px]">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="text-[11px] md:text-xs font-black uppercase tracking-[0.2em]">
+                      <span className="text-primary">Lv {level.level}</span>
+                      <span className="opacity-40"> · {level.title}</span>
+                    </span>
+                    <span className="text-[10px] font-black uppercase tracking-widest opacity-30 tabular-nums">{userXP} XP</span>
+                  </div>
+                  <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden border border-border/60">
+                    <div
+                      className="h-full bg-primary shadow-glow shadow-primary/40 transition-all duration-700"
+                      style={{ width: `${level.progressPct}%` }}
+                    />
+                  </div>
+                  <span className="text-[10px] font-bold uppercase tracking-widest opacity-30">
+                    {level.isMax ? "Max level reached" : `${level.xpToNext} XP to Lv ${level.level + 1}`}
+                  </span>
                 </div>
               )}
             </div>
 
-            {/* Utility Tools */}
-            <div className="pt-6 flex flex-wrap items-center gap-4 border-t border-border/40">
-              <p className="text-[10px] font-black uppercase tracking-widest opacity-20 w-full mb-2">Dev tools</p>
-              <button 
-                onClick={() => (window as any).resetOnboarding?.()}
-                className="text-[10px] font-black uppercase tracking-[0.2em] opacity-30 hover:opacity-100 hover:text-primary transition-all flex items-center gap-2"
-              >
-                <Zap className="h-3 w-3" />
-                RESET ONBOARDING & PATHWAY
-              </button>
-              <button 
-                onClick={() => (window as any).startTutorial?.()}
-                className="text-[10px] font-black uppercase tracking-[0.2em] opacity-30 hover:opacity-100 hover:text-primary transition-all flex items-center gap-2"
-              >
-                <Sparkles className="h-3 w-3" />
-                REPLAY TUTORIAL
-              </button>
-            </div>
+            {/* Dev tools — destructive (account reset), so DEV builds only. */}
+            {import.meta.env.DEV && (
+              <div className="pt-6 flex flex-wrap items-center gap-4 border-t border-border/40">
+                <p className="text-[10px] font-black uppercase tracking-widest opacity-20 w-full mb-2">Dev tools</p>
+                <button
+                  onClick={() => (window as any).resetOnboarding?.()}
+                  className="text-[10px] font-black uppercase tracking-[0.2em] opacity-30 hover:opacity-100 hover:text-primary transition-all flex items-center gap-2"
+                >
+                  <Zap className="h-3 w-3" />
+                  RESET ONBOARDING & PATHWAY
+                </button>
+                <button
+                  onClick={() => (window as any).startTutorial?.()}
+                  className="text-[10px] font-black uppercase tracking-[0.2em] opacity-30 hover:opacity-100 hover:text-primary transition-all flex items-center gap-2"
+                >
+                  <Sparkles className="h-3 w-3" />
+                  REPLAY TUTORIAL
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -253,6 +271,9 @@ const Profile = () => {
                 </div>
               </div>
             </div>
+
+            {/* Social comparison — how your streak stacks up against friends. */}
+            <FriendsCompare defaultMetric="streak" />
           </TabsContent>
 
           {/* ─ RECORDINGS TAB ─ */}
