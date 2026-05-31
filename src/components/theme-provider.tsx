@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from "react"
+import { createContext, useContext, useEffect, useRef, useState } from "react"
 
 type Theme = "dark" | "light" | "system"
 
@@ -29,9 +29,19 @@ export function ThemeProvider({
   const [theme, setTheme] = useState<Theme>(
     () => (localStorage.getItem(storageKey) as Theme) || defaultTheme
   )
+  const firstRun = useRef(true)
 
   useEffect(() => {
     const root = window.document.documentElement
+
+    // Opt into the slow, luxurious cross-fade only for an actual user-initiated
+    // theme switch — never on the initial paint (no flash on load).
+    let fadeTimer: number | undefined
+    if (!firstRun.current) {
+      root.classList.add("theme-fade")
+      fadeTimer = window.setTimeout(() => root.classList.remove("theme-fade"), 650)
+    }
+    firstRun.current = false
 
     root.classList.remove("light", "dark")
 
@@ -42,10 +52,13 @@ export function ThemeProvider({
         : "light"
 
       root.classList.add(systemTheme)
-      return
+    } else {
+      root.classList.add(theme)
     }
 
-    root.classList.add(theme)
+    return () => {
+      if (fadeTimer) window.clearTimeout(fadeTimer)
+    }
   }, [theme])
 
   const value = {

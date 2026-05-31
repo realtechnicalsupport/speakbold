@@ -64,12 +64,19 @@ export const ImpactBanner = () => {
     fetchStats();
   }, []);
 
+  // Live metrics only become persuasive at scale. Below this floor, raw counts
+  // ("7 speakers joined") advertise an empty room — so until the community is
+  // big enough to impress, we show scale-independent value props instead. This
+  // also lets the section render instantly (no data-dependent layout pop-in).
+  const LEARNER_FLOOR = 250;
+  const showNumbers = loaded && stats.learners >= LEARNER_FLOOR;
+
   const metrics = [
     {
       icon: Globe,
       value: stats.learners,
       suffix: "",
-      label: "Operators joined",
+      label: "Speakers joined",
       color: "text-blue-500",
       bg: "bg-blue-500/10",
     },
@@ -99,7 +106,13 @@ export const ImpactBanner = () => {
     },
   ];
 
-  if (!loaded) return null;
+  // Scale-independent proof — true on day one, no embarrassing counts.
+  const valueProps = [
+    { icon: Sparkles, title: "Instant AI feedback", desc: "Scored in seconds", color: "text-purple-500", bg: "bg-purple-500/10" },
+    { icon: Mic, title: "Unlimited drills", desc: "Practice as much as you want", color: "text-primary", bg: "bg-primary/10" },
+    { icon: Clock, title: "5 minutes a day", desc: "A tiny habit, real gains", color: "text-emerald-500", bg: "bg-emerald-500/10" },
+    { icon: Globe, title: "Free for everyone", desc: "Any device, anywhere", color: "text-blue-500", bg: "bg-blue-500/10" },
+  ];
 
   return (
     <section className="relative z-10 px-4 md:container pb-24">
@@ -113,44 +126,71 @@ export const ImpactBanner = () => {
       >
         <div className="inline-flex items-center gap-3 text-xs font-black uppercase tracking-[0.6em] text-primary">
           <div className="h-1.5 w-1.5 rounded-full bg-primary animate-ping" />
-          SDG 4 · LIVE PLATFORM IMPACT
+          {showNumbers ? "SDG 4 · LIVE PLATFORM IMPACT" : "SDG 4 · BUILT FOR EVERYONE"}
         </div>
         <h2 className="speak-serif text-3xl md:text-6xl tracking-tighter leading-none">
-          Real learners. <span className="text-primary italic">Real growth.</span>
+          {showNumbers ? (
+            <>Real speakers. <span className="text-primary italic">Real growth.</span></>
+          ) : (
+            <>Everything you need to <span className="text-primary italic">get better</span>.</>
+          )}
         </h2>
         <p className="text-sm font-medium opacity-40 max-w-lg mx-auto leading-relaxed">
-          Real-time telemetry showing the global growth of our learner community.
+          {showNumbers
+            ? "Real-time telemetry showing the global growth of our speaking community."
+            : "Free, AI-powered speaking practice — open to anyone, anywhere."}
         </p>
       </motion.div>
 
-      {/* Stats Grid */}
+      {/* Stats / value grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6 max-w-6xl mx-auto">
-        {metrics.map((metric, i) => {
-          const Icon = metric.icon;
-          return (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, scale: 0.9 }}
-              whileInView={{ opacity: 1, scale: 1 }}
-              viewport={{ once: true }}
-              transition={{ delay: i * 0.1, duration: 0.6, type: "spring" }}
-              className="group relative bg-muted/5 border border-border/60 rounded-[1.5rem] md:rounded-[2rem] p-5 md:p-8 text-center space-y-3 md:space-y-4 hover:border-primary/30 transition-all duration-700 overflow-hidden"
-            >
-              {/* Icon */}
-              <div className={`h-10 w-10 md:h-14 md:w-14 rounded-[0.75rem] md:rounded-[1rem] ${metric.bg} ${metric.color} flex items-center justify-center mx-auto`}>
-                <Icon className="h-5 w-5 md:h-7 md:w-7" />
-              </div>
-              {/* Animated number */}
-              <div className={`speak-serif text-3xl md:text-5xl font-bold italic ${metric.color} tabular-nums leading-none`}>
-                <AnimatedNumber value={metric.value} suffix={metric.suffix} />
-              </div>
-              {/* Label */}
-              <p className="text-[10px] md:text-[11px] font-black uppercase tracking-[0.2em] md:tracking-[0.3em] opacity-30 leading-snug group-hover:opacity-60 transition-opacity">
-                {metric.label}
-              </p>
-            </motion.div>
-          );
-        })}
+        {showNumbers
+          ? metrics.map((metric, i) => {
+              const Icon = metric.icon;
+              return (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  whileInView={{ opacity: 1, scale: 1 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: i * 0.1, duration: 0.6, type: "spring" }}
+                  className="group relative bg-muted/5 border border-border/60 rounded-[1.5rem] md:rounded-[2rem] p-5 md:p-8 text-center space-y-3 md:space-y-4 hover:border-primary/30 transition-all duration-700 overflow-hidden"
+                >
+                  <div className={`h-10 w-10 md:h-14 md:w-14 rounded-[0.75rem] md:rounded-[1rem] ${metric.bg} ${metric.color} flex items-center justify-center mx-auto`}>
+                    <Icon className="h-5 w-5 md:h-7 md:w-7" />
+                  </div>
+                  <div className={`speak-serif text-3xl md:text-5xl font-bold italic ${metric.color} tabular-nums leading-none`}>
+                    <AnimatedNumber value={metric.value} suffix={metric.suffix} />
+                  </div>
+                  <p className="text-[10px] md:text-[11px] font-black uppercase tracking-[0.2em] md:tracking-[0.3em] opacity-30 leading-snug group-hover:opacity-60 transition-opacity">
+                    {metric.label}
+                  </p>
+                </motion.div>
+              );
+            })
+          : valueProps.map((vp, i) => {
+              const Icon = vp.icon;
+              return (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  whileInView={{ opacity: 1, scale: 1 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: i * 0.1, duration: 0.6, type: "spring" }}
+                  className="group relative bg-muted/5 border border-border/60 rounded-[1.5rem] md:rounded-[2rem] p-5 md:p-8 text-center space-y-3 md:space-y-4 hover:border-primary/30 transition-all duration-700 overflow-hidden"
+                >
+                  <div className={`h-10 w-10 md:h-14 md:w-14 rounded-[0.75rem] md:rounded-[1rem] ${vp.bg} ${vp.color} flex items-center justify-center mx-auto`}>
+                    <Icon className="h-5 w-5 md:h-7 md:w-7" />
+                  </div>
+                  <p className={`speak-serif text-xl md:text-3xl font-bold italic ${vp.color} leading-tight`}>
+                    {vp.title}
+                  </p>
+                  <p className="text-[10px] md:text-[11px] font-black uppercase tracking-[0.2em] md:tracking-[0.3em] opacity-30 leading-snug group-hover:opacity-60 transition-opacity">
+                    {vp.desc}
+                  </p>
+                </motion.div>
+              );
+            })}
       </div>
 
       <motion.div

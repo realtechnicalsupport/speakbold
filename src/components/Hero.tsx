@@ -1,9 +1,13 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { motion } from "framer-motion";
+import { Mic } from "lucide-react";
+import { LiveTrialDrill } from "@/components/LiveTrialDrill";
 
 export const Hero = () => {
   const { user } = useAuth();
+  const [trialOpen, setTrialOpen] = useState(false);
 
   return (
     <section className="relative min-h-[100dvh] flex flex-col items-center justify-center overflow-hidden bg-background bg-waves">
@@ -51,7 +55,7 @@ export const Hero = () => {
                   key={i}
                   initial={{ y: 100, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
-                  transition={{ duration: 0.8, delay: 0.2 + i * 0.1, ease: [0.16, 1, 0.3, 1] }}
+                  transition={{ duration: 0.6, delay: 0.08 + i * 0.05, ease: [0.16, 1, 0.3, 1] }}
                   className="speak-serif leading-[0.85] text-foreground tracking-tighter inline-block"
                   style={{ fontSize: "clamp(3.75rem, 17vw, 140px)" }}
                 >
@@ -100,41 +104,64 @@ export const Hero = () => {
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ duration: 1, delay: 0.6 }}
+          transition={{ duration: 0.7, delay: 0.35 }}
           className="text-base md:text-2xl font-medium tracking-tight mb-10 md:mb-20 max-w-lg text-foreground/60 leading-relaxed"
         >
-          Real practice. Instant AI feedback. Become a{" "}
-          <span className="text-primary italic">confident speaker</span> — free.
+          Mind blank in interviews. Voice shaky on stage. Practice out loud, get
+          instant AI feedback, and become{" "}
+          <span className="text-primary italic">unshakeable</span> — free.
         </motion.p>
 
-        {/* CTAs — stacked + full-width on mobile, side by side on sm+ */}
+        {/* CTA — one decisive primary action. Logged-out visitors see a single
+            "Start free" so there's no choice to make; logged-in users get the
+            two meaningfully-distinct destinations (learn vs. compete). */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 1.4 }}
+          transition={{ duration: 0.6, delay: 0.5 }}
           className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto"
         >
-          <Link
-            to={user ? "/pathway" : "/login"}
-            className="group w-full sm:w-auto relative flex items-center justify-center gap-6 px-8 sm:px-10 py-4 rounded-full bg-primary text-white hover:scale-105 active:scale-95 transition-all duration-300 overflow-hidden shadow-glow"
-          >
-            <span className="text-white text-xl font-serif">✱</span>
-            <span className="text-sm font-black uppercase tracking-wide">
-              {user ? "Continue learning" : "Start learning"}
-            </span>
-            <span className="text-white text-xl font-serif">✱</span>
-          </Link>
+          {user ? (
+            <>
+              <Link
+                to="/pathway"
+                className="group w-full sm:w-auto relative flex items-center justify-center gap-6 px-8 sm:px-10 py-4 rounded-full bg-primary text-white hover:scale-105 active:scale-95 transition-all duration-300 overflow-hidden shadow-glow"
+              >
+                <span className="text-white text-xl font-serif">✱</span>
+                <span className="text-sm font-black uppercase tracking-wide">Continue learning</span>
+                <span className="text-white text-xl font-serif">✱</span>
+              </Link>
 
-          <Link
-            to={user ? "/arena" : "/login"}
-            className="group w-full sm:w-auto relative flex items-center justify-center gap-6 px-8 sm:px-10 py-4 rounded-full border border-primary/30 hover:border-primary hover:bg-primary/5 active:scale-95 transition-all duration-300 overflow-hidden"
-          >
-            <span className="text-primary text-xl font-serif">⚡</span>
-            <span className="text-sm font-black uppercase tracking-wide text-primary">
-              Practice now
-            </span>
-            <span className="text-primary text-xl font-serif">⚡</span>
-          </Link>
+              <Link
+                to="/arena"
+                className="group w-full sm:w-auto relative flex items-center justify-center gap-6 px-8 sm:px-10 py-4 rounded-full border border-primary/30 hover:border-primary hover:bg-primary/5 active:scale-95 transition-all duration-300 overflow-hidden"
+              >
+                <span className="text-primary text-xl font-serif">⚡</span>
+                <span className="text-sm font-black uppercase tracking-wide text-primary">Practice now</span>
+                <span className="text-primary text-xl font-serif">⚡</span>
+              </Link>
+            </>
+          ) : (
+            <>
+              {/* Aha-first: the friction-free trial is the primary action, the
+                  signup wall comes after they've felt the magic. */}
+              <button
+                onClick={() => setTrialOpen(true)}
+                className="group w-full sm:w-auto relative flex items-center justify-center gap-4 px-8 sm:px-10 py-4 rounded-full bg-primary text-white hover:scale-105 active:scale-95 transition-all duration-300 overflow-hidden shadow-glow"
+              >
+                <Mic className="h-4 w-4" />
+                <span className="text-sm font-black uppercase tracking-wide">Try a 30-second drill</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest opacity-70 hidden sm:inline">no signup</span>
+              </button>
+
+              <Link
+                to="/login?mode=signup"
+                className="group w-full sm:w-auto relative flex items-center justify-center gap-3 px-8 sm:px-10 py-4 rounded-full border border-primary/30 hover:border-primary hover:bg-primary/5 active:scale-95 transition-all duration-300"
+              >
+                <span className="text-sm font-black uppercase tracking-wide text-primary">Start free</span>
+              </Link>
+            </>
+          )}
         </motion.div>
       </div>
 
@@ -147,6 +174,8 @@ export const Hero = () => {
           <span>MASTER</span>
         </div>
       </div>
+
+      <LiveTrialDrill open={trialOpen} onClose={() => setTrialOpen(false)} />
     </section>
   );
 };

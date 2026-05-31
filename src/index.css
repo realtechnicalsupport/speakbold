@@ -52,6 +52,13 @@
 
   * {
     border-color: hsl(var(--border));
+    /* Snappy by default so hovers feel instant. The slow, luxurious cross-fade
+       is reserved for theme switches via the .theme-fade class toggled on
+       <html> for the duration of the light/dark swap. */
+    transition: background-color 0.18s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.18s cubic-bezier(0.4, 0, 0.2, 1), color 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  html.theme-fade * {
     transition: background-color 0.6s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.6s cubic-bezier(0.4, 0, 0.2, 1), color 0.6s cubic-bezier(0.4, 0, 0.2, 1);
   }
 

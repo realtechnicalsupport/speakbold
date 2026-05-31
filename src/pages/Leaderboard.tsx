@@ -30,8 +30,8 @@ const Leaderboard = () => {
   if (loading) return null;
   if (!user) return <Navigate to="/login" replace />;
 
-  const myRank = me ? getRankFromElo(me.elo) : null;
-  const myRankInfo = me ? getNextRankInfo(me.elo) : null;
+  const myRank = me?.ranked ? getRankFromElo(me.elo) : null;
+  const myRankInfo = me?.ranked ? getNextRankInfo(me.elo) : null;
   const myProgPct = myRankInfo
     ? Math.min(100, Math.max(0, (myRankInfo.offsetInRank / (myRankInfo.nextRankFloor - myRankInfo.rankFloor || 1)) * 100))
     : 0;
@@ -61,13 +61,14 @@ const Leaderboard = () => {
 
         {/* User Standing Card */}
         <AnimatePresence>
-          {me && myRank && myRankInfo && (
-            <motion.div 
+          {me && (
+            <motion.div
               initial={{ opacity: 0, y: 40 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2, duration: 1 }}
               className="grid lg:grid-cols-[1fr_400px] gap-6 md:gap-8 mb-12 md:mb-40"
             >
+              {me.ranked && myRank && myRankInfo ? (
               <div className="relative glass-card rounded-3xl md:rounded-[4rem] p-6 md:p-12 lg:p-20 overflow-hidden shadow-soft group">
                 <div className="absolute top-0 right-0 p-8 md:p-16 opacity-5 pointer-events-none group-hover:opacity-10 transition-opacity duration-1000">
                   <Trophy className="h-32 w-32 md:h-64 md:w-64 text-primary" />
@@ -118,6 +119,33 @@ const Leaderboard = () => {
                   </div>
                 </div>
               </div>
+              ) : (
+              /* Unranked — fresh account that hasn't earned a rating yet.
+                 Show "Unranked" instead of the default 1000 / Silver II. */
+              <div className="relative glass-card rounded-3xl md:rounded-[4rem] p-6 md:p-12 lg:p-20 overflow-hidden shadow-soft group">
+                <div className="absolute top-0 right-0 p-8 md:p-16 opacity-5 pointer-events-none group-hover:opacity-10 transition-opacity duration-1000">
+                  <Trophy className="h-32 w-32 md:h-64 md:w-64 text-primary" />
+                </div>
+
+                <div className="relative space-y-8 md:space-y-16">
+                  <div className="space-y-3 md:space-y-6">
+                    <p className="text-xs font-black uppercase tracking-widest text-primary">My standing</p>
+                    <div className="flex items-baseline gap-4 md:gap-8">
+                      <span className="speak-serif text-5xl md:text-[9rem] font-bold tracking-tighter italic leading-none opacity-40">
+                        Unranked
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="pt-6 md:pt-16 border-t border-border/60 space-y-3 md:space-y-5">
+                    <p className="text-[10px] md:text-xs font-black uppercase tracking-widest opacity-30">No rating yet</p>
+                    <p className="text-sm md:text-xl font-medium tracking-tight opacity-60 leading-relaxed max-w-md">
+                      Finish your first Arena battle to earn an ELO rating and claim a spot on the global board.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              )}
 
               <div className="glass-card rounded-3xl md:rounded-[4rem] p-5 md:p-12 space-y-6 md:space-y-12 flex flex-col justify-between relative overflow-hidden shadow-soft">
                 <div className="space-y-6 md:space-y-10">

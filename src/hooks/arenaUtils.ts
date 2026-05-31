@@ -47,6 +47,17 @@ export const RANK_SPAN = TIER_SPAN * 3; // 600
 /** Flat penalty applied when the user self-forfeits. */
 export const FORFEIT_PENALTY = 30;
 
+/**
+ * Is this ELO an *earned* rating, or a brand-new account still sitting at the
+ * default? A fresh profile is created at exactly `STARTING_ELO` and stays there
+ * until its first completed battle moves the needle. Such accounts are
+ * "unranked" — the leaderboard hides them from the board (`.neq("elo", …)`) and
+ * the user's own standing card shows "Unranked" instead of a fabricated rank.
+ * Centralised here so every surface applies the rule identically.
+ */
+export const isRankedElo = (elo: number | null | undefined): boolean =>
+  elo != null && elo !== STARTING_ELO;
+
 // ── Rank thresholds ─────────────────────────────────────────────────────────
 // With STARTING_ELO = 1000 a new player begins inside Silver (II).
 //   Bronze:   0   – 599

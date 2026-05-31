@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
-import { getRankFromElo, getRankColor, STARTING_ELO } from "@/hooks/arenaUtils";
+import { getRankFromElo, getRankColor, STARTING_ELO, isRankedElo } from "@/hooks/arenaUtils";
 import { arenaEmitter } from "@/lib/events";
 
 interface LeaderRow {
@@ -18,6 +18,7 @@ export const ArenaLeaderboardPreview = () => {
   const { user } = useAuth();
   const [top, setTop] = useState<LeaderRow[]>([]);
   const [myRank, setMyRank] = useState<number | null>(null);
+  const [myRanked, setMyRanked] = useState(true);
   const [totalPlayers, setTotalPlayers] = useState<number>(0);
   const [loading, setLoading] = useState(true);
 
@@ -39,14 +40,6 @@ export const ArenaLeaderboardPreview = () => {
         .eq("id", user.id)
         .maybeSingle();
 
-      // Ranked players above me (= my rank - 1), excluding default-ELO accounts.
-      const myElo = meData?.elo ?? 0;
-      const { count: above } = await supabase
-        .from("profiles")
-        .select("id", { count: "exact", head: true })
-        .neq("elo", STARTING_ELO)
-        .gt("elo", myElo);
-
       // Total ranked players (excludes default-ELO accounts).
       const { count: total } = await supabase
         .from("profiles")
@@ -60,8 +53,24 @@ export const ArenaLeaderboardPreview = () => {
           elo: r.elo ?? 0,
         }))
       );
-      setMyRank((above ?? 0) + 1);
       setTotalPlayers(total ?? 0);
+
+      // A fresh account still at the default ELO is unranked — don't fabricate
+      // a position for a rating it hasn't earned.
+      const myElo = meData?.elo ?? 0;
+      const ranked = isRankedElo(myElo);
+      setMyRanked(ranked);
+      if (ranked) {
+        // Ranked players above me (= my rank - 1), excluding default-ELO accounts.
+        const { count: above } = await supabase
+          .from("profiles")
+          .select("id", { count: "exact", head: true })
+          .neq("elo", STARTING_ELO)
+          .gt("elo", myElo);
+        setMyRank((above ?? 0) + 1);
+      } else {
+        setMyRank(null);
+      }
     } catch (err) {
       console.error("[ArenaLeaderboardPreview] Failed to load:", err);
     } finally {
@@ -108,7 +117,16 @@ export const ArenaLeaderboardPreview = () => {
         </div>
 
         {/* Your placement */}
-        {myRank !== null && (
+        {!loading && !myRanked && (
+          <div className="mb-5 p-4 rounded-2xl bg-background/50 border border-border/60">
+            <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-1">YOUR RANK</p>
+            <div className="flex items-baseline gap-2">
+              <span className="speak-serif text-3xl font-bold italic opacity-50">Unranked</span>
+            </div>
+            <p className="text-[10px] font-bold opacity-40 mt-1">Win an Arena battle to earn your rating.</p>
+          </div>
+        )}
+        {myRanked && myRank !== null && (
           <div className="mb-5 p-4 rounded-2xl bg-background/50 border border-border/60">
             <div className="flex items-center justify-between">
               <div>

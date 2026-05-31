@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { arenaEmitter } from "@/lib/events";
-import { STARTING_ELO } from "@/hooks/arenaUtils";
+import { STARTING_ELO, isRankedElo } from "@/hooks/arenaUtils";
 
 export type LeaderboardRow = {
   id: string;
@@ -10,10 +10,18 @@ export type LeaderboardRow = {
   elo: number;
 };
 
+export type MyStanding = {
+  elo: number;
+  /** Board position (1-based), or null while unranked. */
+  rank: number | null;
+  /** False until the account earns its first non-default rating. */
+  ranked: boolean;
+};
+
 export const useLeaderboard = (limit = 50) => {
   const { user } = useAuth();
   const [rows, setRows] = useState<LeaderboardRow[]>([]);
-  const [me, setMe] = useState<{ elo: number; rank: number } | null>(null);
+  const [me, setMe] = useState<MyStanding | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchLeaderboard = useCallback(async () => {
@@ -50,7 +58,8 @@ export const useLeaderboard = (limit = 50) => {
       if (user) {
         const mine = list.find((r) => r.id === user.id);
         if (mine) {
-          setMe({ elo: mine.elo, rank: list.indexOf(mine) + 1 });
+          // Present in the (already default-filtered) board → genuinely ranked.
+          setMe({ elo: mine.elo, rank: list.indexOf(mine) + 1, ranked: true });
         } else {
           const { data: self } = await supabase
             .from("profiles")
@@ -58,13 +67,19 @@ export const useLeaderboard = (limit = 50) => {
             .eq("id", user.id)
             .maybeSingle();
           const myElo = self?.elo ?? 0;
-          // Count of ranked (non-default) players strictly above me.
-          const { count: above } = await supabase
-            .from("profiles")
-            .select("id", { count: "exact", head: true })
-            .neq("elo", STARTING_ELO)
-            .gt("elo", myElo);
-          setMe({ elo: myElo, rank: (above ?? 0) + 1 });
+          if (!isRankedElo(myElo)) {
+            // Brand-new account still at the default ELO — show "Unranked"
+            // rather than fabricating a rank from a rating they never earned.
+            setMe({ elo: myElo, rank: null, ranked: false });
+          } else {
+            // Ranked, but outside the top `limit` — count players above me.
+            const { count: above } = await supabase
+              .from("profiles")
+              .select("id", { count: "exact", head: true })
+              .neq("elo", STARTING_ELO)
+              .gt("elo", myElo);
+            setMe({ elo: myElo, rank: (above ?? 0) + 1, ranked: true });
+          }
         }
       }
       setLoading(false);

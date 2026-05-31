@@ -12,7 +12,16 @@ import { motion, AnimatePresence } from "framer-motion";
 type AuthMode = "login" | "signup" | "forgot";
 
 const Login = () => {
-  const [mode, setMode] = useState<AuthMode>("login");
+  // Cold traffic from the landing trial / invite links arrives wanting to
+  // *create* an account — default them to signup so a brand-new visitor never
+  // lands on a returning-user "Sign in" form. `?mode=login` opts back out.
+  const [mode, setMode] = useState<AuthMode>(() => {
+    const p = new URLSearchParams(window.location.search);
+    const m = p.get("mode");
+    if (m === "login") return "login";
+    if (m === "signup" || p.get("next")) return "signup";
+    return "login";
+  });
   const [showPass, setShowPass] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -106,14 +115,14 @@ const Login = () => {
             transition={{ duration: 0.8 }}
           >
             <div className="text-xs font-bold uppercase tracking-[0.4em] mb-8 opacity-40">
-              ESTABLISH PRESENCE
+              SPEAK WITH CONFIDENCE
             </div>
             <h1 className="speak-serif text-5xl md:text-7xl leading-[0.95] text-foreground tracking-tighter mb-8">
               Build your <br />
               <span className="text-primary italic">voice</span>.
             </h1>
             <p className="text-lg font-medium tracking-tight opacity-40 max-w-sm leading-relaxed">
-              Track your streak. Save your recordings. Secure your position in the global hierarchy.
+              Track your streak, save your recordings, and watch yourself get sharper every week.
             </p>
           </motion.div>
 
@@ -130,7 +139,7 @@ const Login = () => {
         </div>
 
         <div className="text-xs font-bold uppercase tracking-[0.5em] opacity-20">
-          OPERATIONAL SECURITY v2.4
+          FREE FOREVER · NO CREDIT CARD
         </div>
       </div>
 
@@ -145,14 +154,14 @@ const Login = () => {
           <div className="space-y-6">
             <div className="flex items-center gap-4 text-primary text-xs font-bold tracking-[0.4em] uppercase">
               <span className="h-px w-8 bg-primary" />
-              {mode === "login" ? "IDENTITY VERIFICATION" : mode === "signup" ? "INITIALIZE ACCOUNT" : "RESET PROTOCOL"}
+              {mode === "login" ? "WELCOME BACK" : mode === "signup" ? "FREE ACCOUNT" : "RESET PASSWORD"}
             </div>
             <h2 className="speak-serif text-4xl md:text-5xl leading-tight">
               {mode === "login"
-                ? "Sign in to your account"
+                ? "Welcome back"
                 : mode === "signup"
-                ? "Join the hierarchy"
-                : "Recover your profile"}
+                ? "Create your free account"
+                : "Reset your password"}
             </h2>
           </div>
 
@@ -163,6 +172,33 @@ const Login = () => {
              </div>
              
             <form onSubmit={handleSubmit} className="space-y-8 relative z-10">
+              {/* Frictionless path first — one tap, no password, no email
+                  confirmation round-trip. The email form is the fallback. */}
+              {mode !== "forgot" && (
+                <div className="space-y-6">
+                  <button
+                    type="button"
+                    onClick={handleGoogle}
+                    disabled={loading}
+                    className="w-full h-14 rounded-2xl border border-border bg-background/60 flex items-center justify-center gap-3 hover:bg-muted/20 hover:border-primary/40 transition-all font-semibold"
+                  >
+                    <svg width="20" height="20" viewBox="0 0 18 18" aria-hidden="true">
+                      <path d="M17.64 9.205c0-.639-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4" />
+                      <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="#34A853" />
+                      <path d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05" />
+                      <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58z" fill="#EA4335" />
+                    </svg>
+                    {mode === "signup" ? "Sign up with Google" : "Continue with Google"}
+                  </button>
+
+                  <div className="relative flex items-center gap-4">
+                    <span className="flex-1 h-px bg-border/60" />
+                    <span className="text-xs font-bold uppercase tracking-widest opacity-20">or with email</span>
+                    <span className="flex-1 h-px bg-border/60" />
+                  </div>
+                </div>
+              )}
+
               <AnimatePresence mode="wait">
                 {mode === "signup" && (
                   <motion.div 
@@ -252,32 +288,11 @@ const Login = () => {
                 ) : (
                   <>
                     <span className="text-sm font-black uppercase tracking-[0.2em]">
-                      {mode === "login" ? "SIGN IN" : mode === "signup" ? "INITIALIZE" : "SEND LINK"}
+                      {mode === "login" ? "SIGN IN" : mode === "signup" ? "CREATE ACCOUNT" : "SEND RESET LINK"}
                     </span>
                     <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
                   </>
                 )}
-              </button>
-
-              <div className="relative flex items-center gap-4 py-2">
-                <span className="flex-1 h-px bg-border/60" />
-                <span className="text-xs font-bold uppercase tracking-widest opacity-20">OR</span>
-                <span className="flex-1 h-px bg-border/60" />
-              </div>
-
-              <button
-                type="button"
-                onClick={handleGoogle}
-                disabled={loading}
-                className="w-full h-14 rounded-2xl border border-border/60 flex items-center justify-center gap-4 hover:bg-muted/10 transition-all font-medium opacity-60 hover:opacity-100"
-              >
-                <svg width="20" height="20" viewBox="0 0 18 18" aria-hidden="true">
-                  <path d="M17.64 9.205c0-.639-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4" />
-                  <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="#34A853" />
-                  <path d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05" />
-                  <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58z" fill="#EA4335" />
-                </svg>
-                Continue with Google
               </button>
             </form>
           </div>
