@@ -4,11 +4,12 @@ import { MessageCircle, X, Send, Loader2, Sparkles, Navigation, Mic, Target } fr
 import { useChat } from "@/context/ChatContext";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useTimerActive } from "@/lib/timerState";
 import { generateCoachDrill } from "@/services/geminiService";
 import { getSkillProfileFor } from "@/lib/coachContext";
 import { CoachDrillRunner } from "@/components/CoachDrillRunner";
+import { useCoachNudge } from "@/hooks/useCoachNudge";
 import type { AdaptiveDrill } from "@/lib/skillProfile";
 
 // Suggested openers shown on an empty chat — discoverability for what the coach can do.
@@ -33,6 +34,7 @@ export const AICoachChat = () => {
   const [inputText, setInputText] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Launch a coach drill straight from chat (record → judge → back into radar).
   const [activeDrill, setActiveDrill] = useState<AdaptiveDrill | null>(null);
@@ -82,6 +84,21 @@ export const AICoachChat = () => {
     try { return sessionStorage.getItem(FAB_DISMISSED_KEY) === "1"; } catch { return false; }
   });
 
+  // Gentle proactive nudge — only computed when the FAB could be shown (never
+  // during drills). Rendered above the FAB, so it inherits all its hide rules.
+  const { nudge, dismiss: dismissNudge } = useCoachNudge({
+    enabled: !!user && !timerActive,
+    pathname: location.pathname,
+  });
+
+  // Auto-hide the nudge after a short while so it never lingers.
+  useEffect(() => {
+    if (!nudge) return;
+    const t = window.setTimeout(() => dismissNudge(), 12000);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nudge]);
+
   // Auto-scroll to bottom when messages change
   useEffect(() => {
     if (messagesEndRef.current) {
@@ -123,6 +140,44 @@ export const AICoachChat = () => {
             // there is no MobileNav so we keep the original `bottom-8` spacing.
             className="fixed right-6 z-50 bottom-[calc(env(safe-area-inset-bottom,0px)+6.5rem)] lg:bottom-8"
           >
+            {/* Proactive nudge — small, dismissible, anchored above the FAB.
+                Width is viewport-capped so it never overflows on mobile. */}
+            <AnimatePresence>
+              {nudge && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                  transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                  className="absolute bottom-full right-0 mb-3 w-[min(16rem,calc(100vw-3rem))] origin-bottom-right"
+                >
+                  <div className="relative glass-card rounded-2xl p-3.5 shadow-soft border border-primary/25">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); dismissNudge(); }}
+                      aria-label="Dismiss"
+                      className="absolute top-2 right-2 h-5 w-5 rounded-full flex items-center justify-center opacity-40 hover:opacity-100 transition-opacity"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                    <div className="flex items-start gap-2.5 pr-4">
+                      <div className="h-7 w-7 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
+                        <Sparkles className="h-3.5 w-3.5 text-primary" />
+                      </div>
+                      <p className="text-xs leading-snug opacity-80">{nudge.message}</p>
+                    </div>
+                    <button
+                      onClick={() => { startDrill(nudge.dimension); dismissNudge(); }}
+                      disabled={drillLoading}
+                      className="mt-3 w-full py-2 rounded-full bg-primary text-white text-[10px] font-black uppercase tracking-widest shadow-glow hover:scale-[1.02] active:scale-95 transition-transform disabled:opacity-50 inline-flex items-center justify-center gap-2"
+                    >
+                      {drillLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Target className="h-3 w-3" />}
+                      {nudge.ctaLabel}
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             <button
               onClick={() => setIsOpen(true)}
               id="coach-chat-trigger"
