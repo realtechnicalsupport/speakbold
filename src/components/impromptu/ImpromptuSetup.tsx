@@ -318,10 +318,13 @@ export const ImpromptuSetup = ({
         )}
       </AnimatePresence>
 
-      <div className="grid lg:grid-cols-[1fr_360px] gap-8 lg:gap-12">
+      <div className="grid lg:grid-cols-[minmax(0,1fr)_360px] gap-8 lg:gap-12">
 
         {/* ── LEFT: Topic hero ────────────────────────────────────────────── */}
-        <div className="space-y-6">
+        {/* min-w-0 so no wide child (stats pills, long topic/category) can push
+            the column past the viewport on mobile — the root cause of the
+            "cards extend beyond the screen" overflow. */}
+        <div className="space-y-6 min-w-0">
 
           {/* Stats strip */}
           {stats.totalSessions > 0 && (
@@ -562,7 +565,7 @@ export const ImpromptuSetup = ({
         </div>
 
         {/* ── RIGHT: Config + BEGIN ──────────────────────────────────────── */}
-        <aside>
+        <aside className="min-w-0">
           <div className="sticky top-28 space-y-4">
 
             {/* Duration */}
