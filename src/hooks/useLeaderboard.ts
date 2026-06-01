@@ -66,11 +66,13 @@ export const useLeaderboard = (limit = 50) => {
             .select("elo")
             .eq("id", user.id)
             .maybeSingle();
-          const myElo = self?.elo ?? 0;
+          // Keep NULL as NULL — coalescing to 0 would make isRankedElo() read
+          // an unranked account as a genuine rating of 0 and fabricate a rank.
+          const myElo = self?.elo ?? null;
           if (!isRankedElo(myElo)) {
-            // Brand-new account still at the default ELO — show "Unranked"
+            // Brand-new account with no earned rating — show "Unranked"
             // rather than fabricating a rank from a rating they never earned.
-            setMe({ elo: myElo, rank: null, ranked: false });
+            setMe({ elo: myElo ?? 0, rank: null, ranked: false });
           } else {
             // Ranked, but outside the top `limit` — count players above me.
             const { count: above } = await supabase

@@ -184,7 +184,7 @@ export const CoachHub = () => {
 
             {/* ── LEFT: Radar + skills ── */}
             <div className="space-y-8">
-              <div className="rounded-[2.5rem] border border-primary/20 bg-gradient-to-br from-primary/[0.06] via-muted/5 to-transparent p-6 md:p-8 relative overflow-hidden">
+              <div id="tour-coach-radar" className="rounded-[2.5rem] border border-primary/20 bg-gradient-to-br from-primary/[0.06] via-muted/5 to-transparent p-6 md:p-8 relative overflow-hidden">
                 <div className="absolute -top-20 -right-20 h-48 w-48 rounded-full bg-primary/10 blur-[90px] pointer-events-none" />
                 <p className="text-[10px] font-black uppercase tracking-[0.4em] opacity-40 mb-4 relative z-10">Your skill profile</p>
                 <div className="relative z-10 text-foreground">
@@ -246,7 +246,7 @@ export const CoachHub = () => {
             </div>
 
             {/* ── RIGHT: Today's session ── */}
-            <div className="space-y-4">
+            <div id="tour-today-session" className="space-y-4">
               <div className="flex items-center justify-between">
                 <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Today's session</p>
                 {plan && <span className="text-[10px] font-bold uppercase tracking-widest opacity-30">{plan.drills.length} drills</span>}

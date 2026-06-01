@@ -38,7 +38,7 @@ import { MicrophoneBorder } from "./components/MicrophoneBorder";
 import { ArenaProvider } from "./context/ArenaContext";
 import { ChatProvider } from "./context/ChatContext";
 import { OnboardingModal } from "./components/OnboardingModal";
-import { TutorialOverlay } from "./components/TutorialOverlay";
+import { GuidedTour } from "./components/GuidedTour";
 import { FloatingNodes } from "./components/FloatingNodes";
 import { AICoachChat } from "./components/AICoachChat";
 import { GlobalStatusBar } from "./components/GlobalStatusBar";
@@ -100,7 +100,7 @@ const App = () => {
             <ReminderWrapper>
               <BrowserRouter>
                 <FloatingNodes />
-                <TutorialOverlay />
+                <GuidedTour />
                 <ChatProvider>
               
               {/* Global Background Elements */}

@@ -48,12 +48,14 @@ export const RANK_SPAN = TIER_SPAN * 3; // 600
 export const FORFEIT_PENALTY = 30;
 
 /**
- * Is this ELO an *earned* rating, or a brand-new account still sitting at the
- * default? A fresh profile is created at exactly `STARTING_ELO` and stays there
- * until its first completed battle moves the needle. Such accounts are
- * "unranked" — the leaderboard hides them from the board (`.neq("elo", …)`) and
- * the user's own standing card shows "Unranked" instead of a fabricated rank.
- * Centralised here so every surface applies the rule identically.
+ * Is this ELO an *earned* rating, or a brand-new account that hasn't battled?
+ * New signups now store `NULL` elo (genuinely unranked — see the
+ * 20260601_elo_unranked_default migration) and only get a number after their
+ * first completed battle. The legacy cohort was back-filled to exactly
+ * `STARTING_ELO`, so we treat that value as unranked too. Such accounts are
+ * "unranked" — the leaderboard hides them from the board (`.neq("elo", …)`,
+ * which also drops NULLs) and the user's own standing card shows "Unranked"
+ * instead of a fabricated rank. Centralised so every surface applies it alike.
  */
 export const isRankedElo = (elo: number | null | undefined): boolean =>
   elo != null && elo !== STARTING_ELO;
