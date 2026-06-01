@@ -115,10 +115,6 @@ const App = () => {
                 {/* Global Scanlines */}
                 <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.05)_50%),linear-gradient(90deg,rgba(255,0,0,0.02),rgba(0,255,0,0.01),rgba(0,0,255,0.02))] z-[100] pointer-events-none bg-[length:100%_4px,3px_100%] opacity-[0.03] dark:opacity-[0.07]" />
 
-                {/* Decorative Lines */}
-                <div className="absolute top-0 left-1/4 w-px h-screen bg-gradient-to-b from-transparent via-border/20 to-transparent" />
-                <div className="absolute top-0 right-1/4 w-px h-screen bg-gradient-to-b from-transparent via-border/20 to-transparent" />
-
                 {/* Desktop-only single glass accent */}
                 <div className="hidden lg:block absolute top-[15%] left-[5%] w-32 h-32 border border-white/5 rounded-3xl bg-white/[0.03] opacity-20 rotate-12" />
 

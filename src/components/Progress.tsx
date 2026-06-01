@@ -1,7 +1,8 @@
 ﻿import { Trophy, ArrowRight, Target, Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getRankFromElo, getRankEmblem } from "@/hooks/arenaUtils";
+import { getRankFromElo } from "@/hooks/arenaUtils";
+import { RankEmblem } from "@/components/RankEmblem";
 import { useLeaderboard } from "@/hooks/useLeaderboard";
 import { useAuth } from "@/context/AuthContext";
 import { motion, useInView } from "framer-motion";
@@ -97,9 +98,7 @@ export const Progress = () => {
                         )}>
                           {position}
                         </span>
-                        <div className="h-12 w-12 rounded-full bg-background/10 flex items-center justify-center text-2xl shadow-inner">
-                          {getRankEmblem(rankData.name)}
-                        </div>
+                        <RankEmblem rank={rankData} size="md" />
                         <div>
                           <p className={cn(
                             "text-xs font-black tracking-widest uppercase",

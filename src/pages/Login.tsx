@@ -281,7 +281,7 @@ const Login = () => {
               <button
                 type="submit"
                 disabled={loading}
-                className="button-pill w-full py-5 bg-primary text-white flex items-center justify-center gap-4 group shadow-glow"
+                className="btn-tactile btn-tactile-primary w-full py-5 rounded-full flex items-center justify-center gap-4 group disabled:opacity-70"
               >
                 {loading ? (
                   <span className="text-xs font-black uppercase tracking-[0.3em] animate-pulse">PROCESSING...</span>

@@ -4,7 +4,8 @@ import { Flame, Zap, MoreHorizontal, User, Swords, UserMinus } from "lucide-reac
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Friend } from "@/hooks/useFriends";
-import { getRankEmblem, getRankColor } from "@/hooks/arenaUtils";
+import { getRankColor } from "@/hooks/arenaUtils";
+import { RankEmblem } from "@/components/RankEmblem";
 import { useFriends } from "@/hooks/useFriends";
 
 function formatRelativeTime(dateStr: string | null): string {
@@ -35,7 +36,6 @@ export const FriendCard = ({ friend }: FriendCardProps) => {
   };
 
   const rankColor = getRankColor(friend.rank);
-  const rankEmblem = getRankEmblem(friend.rank.name);
 
   return (
     <motion.div
@@ -61,9 +61,12 @@ export const FriendCard = ({ friend }: FriendCardProps) => {
             <Zap className="h-3 w-3 text-yellow-400" />
             <span className="font-semibold">{friend.xp.toLocaleString()}</span>
           </span>
-          <span className={cn("text-xs font-bold", rankColor.split(" ")[0])}>
-            {rankEmblem} {friend.rank.name} {friend.rank.tier}
-          </span>
+          <div className="flex items-center gap-1.5">
+            <RankEmblem rank={friend.rank} size="xs" />
+            <span className={cn("text-xs font-bold", rankColor.split(" ")[0])}>
+              {friend.rank.name} {friend.rank.tier}
+            </span>
+          </div>
         </div>
         <p className="text-[10px] text-muted-foreground mt-0.5 opacity-60">
           {formatRelativeTime(friend.lastActiveAt)} · {friend.elo} ELO

@@ -95,7 +95,9 @@ export const SiteHeader = () => {
                   </div>
                   <div className="hidden xl:flex flex-col">
                     <span className="text-xs font-semibold opacity-40">Signed in as</span>
-                    <span className="text-sm font-semibold">{user.email?.split("@")[0]}</span>
+                    <span className="text-sm font-semibold">
+                      {(user.user_metadata as any)?.display_name ?? user.email?.split("@")[0]}
+                    </span>
                   </div>
                 </Link>
                 <button

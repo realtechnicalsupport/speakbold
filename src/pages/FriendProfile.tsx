@@ -5,7 +5,8 @@ import { motion } from "framer-motion";
 import { SiteHeader } from "@/components/SiteHeader";
 import { supabase } from "@/integrations/supabase/client";
 import { useFriends } from "@/hooks/useFriends";
-import { getRankFromElo, getRankEmblem, getRankColor } from "@/hooks/arenaUtils";
+import { getRankFromElo, getRankColor } from "@/hooks/arenaUtils";
+import { RankEmblem } from "@/components/RankEmblem";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 
@@ -121,7 +122,6 @@ export default function FriendProfile() {
 
   const rank = getRankFromElo(profile.elo);
   const rankColor = getRankColor(rank);
-  const rankEmblem = getRankEmblem(rank.name);
 
   return (
     <div className="min-h-screen bg-background">
@@ -147,9 +147,12 @@ export default function FriendProfile() {
               {profile.display_name[0]?.toUpperCase() ?? "?"}
             </div>
             <h1 className="speak-serif text-3xl tracking-tight mb-2">{profile.display_name}</h1>
-            <p className={cn("text-sm font-bold", rankColor.split(" ")[0])}>
-              {rankEmblem} {rank.name} {rank.tier}
-            </p>
+            <div className="flex items-center justify-center gap-2 mt-1">
+              <RankEmblem rank={rank} size="sm" />
+              <span className={cn("text-sm font-bold", rankColor.split(" ")[0])}>
+                {rank.name} {rank.tier}
+              </span>
+            </div>
             <p className="text-xs text-muted-foreground opacity-40 mt-1">
               Active {formatRelativeTime(profile.last_active_at)}
             </p>

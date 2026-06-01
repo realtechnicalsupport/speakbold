@@ -218,6 +218,86 @@
   animation: pulse-subtle 4s ease-in-out infinite;
 }
 
+/* Slow, organic drift for the ambient orange background blob. Translates and
+   gently breathes its scale/opacity so the glow feels alive without drawing
+   attention. GPU-friendly (transform + opacity only). */
+@keyframes blob-drift {
+  0%   { transform: translate(0, 0) scale(1);        opacity: 0.55; }
+  33%  { transform: translate(6%, -4%) scale(1.12);  opacity: 0.8;  }
+  66%  { transform: translate(-4%, 5%) scale(0.95);  opacity: 0.6;  }
+  100% { transform: translate(0, 0) scale(1);        opacity: 0.55; }
+}
+
+.animate-blob {
+  animation: blob-drift 22s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+/* ── Tactile "pushable" buttons ───────────────────────────────────────────────
+   Game-like press feedback. The solid `0 Npx 0` box-shadow acts as the button's
+   physical edge (its thickness); hovering lifts the face and grows the edge,
+   pressing drops the face onto the edge so it collapses — reading as a real key
+   press. Colours are driven by the orange --primary var, so it's dark-mode
+   correct. Pair `.btn-tactile` with one face: `-primary` or `-surface`. */
+.btn-tactile {
+  position: relative;
+  transition:
+    transform 120ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 120ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 200ms ease;
+  will-change: transform;
+}
+
+/* Primary — vibrant orange face with a deep-orange edge + ambient glow. */
+.btn-tactile-primary {
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  box-shadow:
+    0 6px 0 hsl(18 100% 30%),                 /* solid edge (thickness) */
+    0 16px 22px -8px hsl(var(--primary) / 0.55), /* ambient glow */
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);   /* top highlight */
+}
+.btn-tactile-primary:hover {
+  transform: translateY(-1px);
+  background-color: hsl(18 100% 53%);
+  box-shadow:
+    0 7px 0 hsl(18 100% 30%),
+    0 20px 28px -8px hsl(var(--primary) / 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.34);
+}
+.btn-tactile-primary:active {
+  transform: translateY(6px);
+  box-shadow:
+    0 1px 0 hsl(18 100% 30%),
+    0 3px 8px -4px hsl(var(--primary) / 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+/* Surface — neutral face with a dark edge for the same tactile depth. */
+.btn-tactile-surface {
+  background-color: hsl(var(--muted));
+  color: hsl(var(--foreground));
+  box-shadow:
+    0 6px 0 rgba(0, 0, 0, 0.45),
+    0 14px 20px -10px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+.btn-tactile-surface:hover {
+  transform: translateY(-1px);
+  background-color: hsl(var(--muted) / 0.85);
+  box-shadow:
+    0 7px 0 rgba(0, 0, 0, 0.5),
+    0 18px 26px -10px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.09);
+}
+.btn-tactile-surface:active {
+  transform: translateY(6px);
+  box-shadow:
+    0 1px 0 rgba(0, 0, 0, 0.45),
+    0 3px 8px -4px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
 .grain {
   position: absolute;
   top: 0;
@@ -248,6 +328,16 @@
   animation: drift 100s linear infinite;
 }
 
+/* Landing scroll-snap container — the dot-nav is the scroll affordance, so the
+   native scrollbar is hidden for a cleaner full-bleed feel. */
+.snap-landing {
+  scrollbar-width: none;        /* Firefox */
+  -ms-overflow-style: none;     /* legacy Edge */
+}
+.snap-landing::-webkit-scrollbar {
+  display: none;                /* WebKit */
+}
+
 /* Respect user's motion preference — disable all animations when requested */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -255,6 +345,11 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+
+  /* No snapping for reduced-motion users — plain, predictable scrolling. */
+  .snap-landing {
+    scroll-snap-type: none !important;
   }
 }
 

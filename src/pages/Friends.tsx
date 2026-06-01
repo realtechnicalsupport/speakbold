@@ -10,7 +10,8 @@ import { useFriendSearch } from "@/hooks/useFriendSearch";
 import { useFriendInvite } from "@/hooks/useFriendInvite";
 import { useLeaderboard } from "@/hooks/useLeaderboard";
 import { useArena } from "@/hooks/useArena";
-import { getRankEmblem, getRankFromElo, getRankColor } from "@/hooks/arenaUtils";
+import { getRankFromElo, getRankColor } from "@/hooks/arenaUtils";
+import { RankEmblem } from "@/components/RankEmblem";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 
@@ -356,7 +357,7 @@ export default function Friends() {
           <div className={cn("glass-card p-5 border", myRankColor.split(" ").filter(c => c.startsWith("border")).join(" "))}>
             <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40 mb-3">Your Rank</p>
             <div className="flex items-center gap-3">
-              <span className="text-3xl">{getRankEmblem(myRank.name)}</span>
+              <RankEmblem rank={myRank} size="md" />
               <div>
                 <p className={cn("text-base font-black", myRankColor.split(" ")[0])}>
                   {myRank.name} {myRank.tier}
@@ -390,7 +391,7 @@ export default function Friends() {
                       <span className="w-5 text-center text-sm shrink-0">
                         {medals[i] ?? <span className="text-[10px] font-black opacity-30">#{i + 1}</span>}
                       </span>
-                      <span className="text-base shrink-0">{getRankEmblem(r.name)}</span>
+                      <RankEmblem rank={r} size="xs" />
                       <p className="text-xs font-semibold truncate flex-1 min-w-0">{row.display_name}</p>
                       <p className="text-[10px] font-black opacity-30 tabular-nums shrink-0">{row.elo}</p>
                     </div>

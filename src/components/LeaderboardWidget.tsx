@@ -2,7 +2,8 @@ import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getRankFromElo, getRankEmblem } from "@/hooks/arenaUtils";
+import { getRankFromElo } from "@/hooks/arenaUtils";
+import { RankEmblem } from "@/components/RankEmblem";
 import { useLeaderboard } from "@/hooks/useLeaderboard";
 import { useAuth } from "@/context/AuthContext";
 import { Trophy, ArrowRight } from "lucide-react";
@@ -74,7 +75,7 @@ export function LeaderboardWidget() {
                   <div className="flex-shrink-0 w-5 text-center font-semibold">
                     {medal || `#${position}`}
                   </div>
-                  <div className="text-xl flex-shrink-0">{getRankEmblem(rankData.name)}</div>
+                  <RankEmblem rank={rankData} size="sm" />
                   <div className="min-w-0 flex-1">
                     <p className="font-semibold text-gray-900 text-sm truncate">
                       {entry.display_name}

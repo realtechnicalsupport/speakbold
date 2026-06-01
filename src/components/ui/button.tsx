@@ -17,6 +17,8 @@ const buttonVariants = cva(
         link: "text-primary underline-offset-4 hover:underline",
         hero: "bg-transparent border border-primary/20 text-primary hover:border-primary hover:bg-primary/5 px-12 py-6 text-base uppercase tracking-[0.2em] font-bold",
         spotlight: "bg-primary text-primary-foreground border border-primary hover:bg-transparent hover:text-primary px-10 py-4 uppercase tracking-widest font-black",
+        // Tactile "pushable" primary — game-like press depth (see .btn-tactile in index.css).
+        tactile: "btn-tactile btn-tactile-primary",
       },
       size: {
         default: "h-12 px-8 py-2",

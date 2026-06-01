@@ -10,7 +10,7 @@ export const Hero = () => {
   const [trialOpen, setTrialOpen] = useState(false);
 
   return (
-    <section className="relative min-h-[100dvh] flex flex-col items-center justify-center overflow-hidden bg-background bg-waves">
+    <section className="relative min-h-[100dvh] flex flex-col items-center justify-center overflow-hidden bg-waves">
       {/* Decorative SVG lines */}
       <motion.div
         initial={{ opacity: 0 }}
@@ -125,7 +125,7 @@ export const Hero = () => {
             <>
               <Link
                 to="/pathway"
-                className="group w-full sm:w-auto relative flex items-center justify-center gap-6 px-8 sm:px-10 py-4 rounded-full bg-primary text-white hover:scale-105 active:scale-95 transition-all duration-300 overflow-hidden shadow-glow"
+                className="btn-tactile btn-tactile-primary group w-full sm:w-auto relative flex items-center justify-center gap-6 px-8 sm:px-10 py-4 rounded-full overflow-hidden"
               >
                 <span className="text-white text-xl font-serif">✱</span>
                 <span className="text-sm font-black uppercase tracking-wide">Continue learning</span>
@@ -147,7 +147,7 @@ export const Hero = () => {
                   signup wall comes after they've felt the magic. */}
               <button
                 onClick={() => setTrialOpen(true)}
-                className="group w-full sm:w-auto relative flex items-center justify-center gap-4 px-8 sm:px-10 py-4 rounded-full bg-primary text-white hover:scale-105 active:scale-95 transition-all duration-300 overflow-hidden shadow-glow"
+                className="btn-tactile btn-tactile-primary group w-full sm:w-auto relative flex items-center justify-center gap-4 px-8 sm:px-10 py-4 rounded-full overflow-hidden"
               >
                 <Mic className="h-4 w-4" />
                 <span className="text-sm font-black uppercase tracking-wide">Try a 30-second drill</span>

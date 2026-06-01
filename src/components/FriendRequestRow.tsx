@@ -3,7 +3,8 @@ import { Check, X } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Friend } from "@/hooks/useFriends";
-import { getRankEmblem, getRankColor } from "@/hooks/arenaUtils";
+import { getRankColor } from "@/hooks/arenaUtils";
+import { RankEmblem } from "@/components/RankEmblem";
 import { useFriends } from "@/hooks/useFriends";
 
 interface FriendRequestRowProps {
@@ -27,7 +28,6 @@ export const FriendRequestRow = ({ friend }: FriendRequestRowProps) => {
     setDeclining(false);
   };
 
-  const rankEmblem = getRankEmblem(friend.rank.name);
   const rankColor = getRankColor(friend.rank);
 
   return (
@@ -44,9 +44,12 @@ export const FriendRequestRow = ({ friend }: FriendRequestRowProps) => {
 
       <div className="flex-1 min-w-0">
         <p className="font-bold text-sm truncate">{friend.display_name}</p>
-        <p className={cn("text-xs font-semibold mt-0.5", rankColor.split(" ")[0])}>
-          {rankEmblem} {friend.rank.name} {friend.rank.tier} · {friend.elo} ELO
-        </p>
+        <div className="flex items-center gap-1.5 mt-0.5">
+          <RankEmblem rank={friend.rank} size="xs" />
+          <span className={cn("text-xs font-semibold", rankColor.split(" ")[0])}>
+            {friend.rank.name} {friend.rank.tier} · {friend.elo} ELO
+          </span>
+        </div>
       </div>
 
       <div className="flex items-center gap-2 shrink-0">

@@ -8,7 +8,8 @@ import { useFriends } from "@/hooks/useFriends";
 import { useSyncedStreak } from "@/hooks/useRecordings";
 import { useMyXp } from "@/hooks/useLeaderboard";
 import { useArena } from "@/hooks/useArena";
-import { getRankEmblem } from "@/hooks/arenaUtils";
+import { getRankFromElo } from "@/hooks/arenaUtils";
+import { RankEmblem } from "@/components/RankEmblem";
 
 // Side-by-side comparison of the user against their friends. All three metrics
 // (streak / XP / ELO) are already fetched per friend by FriendsContext, so the
@@ -169,9 +170,9 @@ export const FriendsCompare = ({ defaultMetric = "streak" }: { defaultMetric?: M
                     </p>
                   )}
                   {metric === "elo" && (
-                    <p className="text-[10px] font-black uppercase tracking-widest opacity-30">
-                      {getRankEmblem(r.elo >= 2400 ? "Diamond" : r.elo >= 1800 ? "Platinum" : r.elo >= 1200 ? "Gold" : r.elo >= 600 ? "Silver" : "Bronze")}
-                    </p>
+                    <div className="mt-0.5 opacity-40">
+                      <RankEmblem rank={getRankFromElo(r.elo)} size="xs" />
+                    </div>
                   )}
                 </div>
 

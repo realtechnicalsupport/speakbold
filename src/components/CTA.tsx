@@ -62,7 +62,7 @@ export const CTA = () => {
 
             <Link
               to={user ? "/pathway" : "/login"}
-              className="button-pill w-full sm:w-auto px-10 md:px-16 py-5 flex items-center justify-center gap-6 group hover:scale-105 active:scale-95 transition-transform"
+              className="btn-tactile btn-tactile-primary w-full sm:w-auto px-10 md:px-16 py-5 rounded-full flex items-center justify-center gap-6 group"
             >
               <span className="text-2xl font-serif animate-pulse-subtle">✱</span>
               <span className="text-sm font-black uppercase tracking-[0.3em]">{user ? "THE JOURNEY" : "ENTER TRAINING"}</span>

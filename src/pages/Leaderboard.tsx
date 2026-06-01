@@ -3,7 +3,8 @@ import { Sparkles, ArrowRight, Trophy, Target, Zap, RefreshCw, Microscope, Sword
 import { SiteHeader } from "@/components/SiteHeader";
 import { useAuth } from "@/context/AuthContext";
 import { useLeaderboard } from "@/hooks/useLeaderboard";
-import { getRankFromElo, getNextRankInfo, getRankEmblem } from "@/hooks/arenaUtils";
+import { getRankFromElo, getNextRankInfo } from "@/hooks/arenaUtils";
+import { RankEmblem } from "@/components/RankEmblem";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -92,8 +93,8 @@ const Leaderboard = () => {
                     </div>
                     <div className="space-y-2 md:space-y-4 text-right">
                       <p className="text-[10px] md:text-xs font-black uppercase tracking-widest opacity-30">Rank</p>
-                      <div className="flex items-center justify-end gap-2 md:gap-4">
-                        <span className="text-2xl md:text-4xl">{getRankEmblem(myRank.name)}</span>
+                      <div className="flex items-center justify-end gap-3 md:gap-5">
+                        <RankEmblem rank={myRank} size="lg" />
                         <p className="speak-serif text-xl md:text-3xl font-bold uppercase tracking-tighter italic">{myRank.name} {myRank.tier}</p>
                       </div>
                     </div>
@@ -298,7 +299,11 @@ const Leaderboard = () => {
                 transition={{ delay: i * 0.05 }}
                 className="glass-card rounded-2xl md:rounded-[3rem] p-5 md:p-10 space-y-4 md:space-y-8 group hover:border-primary/40 transition-all duration-700 relative overflow-hidden shadow-soft"
               >
-                <div className="text-3xl md:text-5xl group-hover:scale-110 group-hover:rotate-6 transition-all duration-700 origin-left inline-block">{getRankEmblem(t.name)}</div>
+                <RankEmblem
+                  rank={{ name: t.name, tier: "I" }}
+                  size="lg"
+                  className="group-hover:scale-110 group-hover:rotate-6 transition-all duration-700 origin-left"
+                />
                 <div className="space-y-1 md:space-y-3">
                   <p className="speak-serif text-xl md:text-3xl font-bold uppercase tracking-tighter italic group-hover:text-primary transition-colors">{t.name}</p>
                   <p className="text-[10px] md:text-xs font-black opacity-30 uppercase tracking-widest">

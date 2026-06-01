@@ -5,6 +5,7 @@ import { useLocalStorageState } from "@/hooks/useLocalStorageState";
 import { isInPlacement, getMatchesPlayed, getSeasonInfo, estimateEloAtStake, getNextRankInfo, ELO_FLOOR } from "@/hooks/arenaUtils";
 import { SiteHeader } from "@/components/SiteHeader";
 import { ArenaLeaderboardPreview } from "@/components/ArenaLeaderboardPreview";
+import { RankEmblem } from "@/components/RankEmblem";
 import { DebateBattle } from "@/components/DebateBattle";
 import { DuelDrill } from "@/components/DuelDrill";
 import { useAuth } from "@/context/AuthContext";
@@ -534,12 +535,38 @@ const Arena = () => {
                   <span style={{ color: accent }}>{eloUpdate.newElo}</span>
                 </motion.div>
 
+                {/* Rank-up celebration — the loud 3D moment is earned here. The
+                    new emblem punches in with a haptic scale-pop (overshoot
+                    bounce) behind a radiating ring burst. Rank-downs stay
+                    subdued (badge only, below). */}
+                {rankUp && (
+                  <div className="relative z-10 mt-8 h-20 flex items-center justify-center">
+                    {[0, 1].map((i) => (
+                      <motion.span
+                        key={i}
+                        initial={{ scale: 0.45, opacity: 0.55 }}
+                        animate={{ scale: 2.6 + i, opacity: 0 }}
+                        transition={{ delay: 0.42 + i * 0.14, duration: 1 + i * 0.2, ease: "easeOut" }}
+                        className="absolute inset-0 m-auto h-16 w-16 rounded-full pointer-events-none"
+                        style={{ border: `2px solid ${accent}` }}
+                      />
+                    ))}
+                    <motion.div
+                      initial={{ scale: 0, rotate: -25 }}
+                      animate={{ scale: [0, 1.35, 0.92, 1.08, 1], rotate: [-25, 8, -4, 3, 0] }}
+                      transition={{ delay: 0.42, duration: 0.75, ease: "easeOut" }}
+                    >
+                      <RankEmblem rank={newRank} size="xl" />
+                    </motion.div>
+                  </div>
+                )}
+
                 {/* Rank change badge */}
                 {rankChanged && (
                   <motion.div
                     initial={{ opacity: 0, scale: 0.8 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.42, type: "spring", stiffness: 300 }}
+                    transition={{ delay: rankUp ? 0.95 : 0.42, type: "spring", stiffness: 300 }}
                     className="relative z-10 mt-6 px-5 py-2 rounded-full border text-[11px] font-black uppercase tracking-widest"
                     style={{ borderColor: `${accent}40`, backgroundColor: `${accent}12`, color: accent }}
                   >
@@ -808,13 +835,13 @@ const Arena = () => {
                        handleFindMatch(selectedMode);
                      }
                    }}
-                   className="w-full py-6 bg-primary text-white rounded-2xl text-[12px] font-black uppercase tracking-wide hover:scale-[1.02] active:scale-95 transition-all shadow-glow flex items-center justify-center gap-3"
+                   className="btn-tactile btn-tactile-primary w-full py-6 rounded-2xl text-[12px] font-black uppercase tracking-wide flex items-center justify-center gap-3"
                  >
                    <Radar className="h-5 w-5" /> {selectedMode === "debate" ? "ENTER DEBATE HALL" : "FIND PARTNER"}
                  </button>
                  <button
                    onClick={() => setIsCreating(true)}
-                   className="w-full py-6 bg-muted/50 border border-border text-foreground rounded-2xl text-sm font-black uppercase tracking-wide hover:bg-muted transition-all flex items-center justify-center gap-3"
+                   className="btn-tactile btn-tactile-surface w-full py-6 rounded-2xl text-sm font-black uppercase tracking-wide flex items-center justify-center gap-3"
                  >
                    <Zap className="h-4 w-4" /> NEW SESSION
                  </button>
