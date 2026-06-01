@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { useArena, type Duel, type Gamemode, GAMEMODES, getRankColor, getRankFromElo, AI_PERSONAS } from "@/hooks/useArena";
 import { useLocalStorageState } from "@/hooks/useLocalStorageState";
-import { isInPlacement, getPlacementProgress, getMatchesPlayed, PLACEMENT_MATCHES_REQUIRED, getSeasonInfo, estimateEloAtStake, getNextRankInfo, ELO_FLOOR } from "@/hooks/arenaUtils";
+import { isInPlacement, getMatchesPlayed, getSeasonInfo, estimateEloAtStake, getNextRankInfo, ELO_FLOOR } from "@/hooks/arenaUtils";
 import { SiteHeader } from "@/components/SiteHeader";
 import { ArenaLeaderboardPreview } from "@/components/ArenaLeaderboardPreview";
 import { DebateBattle } from "@/components/DebateBattle";
@@ -229,7 +229,6 @@ const Arena = () => {
   // ── Phase 3: derived competitive stats ──────────────────────────────────
   const inPlacement = isInPlacement(profile);
   const matchesPlayed = getMatchesPlayed(profile);
-  const placementsDone = getPlacementProgress(profile);
   const winRate = matchesPlayed > 0 ? Math.round((profile.wins / matchesPlayed) * 100) : 0;
   const season = getSeasonInfo();
   // Pre-match preview: pass the selected gamemode + matchesPlayed so the estimate
@@ -685,29 +684,18 @@ const Arena = () => {
                    <>
                      <div className="flex items-center gap-2">
                        <span className="h-[1px] w-4 bg-current opacity-30" />
-                       <p className="text-sm font-black uppercase tracking-[0.4em] opacity-60">PLACEMENT MATCHES</p>
+                       <p className="text-sm font-black uppercase tracking-[0.4em] opacity-60">PLACEMENT MATCH</p>
                      </div>
                      <div className="flex items-baseline gap-3">
                        <h2 className="speak-serif text-3xl lg:text-5xl font-black italic tracking-tighter">Unranked</h2>
-                       <span className="text-sm font-black uppercase tracking-widest opacity-30 tabular-nums">
-                         <AnimatedNumber value={placementsDone} /> / {PLACEMENT_MATCHES_REQUIRED}
-                       </span>
                      </div>
                      <div className="space-y-2 pt-2">
                        <div className="flex justify-between text-[11px] font-black uppercase tracking-[0.2em] opacity-40">
-                         <span>{PLACEMENT_MATCHES_REQUIRED - placementsDone} MATCHES TO GO</span>
-                         <span>RANK REVEAL</span>
-                       </div>
-                       <div className="w-full bg-current/10 h-1.5 rounded-full overflow-hidden p-[1px]">
-                         <motion.div
-                           initial={{ width: 0 }}
-                           animate={{ width: `${(placementsDone / PLACEMENT_MATCHES_REQUIRED) * 100}%` }}
-                           transition={{ duration: 1.5, ease: "easeOut" }}
-                           className="h-full rounded-full bg-current shadow-[0_0_10px_currentColor]"
-                         />
+                         <span>NO RATING YET</span>
+                         <span>1 BATTLE TO RANK</span>
                        </div>
                        <p className="text-sm font-black italic tracking-tight opacity-40">
-                         Win more to start higher — your first 5 battles decide your rank.
+                         Finish one battle — the judge sets your starting ELO from how you perform.
                        </p>
                      </div>
                    </>
@@ -804,9 +792,9 @@ const Arena = () => {
                 <div className="flex items-center justify-between px-2 p-3 rounded-xl bg-slate-500/10 border border-slate-500/20">
                   <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-300">
                     <Lock className="inline h-3 w-3 mr-1.5 -mt-0.5" />
-                    PLACEMENT MATCH {placementsDone + 1} / {PLACEMENT_MATCHES_REQUIRED}
+                    PLACEMENT MATCH
                   </p>
-                  <p className="text-[10px] font-medium opacity-50">No ELO until placed</p>
+                  <p className="text-[10px] font-medium opacity-50">Your result sets your starting ELO</p>
                 </div>
               )}
 

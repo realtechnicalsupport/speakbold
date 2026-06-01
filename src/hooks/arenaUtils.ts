@@ -127,12 +127,17 @@ export const getNextRankInfo = (elo: number): {
   };
 };
 
-// ── Placement matches ───────────────────────────────────────────────────────
-export const PLACEMENT_MATCHES_REQUIRED = 5;
+// ── Placement (single match) ─────────────────────────────────────────────────
+// Placement is now a one-shot: a new account is "in placement" until its FIRST
+// rated battle assigns an ELO (see computePlacementElo). We key this off the
+// `ranked` flag the ArenaContext derives from the DB (NULL elo / legacy-1000 =
+// unranked) rather than a match counter, so the Arena's "Unranked" state and the
+// leaderboard's visibility filter always agree.
+export const PLACEMENT_MATCHES_REQUIRED = 5; // retained: still 2x K-factor for the first few matches
 export const getMatchesPlayed = (profile: UserProfile): number =>
   (profile?.wins ?? 0) + (profile?.losses ?? 0);
 export const isInPlacement = (profile: UserProfile): boolean =>
-  getMatchesPlayed(profile) < PLACEMENT_MATCHES_REQUIRED;
+  profile?.ranked === false;
 export const getPlacementProgress = (profile: UserProfile): number =>
   Math.min(getMatchesPlayed(profile), PLACEMENT_MATCHES_REQUIRED);
 
@@ -202,6 +207,17 @@ const MAX_SINGLE_GAIN = 50;
 const MAX_SINGLE_LOSS = 40;
 const LOW_SCORE_PENALTY_CAP = 8; // a sub-30 score loses at most 8 ELO
 
+// ── Placement (first rated match) ────────────────────────────────────────────
+// A brand-new account has NO rating (NULL elo). Instead of seeding everyone at
+// 1000 and nudging, their FIRST completed battle *places* them: the AI judge's
+// score margin + the opponent's strength decide an absolute starting ELO. One
+// match can't mint Diamond or bottom you out, so the result is clamped to a
+// believable first-rating window.
+const PLACEMENT_FLOOR = 200;   // worst first placement — low Bronze
+const PLACEMENT_CAP   = 1600;  // best first placement — Gold I
+const PLACEMENT_MARGIN_COEF  = 4; // weight of (myScore − oppScore)
+const PLACEMENT_QUALITY_COEF = 4; // weight of absolute quality (myScore − 50)
+
 export function computeEloChange(input: EloComputationInput): number {
   const {
     myElo, oppElo, myScore, oppScore,
@@ -264,6 +280,33 @@ export function computeEloChange(input: EloComputationInput): number {
     return expectedSigned > 0 ? -1 : 1;
   }
   return rounded;
+}
+
+/**
+ * Place an unranked player from the result of their FIRST rated battle.
+ * Anchored to the opponent's level, then pushed up/down by how decisively the
+ * judge scored them (relative margin) and how strong their speech was on its own
+ * (absolute quality). AI matches are damped so a single bot win can't over-place.
+ * The output is clamped to [PLACEMENT_FLOOR, PLACEMENT_CAP] — one match decides a
+ * starting rank, not the whole ladder.
+ */
+export function computePlacementElo(input: {
+  oppElo: number;
+  myScore: number | null;
+  oppScore: number | null;
+  isAi?: boolean;
+}): number {
+  const { oppElo, myScore, oppScore, isAi } = input;
+  const me  = myScore  ?? 50;
+  const opp = oppScore ?? 50;
+  const margin  = me - opp;   // −100..100  performance vs this opponent
+  const quality = me - 50;    // −50..50    absolute quality of the speech
+  let push = margin * PLACEMENT_MARGIN_COEF + quality * PLACEMENT_QUALITY_COEF;
+  if (isAi) push *= AI_DAMPING;
+  const placement = Math.round(Math.max(PLACEMENT_FLOOR, Math.min(PLACEMENT_CAP, oppElo + push)));
+  // Never place exactly on the unranked sentinel (STARTING_ELO) — that value is
+  // treated as "no rating" and would re-hide a player who just earned one.
+  return placement === STARTING_ELO ? placement + 1 : placement;
 }
 
 /**

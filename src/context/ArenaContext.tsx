@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { generateArenaPrompt } from "@/services/geminiService";
-import { getRankFromElo, computeEloChange, STARTING_ELO, ELO_FLOOR, FORFEIT_PENALTY } from "@/hooks/arenaUtils";
+import { getRankFromElo, computeEloChange, computePlacementElo, isRankedElo, STARTING_ELO, ELO_FLOOR, FORFEIT_PENALTY } from "@/hooks/arenaUtils";
 import { arenaEmitter } from "@/lib/events";
 import { logSkillEvent } from "@/lib/skillEvents";
 import { arenaToDims } from "@/lib/skillScoring";
@@ -29,7 +29,16 @@ export interface DuelPlayer {
   persona?: any;
 }
 
-export interface UserProfile { elo: number; wins: number; losses: number; }
+export interface UserProfile {
+  elo: number;
+  wins: number;
+  losses: number;
+  /** True once the account has earned a real rating (first rated battle done).
+   *  False = unranked: shown as "Unranked", hidden from the leaderboard, and the
+   *  next rated battle *places* them via computePlacementElo. Derived from the DB
+   *  elo (NULL or legacy-1000 = unranked) in refresh(). */
+  ranked: boolean;
+}
 
 export interface Duel {
   id: string;
@@ -85,7 +94,7 @@ const ArenaContext = createContext<ArenaContextType | undefined>(undefined);
 export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
   const [duels, setDuels] = useState<Duel[]>([]);
-  const [profile, setProfile] = useState<UserProfile>({ elo: STARTING_ELO, wins: 0, losses: 0 });
+  const [profile, setProfile] = useState<UserProfile>({ elo: STARTING_ELO, wins: 0, losses: 0, ranked: false });
   const [loading, setLoading] = useState(true);
   const [onlineUsers, setOnlineUsers] = useState<any[]>([]);
   const [incomingRequests, setIncomingRequests] = useState<any[]>([]);
@@ -278,10 +287,12 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         });
         setDuels(formatted);
       }
-      // Only substitute STARTING_ELO when the DB has no row at all (null).
-      // An explicit 0 (e.g. after a manual reset) is a real value and must be shown as-is.
+      // Unranked accounts store NULL elo (and the legacy cohort sits at exactly
+      // 1000). Seed the *display/match-math* value from STARTING_ELO, but track
+      // `ranked` separately so the Arena shows "Unranked" and the next battle
+      // places them — instead of treating the seed as a real rating.
       const dbElo = profData?.elo ?? STARTING_ELO;
-      setProfile({ elo: dbElo, wins, losses });
+      setProfile({ elo: dbElo, wins, losses, ranked: isRankedElo(profData?.elo) });
     } catch (e) { 
       console.error("[ArenaContext] Refresh failed:", e);
     } finally { 
@@ -333,7 +344,9 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       // reflect our new ELO + animate it without writing a duplicate battle row.
       .on("broadcast", { event: "elo-sync" }, ({ payload }) => {
         if (!payload || payload.targetUserId !== user.id) return;
-        setProfile(prev => ({ ...prev, elo: payload.newElo }));
+        // The host's authoritative call may have *placed* us (first PvP battle) —
+        // adopt the rating and mark ranked so we stop showing as Unranked.
+        setProfile(prev => ({ ...prev, elo: payload.newElo, ranked: true }));
         arenaEmitter.emit("elo:updated", { change: payload.change, newElo: payload.newElo });
         refresh(true);
       })
@@ -434,6 +447,8 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setProfile(prev => ({
         ...prev,
         elo: newElo,
+        // Entering and forfeiting a rated match still earns a (low) first rating.
+        ranked: true,
         wins:   isMe ? prev.wins   : prev.wins + 1,
         losses: isMe ? prev.losses + 1 : prev.losses,
       }));
@@ -504,7 +519,15 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       isTie: false,
     });
 
-    const newElo = Math.max(ELO_FLOOR, myElo + eloChange);
+    // First rated battle for an unranked account → PLACE them from the result
+    // (optimistic mirror of the server's authoritative placement). Ties/custom
+    // sessions never place: they stay unranked until a real, decisive match.
+    const isPlacement = !profile.ranked && !isCustom && !tie;
+    const newElo = isCustom
+      ? myElo
+      : isPlacement
+        ? computePlacementElo({ oppElo, myScore, oppScore, isAi: isAI })
+        : Math.max(ELO_FLOOR, myElo + eloChange);
 
     // Feed this battle into the AI Coach (opponent-weighted so a hard matchup
     // doesn't misleadingly tank the skill radar). Real battles only — custom
@@ -525,6 +548,9 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setProfile(prev => ({
         ...prev,
         elo:    isCustom ? prev.elo : newElo,
+        // A decisive (non-tie, non-custom) battle earns the account its first
+        // real rating — flip ranked so the Arena/leaderboard stop hiding it.
+        ranked: prev.ranked || (!isCustom && !tie),
         wins:   won  ? prev.wins   + 1 : prev.wins,
         losses: (!won && !tie) ? prev.losses + 1 : prev.losses,
       }));

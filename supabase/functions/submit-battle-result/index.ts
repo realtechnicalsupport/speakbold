@@ -33,6 +33,24 @@ const QUALITY_COEF = 8;
 const MAX_SINGLE_GAIN = 50;
 const MAX_SINGLE_LOSS = 40;
 const LOW_SCORE_PENALTY_CAP = 8;
+// Placement (first rated match) — mirror src/hooks/arenaUtils.ts.
+const PLACEMENT_FLOOR = 200;
+const PLACEMENT_CAP   = 1600;
+const PLACEMENT_MARGIN_COEF  = 4;
+const PLACEMENT_QUALITY_COEF = 4;
+
+// Place an unranked player (NULL elo) from the result of their first battle.
+// Anchored to the opponent's level, pushed by score margin + absolute quality,
+// AI-damped, then clamped so one match can't mint Diamond or bottom you out.
+function computePlacementElo(oppElo: number, myScore: number | null, oppScore: number | null, isAi: boolean): number {
+  const me  = myScore  ?? 50;
+  const opp = oppScore ?? 50;
+  let push = (me - opp) * PLACEMENT_MARGIN_COEF + (me - 50) * PLACEMENT_QUALITY_COEF;
+  if (isAi) push *= AI_DAMPING;
+  const placement = Math.round(Math.max(PLACEMENT_FLOOR, Math.min(PLACEMENT_CAP, oppElo + push)));
+  // Never land on the unranked sentinel — it reads as "no rating" downstream.
+  return placement === STARTING_ELO ? placement + 1 : placement;
+}
 
 type Gamemode = "blitz" | "standard" | "debate" | "pitch";
 const MODE_MULTIPLIERS: Record<Gamemode, number> = {
@@ -169,11 +187,16 @@ Deno.serve(async (req) => {
       .eq("id", userId)
       .maybeSingle();
     if (profErr) return json({ error: `profile read failed: ${profErr.message}` }, 500);
+    // NULL elo = unranked account that has never been rated. Seed the match math
+    // from STARTING_ELO, but remember it was unranked so we PLACE rather than
+    // nudge on this (the first) rated battle.
+    const myIsUnranked = profileRow?.elo == null;
     const myElo = profileRow?.elo ?? STARTING_ELO;
 
     // Opponent ELO — read from DB if real user; otherwise treat as the
     // client-supplied estimate for AI personas (those rows don't exist).
     let oppElo = STARTING_ELO;
+    let oppIsUnranked = false;
     const opponentId = isUuid(body.opponent?.id) ? body.opponent!.id! : null;
     if (opponentId) {
       const { data: oppRow } = await admin
@@ -181,6 +204,7 @@ Deno.serve(async (req) => {
         .select("elo")
         .eq("id", opponentId)
         .maybeSingle();
+      oppIsUnranked = oppRow?.elo == null;
       oppElo = oppRow?.elo ?? STARTING_ELO;
     } else if (body.isAi) {
       // AI personas don't have profile rows. Trust the client's persona ELO
@@ -214,7 +238,16 @@ Deno.serve(async (req) => {
       isForfeit: body.isForfeit ?? null,
     });
 
-    const newElo = Math.max(ELO_FLOOR, myElo + eloChange);
+    // First rated battle for an unranked account → PLACE from the result.
+    // Ties/custom skip ELO entirely (no placement; stay unranked). Forfeits have
+    // no scores, so they fall through to seed+delta (a modest first rating).
+    const haveScores = myScore != null && oppScore != null;
+    const myIsPlacement = myIsUnranked && !skipElo && !body.isForfeit && haveScores;
+    const newElo = myIsPlacement
+      ? computePlacementElo(oppElo, myScore, oppScore, !!body.isAi)
+      : Math.max(ELO_FLOOR, myElo + eloChange);
+    // Persist the new rating when we placed them OR the delta actually moved.
+    const shouldWriteMyElo = !skipElo && (myIsPlacement || eloChange !== 0);
 
     // ── PvP: rate the OPPONENT too, from the SAME single judgment ───────────
     // Fixes the "only the host gets rated" bug: previously the challenger's
@@ -242,7 +275,10 @@ Deno.serve(async (req) => {
         isTie: false,
         isForfeit: null,
       });
-      oppNewElo = Math.max(ELO_FLOOR, oppElo + oppEloChange);
+      // If the opponent is also unranked, this PvP battle is THEIR placement too.
+      oppNewElo = oppIsUnranked && haveScores
+        ? computePlacementElo(myElo, oppScore, myScore, false)
+        : Math.max(ELO_FLOOR, oppElo + oppEloChange);
     }
 
     // ── Write the battle row first, then ELO. ──────────────────────────────
@@ -298,7 +334,7 @@ Deno.serve(async (req) => {
       return json({ error: `battle insert failed: ${insertErr.message}` }, 500);
     }
 
-    if (eloChange !== 0) {
+    if (shouldWriteMyElo) {
       const { error: writeErr } = await admin
         .from("profiles")
         .update({ elo: newElo })
@@ -311,7 +347,7 @@ Deno.serve(async (req) => {
 
     // Persist the opponent's new rating (best-effort — the caller's rating is
     // already saved, so a failure here shouldn't fail the whole request).
-    if (rateOpponent && oppEloChange !== 0) {
+    if (rateOpponent && (oppIsUnranked || oppEloChange !== 0)) {
       const { error: oppWriteErr } = await admin
         .from("profiles")
         .update({ elo: oppNewElo })
@@ -327,6 +363,8 @@ Deno.serve(async (req) => {
       eloChange,
       oppNewElo,
       oppEloChange,
+      // True when this battle was the caller's first rating (placement).
+      placed: myIsPlacement,
       matchesPlayed: (matchesPlayed ?? 0) + 1,
     });
 
