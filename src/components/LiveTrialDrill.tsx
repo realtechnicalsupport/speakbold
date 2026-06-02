@@ -230,7 +230,7 @@ export const LiveTrialDrill = ({ open, onClose }: Props) => {
           exit={{ opacity: 0, y: 16, scale: 0.98 }}
           transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
           onClick={(e) => e.stopPropagation()}
-          className="relative w-full max-w-xl glass-card rounded-3xl md:rounded-[2.5rem] p-6 md:p-10 shadow-soft overflow-hidden"
+          className="relative w-full max-w-xl glass-card rounded-3xl md:rounded-[2.5rem] p-6 md:p-10 overflow-hidden"
         >
           {/* Close */}
           <button
@@ -462,7 +462,7 @@ export const LiveTrialDrill = ({ open, onClose }: Props) => {
                 to="/login?mode=signup"
                 className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-primary text-white text-xs font-black uppercase tracking-widest shadow-glow"
               >
-                Start free <ArrowRight className="h-4 w-4" />
+                Start now <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
           )}

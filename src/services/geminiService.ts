@@ -808,6 +808,7 @@ export interface ImpromptuCoachReport {
   fillerNote: string;
   paceNote: string;
   nextFocus: string;
+  exampleSpeech: string;
 }
 
 export async function coachImpromptu(
@@ -861,7 +862,8 @@ Return JSON ONLY — no markdown, no prose outside the JSON:
   ],
   "fillerNote": "(1 sentence about filler word usage — skip if count is 0)",
   "paceNote": "(1 sentence about pace — target is 120-160 WPM for conversational speaking)",
-  "nextFocus": "(1 specific drill or technique to work on next time)"
+  "nextFocus": "(1 specific drill or technique to work on next time)",
+  "exampleSpeech": "(a complete, polished model speech on THIS exact topic that an expert would deliver — 50-80 words, follows the framework end to end, spoken-style and ready to read aloud. This is the full ideal answer, not fragments.)"
 }
 
 RULES:
@@ -876,7 +878,7 @@ RULES:
     const jsonMatch = result.match(/\{[\s\S]*\}/);
     const p = JSON.parse(
       jsonMatch?.[0] ??
-        `{"score":0,"verdict":"Could not analyze speech.","sayMore":[],"cut":[],"shouldHaveSaid":{"opening":"","closing":"","tighter":""},"frameworkCheck":[],"fillerNote":"","paceNote":"","nextFocus":"Keep practicing."}`
+        `{"score":0,"verdict":"Could not analyze speech.","sayMore":[],"cut":[],"shouldHaveSaid":{"opening":"","closing":"","tighter":""},"frameworkCheck":[],"fillerNote":"","paceNote":"","nextFocus":"Keep practicing.","exampleSpeech":""}`
     );
     return {
       score: clampScore(p.score, 0),
@@ -888,6 +890,7 @@ RULES:
       fillerNote: p.fillerNote ?? "",
       paceNote: p.paceNote ?? "",
       nextFocus: p.nextFocus ?? "Keep practicing.",
+      exampleSpeech: p.exampleSpeech ?? "",
     };
   } catch {
     return {
@@ -900,6 +903,7 @@ RULES:
       fillerNote: "",
       paceNote: "",
       nextFocus: "Try again — you're building the habit.",
+      exampleSpeech: "",
     };
   }
 }

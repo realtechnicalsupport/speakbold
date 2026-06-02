@@ -14,6 +14,7 @@ import { RecorderPanel } from "@/components/RecorderPanel";
 import { MicrophoneBorder } from "@/components/MicrophoneBorder";
 import { setRecordingActive } from "@/lib/recordingState";
 import { transcribeAudio, judgeBattle, generateAIArgument, generateArenaPrompt, speakWithDeepgramTTS } from "@/services/geminiService";
+import { ModelSpeech } from "@/components/ModelSpeech";
 import { arenaEmitter, type ArenaEvents } from "@/lib/events";
 import { setTimerActive } from "@/lib/timerState";
 
@@ -83,7 +84,6 @@ export const DuelDrill = ({
   const [debateStand, setDebateStand] = useState<"FOR" | "AGAINST">("FOR");
   const promptToUse = duel ? duel.prompt : customPrompt;
   const [lastRecording, setLastRecording] = useState<{ blob: Blob; durationMs: number } | null>(null);
-  const [showModelSpeech, setShowModelSpeech] = useState(false);
 
   // Reveal + voice the opponent's actual speech on the results screen — gives
   // the AI (or peer) you "battled" real presence instead of an invisible score.
@@ -843,28 +843,7 @@ export const DuelDrill = ({
               </div>
 
               {verdictResult.exampleSpeech && (
-                <div className="bg-primary/5 border border-primary/20 rounded-2xl overflow-hidden">
-                  <button
-                    onClick={() => setShowModelSpeech(!showModelSpeech)}
-                    className="w-full px-6 py-4 flex items-center justify-between hover:bg-primary/5 transition-colors"
-                  >
-                    <p className="text-sm font-black uppercase tracking-[0.4em] text-primary">MODEL SPEECH</p>
-                    {showModelSpeech ? <ChevronUp className="h-4 w-4 text-primary" /> : <ChevronDown className="h-4 w-4 text-primary" />}
-                  </button>
-                  <AnimatePresence>
-                    {showModelSpeech && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: "auto", opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        className="px-6 pb-6"
-                      >
-                        <p className="speak-serif text-lg italic leading-relaxed opacity-80 whitespace-pre-wrap">"{verdictResult.exampleSpeech}"</p>
-                        <p className="text-[10px] font-bold uppercase tracking-widest opacity-30 mt-4 italic">Note: This is a high-level example incorporating all coach feedback.</p>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
+                <ModelSpeech text={verdictResult.exampleSpeech} />
               )}
 
               {/* Opponent reveal — see (and hear) what you actually battled */}

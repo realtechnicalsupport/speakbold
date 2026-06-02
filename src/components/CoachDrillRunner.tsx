@@ -4,6 +4,7 @@ import { X, Mic, Loader2, RotateCcw, Target, Check, AudioWaveform, ArrowRight } 
 import { useAuth } from "@/context/AuthContext";
 import { useRecordings, useSyncedStreak } from "@/hooks/useRecordings";
 import { RecorderPanel } from "@/components/RecorderPanel";
+import { ModelSpeech } from "@/components/ModelSpeech";
 import { transcribeAudio, judgeCoachDrill } from "@/services/geminiService";
 import { logSkillEvent } from "@/lib/skillEvents";
 import { coachToDims } from "@/lib/skillScoring";
@@ -144,7 +145,7 @@ export const CoachDrillRunner = ({ drill, onClose }: { drill: AdaptiveDrill; onC
           exit={{ opacity: 0, y: 16, scale: 0.98 }}
           transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
           onClick={(e) => e.stopPropagation()}
-          className="relative w-full max-w-lg glass-card rounded-3xl md:rounded-[2.5rem] p-6 md:p-9 shadow-soft overflow-hidden"
+          className="relative w-full max-w-lg glass-card rounded-3xl md:rounded-[2.5rem] p-6 md:p-9 overflow-hidden"
         >
           {phase !== "recording" && (
             <button
@@ -269,10 +270,7 @@ export const CoachDrillRunner = ({ drill, onClose }: { drill: AdaptiveDrill; onC
               )}
 
               {result.exampleSpeech && (
-                <div className="rounded-2xl border border-border/40 bg-muted/10 p-4 space-y-1.5">
-                  <p className="text-[9px] font-black uppercase tracking-[0.4em] text-primary/50">How it could sound</p>
-                  <p className="text-sm italic opacity-60 leading-snug">"{result.exampleSpeech}"</p>
-                </div>
+                <ModelSpeech text={result.exampleSpeech} label="How it could sound" compact />
               )}
 
               <div className="flex items-center gap-2 text-[11px] font-medium text-emerald-500">

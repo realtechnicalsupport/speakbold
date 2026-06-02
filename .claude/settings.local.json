@@ -25,7 +25,10 @@
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
       "Bash(git push *)",
-      "Bash(echo \"EXIT:$?\")"
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(ls \"C:/Users/One can only ponder/Downloads/speakbold-main - Copy\")",
+      "Read(//c/Users/One can only ponder/Downloads/speakbold-main - Copy/**)",
+      "Skill(update-config)"
     ]
   }
 }

@@ -151,7 +151,7 @@ export const AICoachChat = () => {
                   transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
                   className="absolute bottom-full right-0 mb-3 w-[min(16rem,calc(100vw-3rem))] origin-bottom-right"
                 >
-                  <div className="relative glass-card rounded-2xl p-3.5 shadow-soft border border-primary/25">
+                  <div className="relative glass-card rounded-2xl p-3.5 border border-primary/25">
                     <button
                       onClick={(e) => { e.stopPropagation(); dismissNudge(); }}
                       aria-label="Dismiss"

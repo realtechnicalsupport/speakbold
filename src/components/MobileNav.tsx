@@ -45,7 +45,7 @@ export const MobileNav = () => {
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
+          boxShadow: "var(--shadow-clay-nav)",
         }}
       >
         {NAV_ITEMS.map((item) => {

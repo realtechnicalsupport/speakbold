@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useRecordings, useSyncedStreak } from "@/hooks/useRecordings";
 import { useLocalStorageState } from "@/hooks/useLocalStorageState";
-import { setTimerActive, setTimerSeconds } from "@/lib/timerState";
+import { setTimerActive } from "@/lib/timerState";
 import { setRecordingActive } from "@/lib/recordingState";
 import { isMobileDevice } from "@/lib/isMobileDevice";
 import { coachImpromptu, transcribeAudio, type ImpromptuCoachReport } from "@/services/geminiService";
@@ -400,13 +400,18 @@ export function useImpromptuSession() {
   }, [phase, isPaused]);
 
   // ── timerState broadcast ─────────────────────────────────────────────────────
+  // Mark the timer ACTIVE so the app chrome goes fullscreen (hides MobileNav,
+  // drops the bottom padding) during prep + speaking. We deliberately do NOT
+  // publish timer seconds: the GlobalStatusBar only renders its countdown pill
+  // when duration > 0, so leaving it at 0 keeps the "0:05 · LIVE" pill off
+  // during impromptu. The in-page timer already shows the countdown, and we
+  // only want the global MIC indicator (driven by recordingState below) — and
+  // only while actually speaking.
   useEffect(() => {
     const active = (phase === "speaking" && !isPaused) || phase === "prep";
     setTimerActive(active);
-    if (phase === "speaking") setTimerSeconds(speakSecondsLeft, duration);
-    else if (phase === "prep") setTimerSeconds(prepSecondsLeft, PREP_TIME[difficulty]);
-    return () => { setTimerActive(false); setTimerSeconds(0, 0); };
-  }, [phase, isPaused, speakSecondsLeft, prepSecondsLeft, duration, difficulty]);
+    return () => setTimerActive(false);
+  }, [phase, isPaused]);
 
   // ── recordingState broadcast ─────────────────────────────────────────────────
   useEffect(() => {

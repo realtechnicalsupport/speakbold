@@ -6,6 +6,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import type { ImpromptuCoachReport } from "@/services/geminiService";
+import { ModelSpeech } from "@/components/ModelSpeech";
 import type { ImpromptuTopic } from "@/data/impromptuTopics";
 import { TARGET_WPM } from "@/data/impromptuTopics";
 import type { ImpromptuStats } from "@/lib/impromptuHistory";
@@ -75,7 +76,7 @@ const LoadingCoach = () => {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -6 }}
           transition={{ duration: 0.3 }}
-          className="text-xs font-medium opacity-30 tracking-wide"
+          className="text-sm font-medium opacity-30 tracking-wide"
         >
           {STEPS[step]}
         </motion.p>
@@ -111,7 +112,7 @@ const ScoreHero = ({ score, verdict, stats }: {
           initial={{ opacity: 0, scale: 0.6 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.3, duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-          className="speak-serif text-[2.75rem] font-bold tabular-nums leading-none"
+          className="speak-serif text-[3.5rem] font-bold tabular-nums leading-none"
           style={{ color }}
         >
           {score}
@@ -120,12 +121,12 @@ const ScoreHero = ({ score, verdict, stats }: {
 
       {/* Verdict + label + delta */}
       <div className="min-w-0 space-y-2">
-        <p className="text-[9px] font-black uppercase tracking-[0.4em] opacity-30">{scoreLabel(score)}</p>
+        <p className="text-[11px] font-black uppercase tracking-[0.4em] opacity-30">{scoreLabel(score)}</p>
         <motion.p
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4, duration: 0.45 }}
-          className="speak-serif text-base italic leading-snug opacity-80"
+          className="speak-serif text-lg italic leading-snug opacity-80"
         >
           {verdict}
         </motion.p>
@@ -187,30 +188,31 @@ const MetricsStrip = ({ wpm, totalWords, elapsedSecs, fillerCount }: {
   <div className="grid grid-cols-3 gap-2.5">
     <div className="rounded-2xl border border-border/30 bg-muted/4 p-4 space-y-3">
       <div className="flex items-end justify-between">
-        <span className="text-[9px] font-black uppercase tracking-[0.4em] opacity-25">PACE</span>
-        <span className={cn("text-2xl font-black tabular-nums leading-none",
+        <span className="text-[11px] font-black uppercase tracking-[0.4em] opacity-25">PACE</span>
+        <span className={cn("text-3xl font-black tabular-nums leading-none",
           wpm >= TARGET_WPM.min && wpm <= TARGET_WPM.max && wpm > 0 ? "text-emerald-400"
             : wpm > 0 ? "text-amber-400" : "opacity-30")}>
           {wpm > 0 ? wpm : "—"}
         </span>
+
       </div>
       {wpm > 0 ? <PaceBar wpm={wpm} /> : <p className="text-[8px] opacity-20">no data</p>}
     </div>
     <div className="rounded-2xl border border-border/30 bg-muted/4 p-4 flex flex-col justify-between">
-      <span className="text-[9px] font-black uppercase tracking-[0.4em] opacity-25">WORDS</span>
+      <span className="text-[11px] font-black uppercase tracking-[0.4em] opacity-25">WORDS</span>
       <div>
-        <p className="text-2xl font-black tabular-nums">{totalWords}</p>
-        <p className="text-[8px] opacity-20 mt-1">in {elapsedSecs}s</p>
+        <p className="text-3xl font-black tabular-nums">{totalWords}</p>
+        <p className="text-[10px] opacity-20 mt-1">in {elapsedSecs}s</p>
       </div>
     </div>
     <div className="rounded-2xl border border-border/30 bg-muted/4 p-4 flex flex-col justify-between">
-      <span className="text-[9px] font-black uppercase tracking-[0.4em] opacity-25">FILLERS</span>
+      <span className="text-[11px] font-black uppercase tracking-[0.4em] opacity-25">FILLERS</span>
       <div>
-        <p className={cn("text-2xl font-black tabular-nums",
+        <p className={cn("text-3xl font-black tabular-nums",
           fillerCount === 0 ? "text-emerald-400" : fillerCount <= 2 ? "text-amber-400" : "text-red-400")}>
           {fillerCount}
         </p>
-        <p className="text-[8px] opacity-20 mt-1">
+        <p className="text-[10px] opacity-20 mt-1">
           {fillerCount === 0 ? "clean!" : fillerCount <= 2 ? "manageable" : "reduce"}
         </p>
       </div>
@@ -222,7 +224,7 @@ const MetricsStrip = ({ wpm, totalWords, elapsedSecs, fillerCount }: {
 const SectionLabel = ({ icon, color, children }: {
   icon: React.ReactNode; color: string; children: React.ReactNode;
 }) => (
-  <div className={cn("flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.45em]", color)}>
+  <div className={cn("flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.45em]", color)}>
     {icon}{children}
   </div>
 );
@@ -233,14 +235,14 @@ const QuoteItem = ({ quote, why, variant }: {
 }) => (
   <div className="space-y-1">
     <p className={cn(
-      "text-sm font-medium leading-snug pl-3 italic",
+      "text-base font-medium leading-snug pl-3 italic",
       variant === "expand"
         ? "border-l-2 border-emerald-500/40 opacity-70"
         : "border-l-2 border-red-500/40 opacity-45 line-through decoration-red-400/40"
     )}>
       "{quote}"
     </p>
-    <p className="text-xs font-medium opacity-35 pl-3 not-italic">{why}</p>
+    <p className="text-sm font-medium opacity-35 pl-3 not-italic">{why}</p>
   </div>
 );
 
@@ -346,6 +348,7 @@ export const ImpromptuReview = ({
   const noSpeech = liveTranscript.trim().length < 15;
 
   const hasModelSpeech = coachReport && (
+    coachReport.exampleSpeech ||
     coachReport.shouldHaveSaid.tighter ||
     coachReport.shouldHaveSaid.opening ||
     coachReport.shouldHaveSaid.closing
@@ -355,7 +358,7 @@ export const ImpromptuReview = ({
   const missed = coachReport?.frameworkCheck.filter(f => !f.hit) ?? [];
 
   return (
-    <div className="max-w-2xl mx-auto space-y-3 pb-20">
+    <div className="max-w-3xl mx-auto space-y-3 pb-20">
 
       {/* Phase dots */}
       <div className="flex items-center justify-center gap-2 pt-2 pb-1">
@@ -406,12 +409,12 @@ export const ImpromptuReview = ({
       {coachReport && !loadingCoach && (coachReport.paceNote || (coachReport.fillerNote && fillerCount > 0)) && (
         <div className="px-1 space-y-1.5">
           {coachReport.paceNote && (
-            <p className="text-xs font-medium opacity-45 leading-relaxed">
+            <p className="text-sm font-medium opacity-45 leading-relaxed">
               <span className="text-blue-400/60 font-bold">Pace · </span>{coachReport.paceNote}
             </p>
           )}
           {coachReport.fillerNote && fillerCount > 0 && (
-            <p className="text-xs font-medium opacity-45 leading-relaxed">
+            <p className="text-sm font-medium opacity-45 leading-relaxed">
               <span className="text-blue-400/60 font-bold">Fillers · </span>{coachReport.fillerNote}
             </p>
           )}
@@ -429,15 +432,59 @@ export const ImpromptuReview = ({
             <ArrowRight className="h-3.5 w-3.5 text-primary" />
           </div>
           <div className="space-y-1 min-w-0">
-            <p className="text-[9px] font-black uppercase tracking-[0.5em] text-primary/50">DO THIS NEXT TIME</p>
-            <p className="text-sm font-semibold leading-relaxed opacity-80">{coachReport.nextFocus}</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.5em] text-primary/50">DO THIS NEXT TIME</p>
+            <p className="text-base font-semibold leading-relaxed opacity-80">{coachReport.nextFocus}</p>
+          </div>
+        </motion.div>
+      )}
+
+      {/* ── How It Could Sound — prominent, always open ── */}
+      {coachReport && !loadingCoach && hasModelSpeech && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.18, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+          className="rounded-[1.75rem] border border-primary/35 bg-gradient-to-br from-primary/8 via-primary/3 to-transparent overflow-hidden"
+          style={{ boxShadow: "0 0 32px -8px hsl(var(--primary) / 0.12)" }}
+        >
+          <div className="flex items-center gap-3 px-5 py-4 border-b border-primary/15">
+            <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+              <Lightbulb className="h-3.5 w-3.5 text-primary" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-black uppercase tracking-[0.45em] text-primary/70">How It Could Sound</p>
+              <p className="text-sm font-medium opacity-35 mt-0.5">Model answer — hear it, then try again</p>
+            </div>
+          </div>
+
+          <div className="px-5 pb-6 pt-5 space-y-6">
+            {coachReport.exampleSpeech && (
+              <ModelSpeech text={coachReport.exampleSpeech} label="Full model speech" compact />
+            )}
+            {coachReport.shouldHaveSaid.tighter && (
+              <div className="space-y-2">
+                <p className="text-[11px] font-black uppercase tracking-[0.4em] text-primary/40">CORE ARGUMENT</p>
+                <p className="speak-serif text-lg italic leading-snug opacity-80">"{coachReport.shouldHaveSaid.tighter}"</p>
+              </div>
+            )}
+            {coachReport.shouldHaveSaid.opening && (
+              <div className="space-y-2 pt-4 border-t border-primary/12">
+                <p className="text-[11px] font-black uppercase tracking-[0.4em] text-primary/40">STRONGER OPENING</p>
+                <p className="text-base font-medium italic opacity-65 leading-relaxed">"{coachReport.shouldHaveSaid.opening}"</p>
+              </div>
+            )}
+            {coachReport.shouldHaveSaid.closing && (
+              <div className="space-y-2 pt-4 border-t border-primary/12">
+                <p className="text-[11px] font-black uppercase tracking-[0.4em] text-primary/40">STRONGER CLOSING</p>
+                <p className="text-base font-medium italic opacity-65 leading-relaxed">"{coachReport.shouldHaveSaid.closing}"</p>
+              </div>
+            )}
           </div>
         </motion.div>
       )}
 
       {/* Recording */}
       {recordingBlobUrl && (
-        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }}>
+        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.22 }}>
           <AudioPlayback blobUrl={recordingBlobUrl} />
         </motion.div>
       )}
@@ -484,12 +531,12 @@ export const ImpromptuReview = ({
         >
           <div className="flex items-center justify-between">
             <SectionLabel icon={<Target className="h-3 w-3" />} color="text-amber-400/70">Framework</SectionLabel>
-            <span className="text-[9px] font-black tabular-nums opacity-30">{fwHits}/{fwTotal} hit</span>
+            <span className="text-[11px] font-black tabular-nums opacity-30">{fwHits}/{fwTotal} hit</span>
           </div>
           <div className="flex flex-wrap gap-1.5">
             {coachReport.frameworkCheck.map((item, i) => (
               <span key={i} className={cn(
-                "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border",
+                "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider border",
                 item.hit
                   ? "border-emerald-500/30 bg-emerald-500/8 text-emerald-300/80"
                   : "border-border/30 opacity-40"
@@ -504,7 +551,7 @@ export const ImpromptuReview = ({
           {missed.length > 0 && (
             <div className="space-y-1 pt-1">
               {missed.map((item, i) => (
-                <p key={i} className="text-xs font-medium opacity-40 leading-snug">
+                <p key={i} className="text-sm font-medium opacity-40 leading-snug">
                   <span className="text-amber-400/60 font-bold">{item.step} · </span>{item.note}
                 </p>
               ))}
@@ -513,45 +560,16 @@ export const ImpromptuReview = ({
         </motion.div>
       )}
 
-      {/* ── Bulky reference blocks — collapsed by default ── */}
-      {coachReport && !loadingCoach && (
-        <div className="space-y-2">
-          {hasModelSpeech && (
-            <Collapsible label="How it could sound" icon={<Lightbulb className="h-3 w-3" />}>
-              <div className="space-y-4 divide-y divide-primary/10">
-                {coachReport.shouldHaveSaid.tighter && (
-                  <div className="space-y-1.5">
-                    <p className="text-[9px] font-black uppercase tracking-[0.4em] text-primary/30">CORE ARGUMENT</p>
-                    <p className="speak-serif text-base italic leading-snug opacity-80">"{coachReport.shouldHaveSaid.tighter}"</p>
-                  </div>
-                )}
-                {coachReport.shouldHaveSaid.opening && (
-                  <div className="space-y-1.5 pt-4">
-                    <p className="text-[9px] font-black uppercase tracking-[0.4em] text-primary/30">STRONGER OPENING</p>
-                    <p className="text-sm font-medium italic opacity-60 leading-snug">"{coachReport.shouldHaveSaid.opening}"</p>
-                  </div>
-                )}
-                {coachReport.shouldHaveSaid.closing && (
-                  <div className="space-y-1.5 pt-4">
-                    <p className="text-[9px] font-black uppercase tracking-[0.4em] text-primary/30">STRONGER CLOSING</p>
-                    <p className="text-sm font-medium italic opacity-60 leading-snug">"{coachReport.shouldHaveSaid.closing}"</p>
-                  </div>
-                )}
-              </div>
-            </Collapsible>
-          )}
-
-          {liveTranscript && (
-            <Collapsible label="Your transcript" icon={<Mic2 className="h-3 w-3" />}>
-              <div className="space-y-4">
-                <p className="text-sm font-medium opacity-45 leading-relaxed italic">
-                  "{highlightFillers(liveTranscript.trim())}"
-                </p>
-                <FillerSparkline fillerTimes={fillerTimes} duration={duration} />
-              </div>
-            </Collapsible>
-          )}
-        </div>
+      {/* ── Transcript — collapsed by default ── */}
+      {coachReport && !loadingCoach && liveTranscript && (
+        <Collapsible label="Your transcript" icon={<Mic2 className="h-3 w-3" />}>
+          <div className="space-y-4">
+            <p className="text-base font-medium opacity-45 leading-relaxed italic">
+              "{highlightFillers(liveTranscript.trim())}"
+            </p>
+            <FillerSparkline fillerTimes={fillerTimes} duration={duration} />
+          </div>
+        </Collapsible>
       )}
 
       {/* ── Actions ── */}

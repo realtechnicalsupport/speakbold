@@ -17,6 +17,7 @@ import {
   Award, Brain, ChevronDown, ChevronRight, ArrowRight, Flame, Clock, Swords, Volume2
 } from "lucide-react";
 import { transcribeAudio, judgePathwayDrill, speakWithDeepgramTTS } from "@/services/geminiService";
+import { ModelSpeech } from "@/components/ModelSpeech";
 import { DebateBattle } from "@/components/DebateBattle";
 import { useArena, AI_PERSONAS } from "@/hooks/useArena";
 import { STARTING_ELO } from "@/hooks/arenaUtils";
@@ -207,14 +208,16 @@ const ChapterCard = ({
       className="relative"
     >
       {/* Header card */}
-      <div
+      <motion.div
+        whileHover={!isLocked ? { scale: 1.01, rotateX: 2, rotateY: -2 } : {}}
+        style={{ perspective: 1000 }}
         className={cn(
-          "p-6 md:p-10 rounded-[2.5rem] border relative overflow-hidden shadow-soft transition-all",
+          "p-6 md:p-10 relative overflow-hidden transition-all",
           isLocked
-            ? "bg-muted/5 border-border/40 opacity-60"
+            ? "glass-card opacity-60"
             : isComplete
-            ? "bg-primary/5 border-primary/30 cursor-pointer select-none hover:border-primary/50"
-            : "bg-muted/5 border-border/60"
+            ? "glass-card cursor-pointer select-none hover:shadow-clay-primary"
+            : "glass-card"
         )}
         onClick={isComplete ? () => setCollapsed(c => !c) : undefined}
       >
@@ -293,7 +296,7 @@ const ChapterCard = ({
             </div>
           )}
         </div>
-      </div>
+      </motion.div>
 
       {/* Drill nodes — collapsible for completed chapters */}
       <AnimatePresence initial={false}>
@@ -405,7 +408,7 @@ const NextDrillHero = ({
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ delay: 0.1 }}
-        className="relative p-8 md:p-10 rounded-[2.5rem] bg-gradient-to-br from-primary/10 via-primary/5 to-transparent border border-primary/30 overflow-hidden shadow-soft flex flex-col justify-between min-h-[300px]"
+        className="relative p-8 md:p-10 glass-card flex flex-col justify-between min-h-[300px]"
       >
         {currentDrill && (
           <div
@@ -943,10 +946,7 @@ const LessonDrill = ({
             </div>
 
             {aiResult.exampleSpeech && (
-              <div className="bg-primary/5 border border-primary/10 rounded-[2rem] p-8 md:p-12 space-y-6">
-                <p className="text-xs md:text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2"><Mic className="h-4 w-4" /> HOW AN EXPERT WOULD SAY IT</p>
-                <p className="text-base md:text-lg leading-relaxed opacity-80 italic font-medium">"{aiResult.exampleSpeech}"</p>
-              </div>
+              <ModelSpeech text={aiResult.exampleSpeech} label="How an expert would say it" />
             )}
 
             <div className="flex flex-col sm:flex-row gap-4 pt-4">

@@ -113,7 +113,7 @@ export const Hero = () => {
         </motion.p>
 
         {/* CTA — one decisive primary action. Logged-out visitors see a single
-            "Start free" so there's no choice to make; logged-in users get the
+            "Start now" so there's no choice to make; logged-in users get the
             two meaningfully-distinct destinations (learn vs. compete). */}
         <motion.div
           initial={{ opacity: 0, y: 16 }}
@@ -158,7 +158,7 @@ export const Hero = () => {
                 to="/login?mode=signup"
                 className="group w-full sm:w-auto relative flex items-center justify-center gap-3 px-8 sm:px-10 py-4 rounded-full border border-primary/30 hover:border-primary hover:bg-primary/5 active:scale-95 transition-all duration-300"
               >
-                <span className="text-sm font-black uppercase tracking-wide text-primary">Start free</span>
+                <span className="text-sm font-black uppercase tracking-wide text-primary">Start now</span>
               </Link>
             </>
           )}
