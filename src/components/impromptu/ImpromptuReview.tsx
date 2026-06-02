@@ -2,7 +2,7 @@ import {
   Shuffle, TrendingUp, TrendingDown, Minus, Scissors, Lightbulb,
   Target, Mic2, ChevronDown, Repeat2, Volume2, Check, ArrowRight,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import type { ImpromptuCoachReport } from "@/services/geminiService";
@@ -329,15 +329,71 @@ const Collapsible = ({ label, icon, defaultOpen = false, children }: {
 };
 
 // ── Audio playback ────────────────────────────────────────────────────────────
-const AudioPlayback = ({ blobUrl }: { blobUrl: string }) => (
-  <div className="rounded-[1.5rem] border border-border/25 bg-muted/3 p-4 space-y-2.5">
-    <div className="flex items-center gap-2">
-      <Volume2 className="h-3 w-3 opacity-25" />
-      <span className="text-[9px] font-black uppercase tracking-[0.5em] opacity-25">YOUR RECORDING</span>
+const formatClipDuration = (secs: number) => {
+  if (!isFinite(secs) || secs < 0) return "";
+  const m = Math.floor(secs / 60);
+  const s = Math.floor(secs % 60);
+  return `${m}:${String(s).padStart(2, "0")}`;
+};
+
+const AudioPlayback = ({ blobUrl }: { blobUrl: string }) => {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const seekedRef = useRef(false);
+  const [seconds, setSeconds] = useState<number | null>(null);
+
+  // MediaRecorder webm/opus blobs ship with NO duration in the container header,
+  // so the native <audio> control reads `duration === Infinity` and shows a
+  // wrong, inflated total time (the recording itself is fine — only the metadata
+  // is missing). Force the browser to compute the real length by seeking past the
+  // end once metadata loads: it scans the file and fires `durationchange` with the
+  // true value, after which we read it and reset the playhead to the start.
+  const onLoadedMetadata = () => {
+    const el = audioRef.current;
+    if (!el) return;
+    if (el.duration === Infinity || Number.isNaN(el.duration)) {
+      seekedRef.current = true;
+      el.currentTime = 1e101;
+    } else {
+      setSeconds(el.duration);
+    }
+  };
+
+  const onDurationChange = () => {
+    const el = audioRef.current;
+    if (!el) return;
+    if (el.duration !== Infinity && !Number.isNaN(el.duration)) {
+      setSeconds(el.duration);
+      if (seekedRef.current) {
+        seekedRef.current = false;
+        el.currentTime = 0;
+      }
+    }
+  };
+
+  return (
+    <div className="rounded-[1.5rem] border border-border/25 bg-muted/3 p-4 space-y-2.5">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Volume2 className="h-3 w-3 opacity-25" />
+          <span className="text-[9px] font-black uppercase tracking-[0.5em] opacity-25">YOUR RECORDING</span>
+        </div>
+        {seconds != null && (
+          <span className="text-[9px] font-black tabular-nums opacity-25">{formatClipDuration(seconds)}</span>
+        )}
+      </div>
+      <audio
+        ref={audioRef}
+        controls
+        src={blobUrl}
+        preload="metadata"
+        onLoadedMetadata={onLoadedMetadata}
+        onDurationChange={onDurationChange}
+        className="w-full h-8"
+        style={{ accentColor: "hsl(var(--primary))" }}
+      />
     </div>
-    <audio controls src={blobUrl} className="w-full h-8" style={{ accentColor: "hsl(var(--primary))" }} />
-  </div>
-);
+  );
+};
 
 // ── Main component ────────────────────────────────────────────────────────────
 export const ImpromptuReview = ({

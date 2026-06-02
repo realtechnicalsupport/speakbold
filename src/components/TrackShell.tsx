@@ -1,6 +1,6 @@
 ﻿import { ReactNode, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Clipboard, ArrowRight, ShieldCheck, Microscope } from "lucide-react";
+import { ArrowLeft, ShieldCheck, Microscope } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -100,32 +100,6 @@ export const TrackShell = ({ eyebrow, title, intro, children, hideHeader = false
         {children}
       </motion.div>
       
-      <motion.div 
-        initial={{ opacity: 0, y: 30 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ duration: 1 }}
-        className="px-4 md:container relative z-10 pb-32 border-t border-border/60 pt-16"
-      >
-        <Link
-          to="/pre-flight"
-          className="group block relative bg-muted/5 border border-border/60 rounded-2xl md:rounded-[4rem] p-6 md:p-16 hover:border-primary/40 hover:bg-primary/[0.02] transition-all duration-700 overflow-hidden shadow-soft"
-        >
-          <div className="flex items-center justify-between relative z-10 gap-4">
-            <div className="flex items-center gap-4 md:gap-12">
-              <div className="flex items-center justify-center h-14 w-14 md:h-20 md:w-20 rounded-2xl md:rounded-[2.5rem] bg-primary/10 border border-primary/20 text-primary shrink-0 group-hover:scale-110 group-hover:rotate-6 transition-all duration-700 shadow-glow shadow-primary/5">
-                <Clipboard className="h-6 w-6 md:h-10 md:w-10" />
-              </div>
-              <div className="space-y-3 min-w-0">
-                <p className="speak-serif text-xl md:text-4xl italic tracking-tighter group-hover:text-primary transition-colors truncate">Pre-Flight Checklist</p>
-                <p className="text-xs font-black uppercase tracking-[0.2em] md:tracking-[0.4em] opacity-40">5-MINUTE PROTOCOL BEFORE HIGH-STAKES DEPLOYMENT</p>
-              </div>
-            </div>
-            <ArrowRight className="h-10 w-10 opacity-10 group-hover:opacity-100 group-hover:translate-x-4 transition-all duration-700" />
-          </div>
-        </Link>
-      </motion.div>
-
       <div className="py-16 flex flex-col items-center gap-8 border-t border-border/60 relative z-10 w-full overflow-hidden px-4">
           <div className="flex flex-wrap justify-center items-center gap-4 md:gap-6 text-[11px] md:text-xs font-black uppercase tracking-[0.2em] md:tracking-[1em] opacity-10 text-center">
             <Microscope className="h-4 w-4 md:h-5 md:w-5 shrink-0" />

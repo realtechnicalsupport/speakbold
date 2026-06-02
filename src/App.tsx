@@ -8,7 +8,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import Index from "./pages/Index";
 import { MobileNav } from "./components/MobileNav";
 import NotFound from "./pages/NotFound";
-import PreFlightChecklist from "./pages/PreFlightChecklist";
 import Profile from "./pages/Profile";
 import ResetPassword from "./pages/ResetPassword";
 import PublicSpeaking from "./pages/tracks/PublicSpeaking";
@@ -64,6 +63,24 @@ const RequireAuth = ({ children }: { children: ReactNode }) => {
   return <>{children}</>;
 };
 
+/**
+ * Reset scroll to the top on every route change. BrowserRouter preserves the
+ * window scroll position across navigations, so without this a user who scrolled
+ * down one page lands mid-page (or at the bottom) when they open another. We also
+ * disable the browser's automatic scroll restoration so back/forward navigations
+ * start at the top too.
+ */
+const ScrollToTop = () => {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    if (typeof history !== "undefined" && "scrollRestoration" in history) {
+      history.scrollRestoration = "manual";
+    }
+    window.scrollTo(0, 0);
+  }, [pathname]);
+  return null;
+};
+
 const App = () => {
   const timerActive = useTimerActive();
 
@@ -99,6 +116,7 @@ const App = () => {
             <Sonner />
             <ReminderWrapper>
               <BrowserRouter>
+                <ScrollToTop />
                 <FloatingNodes />
                 <GuidedTour />
                 <ChatProvider>
@@ -137,7 +155,6 @@ const App = () => {
 
                   {/* Auth-gated — flash an empty page no longer; bounce to
                       /login with location state so we can return after sign-in. */}
-                  <Route path="/pre-flight" element={<RequireAuth><PreFlightChecklist /></RequireAuth>} />
                   <Route path="/profile" element={<RequireAuth><Profile /></RequireAuth>} />
                   <Route path="/report" element={<RequireAuth><ProgressReport /></RequireAuth>} />
                   <Route path="/leaderboard" element={<RequireAuth><Leaderboard /></RequireAuth>} />
