@@ -39,6 +39,12 @@ const PLACEMENT_CAP   = 1600;
 const PLACEMENT_MARGIN_COEF  = 4;
 const PLACEMENT_QUALITY_COEF = 4;
 
+// Keep an earned rating off the unranked sentinel (mirror of arenaUtils). The
+// client treats elo === STARTING_ELO as "no rating" (isRankedElo + the
+// leaderboard's .neq filter), so a ranked player who drifts onto exactly 1000
+// would be wrongly hidden. Nudge by +1 — same rank, never collides.
+const nudgeOffSentinel = (elo: number): number => elo === STARTING_ELO ? STARTING_ELO + 1 : elo;
+
 // Place an unranked player (NULL elo) from the result of their first battle.
 // Anchored to the opponent's level, pushed by score margin + absolute quality,
 // AI-damped, then clamped so one match can't mint Diamond or bottom you out.
@@ -49,7 +55,7 @@ function computePlacementElo(oppElo: number, myScore: number | null, oppScore: n
   if (isAi) push *= AI_DAMPING;
   const placement = Math.round(Math.max(PLACEMENT_FLOOR, Math.min(PLACEMENT_CAP, oppElo + push)));
   // Never land on the unranked sentinel — it reads as "no rating" downstream.
-  return placement === STARTING_ELO ? placement + 1 : placement;
+  return nudgeOffSentinel(placement);
 }
 
 type Gamemode = "blitz" | "standard" | "debate" | "pitch";
@@ -245,7 +251,7 @@ Deno.serve(async (req) => {
     const myIsPlacement = myIsUnranked && !skipElo && !body.isForfeit && haveScores;
     const newElo = myIsPlacement
       ? computePlacementElo(oppElo, myScore, oppScore, !!body.isAi)
-      : Math.max(ELO_FLOOR, myElo + eloChange);
+      : nudgeOffSentinel(Math.max(ELO_FLOOR, myElo + eloChange));
     // Persist the new rating when we placed them OR the delta actually moved.
     const shouldWriteMyElo = !skipElo && (myIsPlacement || eloChange !== 0);
 
@@ -278,7 +284,7 @@ Deno.serve(async (req) => {
       // If the opponent is also unranked, this PvP battle is THEIR placement too.
       oppNewElo = oppIsUnranked && haveScores
         ? computePlacementElo(myElo, oppScore, myScore, false)
-        : Math.max(ELO_FLOOR, oppElo + oppEloChange);
+        : nudgeOffSentinel(Math.max(ELO_FLOOR, oppElo + oppEloChange));
     }
 
     // ── Write the battle row first, then ELO. ──────────────────────────────

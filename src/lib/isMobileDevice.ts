@@ -13,30 +13,39 @@
  */
 export function isMobileDevice(): boolean {
   if (typeof navigator === "undefined") return false;
+
+  // ── Hardware capability check (UA-spoof-proof) ────────────────────────────
+  // Chrome's "Desktop site" mode changes the UA string but does NOT spoof
+  // maxTouchPoints or CSS pointer media queries, so a tablet in desktop mode
+  // passes all UA checks and slips through to the live-speech path — producing
+  // the exact "stops then restarts on every pause" bug.
+  //
+  // Check hardware FIRST: a device with multiple touch points and no fine
+  // pointer (mouse/trackpad) is unambiguously a phone or tablet regardless of
+  // UA or viewport mode. Touchscreen laptops are excluded because they always
+  // have a fine pointer via their built-in trackpad.
+  if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
+    const touchPoints = typeof navigator.maxTouchPoints === "number" ? navigator.maxTouchPoints : 0;
+    const hasFinePointer = window.matchMedia("(any-pointer: fine)").matches;
+    if (touchPoints > 1 && !hasFinePointer) return true;
+  }
+
+  // ── UA fallback (catches cases before matchMedia is available) ────────────
   const ua = navigator.userAgent || "";
   if (/Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua)) return true;
-  // iPadOS 13+ identifies as Mac in UA — disambiguate via touch points.
+  // iPadOS 13+ with default UA identifies as Mac — disambiguate via touch points.
   if (/iPad/i.test(ua)) return true;
   if (/Macintosh/i.test(ua) && typeof navigator.maxTouchPoints === "number" && navigator.maxTouchPoints > 1) {
     return true;
   }
 
-  // Capability fallback for tablets the UA list misses (some Android builds,
-  // browsers in "request desktop site" mode, less common vendors). UA strings
-  // are unreliable and vary by model — these devices still run the same mobile
-  // speech engine that auto-stops on silence, so they need the recording path.
-  //
-  // We classify a device as touch-primary when the PRIMARY pointer is coarse
-  // (touch) AND no fine pointer (mouse/trackpad) exists anywhere. That excludes
-  // desktops with a mouse, and touchscreen laptops — which expose a fine pointer
-  // via their trackpad and handle live recognition correctly.
+  // ── Coarse-primary fallback for single-touch-point devices ────────────────
+  // Catches any remaining touch-primary devices the checks above missed.
   if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
     const coarsePrimary = window.matchMedia("(pointer: coarse)").matches;
     const hasFinePointer = window.matchMedia("(any-pointer: fine)").matches;
     const touchPoints = typeof navigator.maxTouchPoints === "number" ? navigator.maxTouchPoints : 0;
-    if (coarsePrimary && !hasFinePointer && touchPoints > 0) {
-      return true;
-    }
+    if (coarsePrimary && !hasFinePointer && touchPoints > 0) return true;
   }
 
   return false;

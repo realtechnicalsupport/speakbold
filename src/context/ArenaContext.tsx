@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { generateArenaPrompt } from "@/services/geminiService";
-import { getRankFromElo, computeEloChange, computePlacementElo, isRankedElo, STARTING_ELO, ELO_FLOOR, FORFEIT_PENALTY } from "@/hooks/arenaUtils";
+import { getRankFromElo, computeEloChange, computePlacementElo, isRankedElo, nudgeOffSentinel, STARTING_ELO, ELO_FLOOR, FORFEIT_PENALTY } from "@/hooks/arenaUtils";
 import { arenaEmitter } from "@/lib/events";
 import { logSkillEvent } from "@/lib/skillEvents";
 import { arenaToDims } from "@/lib/skillScoring";
@@ -436,7 +436,9 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       isForfeit: isMe ? "self" : "opponent",
     });
 
-    const newElo = Math.max(ELO_FLOOR, myElo + eloChange);
+    // Forfeiting earns/keeps a real rating (ranked:true below), so keep the
+    // result off the unranked sentinel.
+    const newElo = nudgeOffSentinel(Math.max(ELO_FLOOR, myElo + eloChange));
 
     try {
       // ── Optimistic local update ───────────────────────────────────────────
@@ -527,7 +529,7 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       ? myElo
       : isPlacement
         ? computePlacementElo({ oppElo, myScore, oppScore, isAi: isAI })
-        : Math.max(ELO_FLOOR, myElo + eloChange);
+        : nudgeOffSentinel(Math.max(ELO_FLOOR, myElo + eloChange));
 
     // Feed this battle into the AI Coach (opponent-weighted so a hard matchup
     // doesn't misleadingly tank the skill radar). Real battles only — custom

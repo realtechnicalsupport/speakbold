@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mic, X, Lock, ArrowRight, RotateCcw, Gauge, Hash, AudioWaveform, AlertTriangle } from "lucide-react";
 import { getRandomTopic, TARGET_WPM, type ImpromptuTopic } from "@/data/impromptuTopics";
+import { isMobileDevice } from "@/lib/isMobileDevice";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Anonymous, zero-backend "feel the magic" drill for the landing page.
@@ -81,7 +82,13 @@ export const LiveTrialDrill = ({ open, onClose }: Props) => {
   const startedAtRef = useRef(0);
   const stoppingRef = useRef(false);
 
-  const supported = getSpeechRecognition() != null;
+  // The zero-backend trial relies on live Web Speech, which phones AND tablets
+  // run on a mobile engine that ignores `continuous = true`: it auto-stops on
+  // every pause and the restart loop reopens the mic (the "Google Assistant"
+  // pop-in). Rather than ship that stuttering experience, treat touch devices
+  // as "not supported for the live trial" and route them to the full server-side
+  // recorder via signup — same gate the Impromptu/Debate surfaces already use.
+  const supported = getSpeechRecognition() != null && !isMobileDevice();
 
   // ── Teardown helpers ────────────────────────────────────────────────────────
   const stopRecognition = useCallback(() => {
@@ -453,10 +460,10 @@ export const LiveTrialDrill = ({ open, onClose }: Props) => {
           {phase === "unsupported" && (
             <div className="space-y-5 text-center py-4">
               <Mic className="h-10 w-10 mx-auto text-primary opacity-40" />
-              <h2 className="speak-serif text-2xl italic">Best experienced in Chrome.</h2>
+              <h2 className="speak-serif text-2xl italic">Best on a computer.</h2>
               <p className="text-sm opacity-50 leading-relaxed">
-                Your browser doesn't support live in-browser transcription. Create a free account to
-                use the full recorder with server-side AI feedback.
+                The instant 30-second drill runs in desktop Chrome. On a phone or tablet, create a
+                free account to record with the full server-side AI coach — same feedback, any device.
               </p>
               <Link
                 to="/login?mode=signup"

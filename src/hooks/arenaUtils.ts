@@ -60,6 +60,19 @@ export const FORFEIT_PENALTY = 30;
 export const isRankedElo = (elo: number | null | undefined): boolean =>
   elo != null && elo !== STARTING_ELO;
 
+/**
+ * Keep an *earned* rating off the unranked sentinel. STARTING_ELO does double
+ * duty as the "no rating yet" marker (see isRankedElo + the leaderboard's
+ * `.neq("elo", STARTING_ELO)` filter), so a ranked player whose ELO happens to
+ * drift onto exactly 1000 through normal wins/losses would be wrongly hidden
+ * from the board and shown as "Unranked". Nudge by +1 (still the same rank/tier)
+ * so an earned rating can never collide with the sentinel. Placement already
+ * does this; this covers ordinary win/loss/forfeit drift. Apply only to values
+ * that are actually being persisted as a rating.
+ */
+export const nudgeOffSentinel = (elo: number): number =>
+  elo === STARTING_ELO ? STARTING_ELO + 1 : elo;
+
 // ── Rank thresholds ─────────────────────────────────────────────────────────
 // With STARTING_ELO = 1000 a new player begins inside Silver (II).
 //   Bronze:   0   – 599
@@ -306,7 +319,7 @@ export function computePlacementElo(input: {
   const placement = Math.round(Math.max(PLACEMENT_FLOOR, Math.min(PLACEMENT_CAP, oppElo + push)));
   // Never place exactly on the unranked sentinel (STARTING_ELO) — that value is
   // treated as "no rating" and would re-hide a player who just earned one.
-  return placement === STARTING_ELO ? placement + 1 : placement;
+  return nudgeOffSentinel(placement);
 }
 
 /**

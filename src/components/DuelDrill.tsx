@@ -370,7 +370,11 @@ export const DuelDrill = ({
         sendTranscript(duel.id, myTranscript);
         setAnalyzeText("WAITING FOR AI RESULTS...");
         setTimeout(() => {
-          if (phase === "analyzing") {
+          // Read the live phase via the ref — the closure's `phase` is frozen at
+          // "drilling" (generateVerdict is only invoked from that phase), so the
+          // old `phase === "analyzing"` check was always false and this safety
+          // net never fired, leaving a peer stuck forever when the host died.
+          if (phaseRef.current === "analyzing") {
             toast({ title: "Sync Error", description: "Host did not return results in time.", variant: "destructive" });
             onClose();
           }
@@ -571,10 +575,6 @@ export const DuelDrill = ({
                 )}
               </div>
             </div>
-          </div>
-          <div className="text-right">
-            <p className="text-sm font-black uppercase tracking-widest text-primary">TARGET SCORE</p>
-            <p className="text-3xl font-black">{opponent.score}</p>
           </div>
         </div>
       )}

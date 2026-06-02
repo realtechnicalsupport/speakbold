@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Sparkles, ArrowLeft, ArrowRight, Hand, GripHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -10,7 +10,7 @@ import { TOUR } from "@/lib/tourSteps";
 const LS_INDEX = (uid: string) => `speakbold_tour_index_${uid}`;
 const PAD = 8;     // spotlight padding around the target
 const BW = 300;    // approx bubble width (desktop)
-const BH = 188;    // approx bubble height (for placement math)
+const BH = 188;    // fallback bubble height before the real one is measured
 
 export const GuidedTour = () => {
   const { user, onboardingDone, tutorialDone, refreshUserStatus } = useAuth();
@@ -24,6 +24,8 @@ export const GuidedTour = () => {
   const [located, setLocated] = useState(false);
   const [drag, setDrag] = useState({ x: 0, y: 0 }); // user-dragged offset for the bubble
   const dragRef = useRef<{ sx: number; sy: number; bx: number; by: number } | null>(null);
+  const bubbleRef = useRef<HTMLDivElement>(null);
+  const [bubbleH, setBubbleH] = useState(BH); // real bubble height, measured after render
   const refreshRef = useRef(refreshUserStatus);
   useEffect(() => { refreshRef.current = refreshUserStatus; }, [refreshUserStatus]);
 
@@ -77,6 +79,20 @@ export const GuidedTour = () => {
     setDrag({ x: dragRef.current.bx + (e.clientX - dragRef.current.sx), y: dragRef.current.by + (e.clientY - dragRef.current.sy) });
   };
   const onDragEnd = () => { dragRef.current = null; };
+
+  // Measure the bubble's real rendered height so placement never assumes a wrong
+  // size. The old hardcoded estimate undershot tall steps (long body + doHint +
+  // buttons), so "place above" left too little room and the bubble overlapped the
+  // spotlighted target — covering it (e.g. the chat FAB on tablet). offsetHeight
+  // is layout-position-independent, so reading it here is safe. Skip mid-drag to
+  // avoid layout thrashing; the height can't change while dragging.
+  useLayoutEffect(() => {
+    if (dragRef.current) return;
+    const el = bubbleRef.current;
+    if (!el) return;
+    const h = el.offsetHeight;
+    if (h && Math.abs(h - bubbleH) > 1) setBubbleH(h);
+  });
 
   // ── Drive the route for the current step ──────────────────────────────────
   useEffect(() => {
@@ -182,14 +198,14 @@ export const GuidedTour = () => {
   let baseTop: number;
   if (!hasSpotlight) {
     baseLeft = (vw - width) / 2;
-    baseTop = Math.max(16, (vh - BH) / 2);
+    baseTop = Math.max(16, (vh - bubbleH) / 2);
   } else if (isMobile) {
     // Dock near the bottom, above the mobile nav / home indicator.
     baseLeft = 16;
-    baseTop = Math.max(16, vh - BH - 96);
+    baseTop = Math.max(16, vh - bubbleH - 96);
   } else {
-    const placeBelow = rect!.bottom + 12 + BH < vh;
-    baseTop = placeBelow ? rect!.bottom + 12 : Math.max(12, rect!.top - BH - 12);
+    const placeBelow = rect!.bottom + 12 + bubbleH < vh;
+    baseTop = placeBelow ? rect!.bottom + 12 : Math.max(12, rect!.top - bubbleH - 12);
     baseLeft = rect!.left + rect!.width / 2 - width / 2;
     baseLeft = Math.max(12, Math.min(baseLeft, vw - width - 12));
   }
@@ -220,6 +236,7 @@ export const GuidedTour = () => {
 
       {/* Coachmark bubble — above the dim and above the chat. Draggable. */}
       <div
+        ref={bubbleRef}
         className="fixed z-[260] bg-card border border-primary/25 rounded-[1.5rem] shadow-2xl p-5 animate-in fade-in zoom-in-95 duration-200"
         style={{ left, top, width }}
       >
