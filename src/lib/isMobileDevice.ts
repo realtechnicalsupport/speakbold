@@ -13,38 +13,39 @@
  */
 export function isMobileDevice(): boolean {
   if (typeof navigator === "undefined") return false;
-
-  // ── Hardware capability check (UA-spoof-proof) ────────────────────────────
-  // Chrome's "Desktop site" mode changes the UA string but does NOT spoof
-  // maxTouchPoints or CSS pointer media queries, so a tablet in desktop mode
-  // passes all UA checks and slips through to the live-speech path — producing
-  // the exact "stops then restarts on every pause" bug.
-  //
-  // Check hardware FIRST: a device with multiple touch points and no fine
-  // pointer (mouse/trackpad) is unambiguously a phone or tablet regardless of
-  // UA or viewport mode. Touchscreen laptops are excluded because they always
-  // have a fine pointer via their built-in trackpad.
-  if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
-    const touchPoints = typeof navigator.maxTouchPoints === "number" ? navigator.maxTouchPoints : 0;
-    const hasFinePointer = window.matchMedia("(any-pointer: fine)").matches;
-    if (touchPoints > 1 && !hasFinePointer) return true;
-  }
-
-  // ── UA fallback (catches cases before matchMedia is available) ────────────
   const ua = navigator.userAgent || "";
-  if (/Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua)) return true;
-  // iPadOS 13+ with default UA identifies as Mac — disambiguate via touch points.
-  if (/iPad/i.test(ua)) return true;
-  if (/Macintosh/i.test(ua) && typeof navigator.maxTouchPoints === "number" && navigator.maxTouchPoints > 1) {
-    return true;
-  }
+  const touchPoints = typeof navigator.maxTouchPoints === "number" ? navigator.maxTouchPoints : 0;
 
-  // ── Coarse-primary fallback for single-touch-point devices ────────────────
-  // Catches any remaining touch-primary devices the checks above missed.
+  // ── Default mobile UAs ────────────────────────────────────────────────────
+  if (/Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua)) return true;
+  if (/iPad/i.test(ua)) return true;
+  // iPadOS 13+ (and iPad in "Request Desktop Website") reports as Macintosh.
+  // Disambiguate via the touch digitizer — desktop Macs never have one.
+  if (/Macintosh/i.test(ua) && touchPoints > 1) return true;
+
+  // ── Android tablet/phone in Chrome "Desktop site" mode ────────────────────
+  // This is the case that bit us: "Desktop site" rewrites the UA to a generic
+  // desktop-Linux string ("X11; Linux x86_64") AND fakes the pointer media
+  // queries to report a fine (mouse) pointer — so every UA and (any-pointer:
+  // fine) check above passes and the device wrongly takes the live-speech path,
+  // giving the "mic stops on every pause then restarts" bug.
+  //
+  // The one thing desktop-site mode does NOT change is navigator.maxTouchPoints
+  // (the physical digitizer). A UA claiming desktop *Linux* while exposing a
+  // multi-touch screen is almost certainly an Android device masquerading as
+  // desktop — genuine Linux desktops with a 5-point touchscreen are vanishingly
+  // rare. Scoped to Linux on purpose: real Windows / ChromeOS / macOS touch-
+  // laptops report their true OS in the UA, so they KEEP the live-recognition
+  // path (which works correctly for them) instead of being demoted here.
+  if (/Linux/i.test(ua) && !/Android/i.test(ua) && touchPoints > 1) return true;
+
+  // ── Capability fallback for touch-primary devices the UA list missed ──────
+  // Primary pointer is coarse AND no fine pointer exists anywhere. (Won't fire
+  // in desktop-site mode, which fakes a fine pointer — the Linux+touch branch
+  // above covers that case.)
   if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
     const coarsePrimary = window.matchMedia("(pointer: coarse)").matches;
     const hasFinePointer = window.matchMedia("(any-pointer: fine)").matches;
-    const touchPoints = typeof navigator.maxTouchPoints === "number" ? navigator.maxTouchPoints : 0;
     if (coarsePrimary && !hasFinePointer && touchPoints > 0) return true;
   }
 
