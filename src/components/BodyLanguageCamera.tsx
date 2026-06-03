@@ -1,8 +1,12 @@
-﻿import { motion, AnimatePresence } from "framer-motion";
+﻿import { useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { Camera, Video, Square, VideoOff, AlertCircle, Activity, Eye, Smile, Hand, Loader2, Sun, Ruler, UserCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useBodyLanguage } from "@/hooks/useBodyLanguage";
+import { useBodyLanguage, type BodyLanguageSession } from "@/hooks/useBodyLanguage";
 import { BodyLanguageReport } from "@/components/BodyLanguageReport";
+import { useAuth } from "@/context/AuthContext";
+import { logSkillEvent } from "@/lib/skillEvents";
+import { bodyToDims } from "@/lib/skillScoring";
 
 const METRIC_CONFIG = [
   { key: "posture" as const, label: "POSTURE", icon: Activity, color: "#f97316" },
@@ -50,9 +54,36 @@ export function BodyLanguageCamera() {
     activate, startRecording, stopRecording, reset, deactivate,
   } = useBodyLanguage();
 
+  const { user } = useAuth();
+
   const isLive = status === "live" || status === "recording";
   const isRecording = status === "recording";
   const isDone = status === "done" && !!session;
+
+  // Persist each completed session into the skill graph so Body Language stops
+  // being a throwaway live read: this fills the radar's "delivery" spoke, feeds
+  // the adaptive coach, and gives the report's trend strip its history. Logged
+  // exactly once per session (fire-and-forget — never blocks the UI).
+  const loggedSessionRef = useRef<BodyLanguageSession | null>(null);
+  useEffect(() => {
+    if (status !== "done" || !session || loggedSessionRef.current === session) return;
+    loggedSessionRef.current = session;
+    const m = session.averageMetrics;
+    logSkillEvent({
+      userId: user?.id,
+      source: "body-language",
+      scores: bodyToDims(m),
+      overall: m.overall,
+      meta: {
+        posture: m.posture,
+        eyeContact: m.eyeContact,
+        expression: m.expression,
+        gesture: m.gesture,
+        overall: m.overall,
+        durationMs: session.durationMs,
+      },
+    });
+  }, [status, session, user?.id]);
 
   return (
     <div className="p-6 md:p-12 rounded-2xl md:rounded-[4rem] bg-muted/5 border border-border/60 relative overflow-hidden shadow-soft space-y-8">

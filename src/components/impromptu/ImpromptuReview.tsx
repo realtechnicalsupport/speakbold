@@ -76,7 +76,7 @@ const LoadingCoach = () => {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -6 }}
           transition={{ duration: 0.3 }}
-          className="text-sm font-medium opacity-30 tracking-wide"
+          className="text-sm font-medium opacity-60 tracking-wide"
         >
           {STEPS[step]}
         </motion.p>
@@ -121,7 +121,7 @@ const ScoreHero = ({ score, verdict, stats }: {
 
       {/* Verdict + label + delta */}
       <div className="min-w-0 space-y-2">
-        <p className="text-[11px] font-black uppercase tracking-[0.4em] opacity-30">{scoreLabel(score)}</p>
+        <p className="text-[11px] font-black uppercase tracking-[0.4em] opacity-50">{scoreLabel(score)}</p>
         <motion.p
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
@@ -141,7 +141,7 @@ const ScoreHero = ({ score, verdict, stats }: {
                 <TrendingDown className="h-3 w-3" />{delta} below your avg
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest opacity-30">
+              <span className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest opacity-50">
                 <Minus className="h-3 w-3" />right at your avg
               </span>
             )}
@@ -174,7 +174,7 @@ const PaceBar = ({ wpm }: { wpm: number }) => {
           transition={{ delay: 0.5, type: "spring", stiffness: 220, damping: 18 }}
         />
       </div>
-      <div className="flex justify-between text-[8px] font-medium opacity-20">
+      <div className="flex justify-between text-[8px] font-medium opacity-40">
         <span>slow</span><span>{TARGET_WPM.min}–{TARGET_WPM.max}</span><span>fast</span>
       </div>
     </div>
@@ -188,31 +188,31 @@ const MetricsStrip = ({ wpm, totalWords, elapsedSecs, fillerCount }: {
   <div className="grid grid-cols-3 gap-2.5">
     <div className="rounded-2xl border border-border/30 bg-muted/4 p-4 space-y-3">
       <div className="flex items-end justify-between">
-        <span className="text-[11px] font-black uppercase tracking-[0.4em] opacity-25">PACE</span>
+        <span className="text-[11px] font-black uppercase tracking-[0.4em] opacity-50">PACE</span>
         <span className={cn("text-3xl font-black tabular-nums leading-none",
           wpm >= TARGET_WPM.min && wpm <= TARGET_WPM.max && wpm > 0 ? "text-emerald-400"
-            : wpm > 0 ? "text-amber-400" : "opacity-30")}>
+            : wpm > 0 ? "text-amber-400" : "opacity-50")}>
           {wpm > 0 ? wpm : "—"}
         </span>
 
       </div>
-      {wpm > 0 ? <PaceBar wpm={wpm} /> : <p className="text-[8px] opacity-20">no data</p>}
+      {wpm > 0 ? <PaceBar wpm={wpm} /> : <p className="text-[8px] opacity-40">no data</p>}
     </div>
     <div className="rounded-2xl border border-border/30 bg-muted/4 p-4 flex flex-col justify-between">
-      <span className="text-[11px] font-black uppercase tracking-[0.4em] opacity-25">WORDS</span>
+      <span className="text-[11px] font-black uppercase tracking-[0.4em] opacity-50">WORDS</span>
       <div>
         <p className="text-3xl font-black tabular-nums">{totalWords}</p>
-        <p className="text-[10px] opacity-20 mt-1">in {elapsedSecs}s</p>
+        <p className="text-[10px] opacity-40 mt-1">in {elapsedSecs}s</p>
       </div>
     </div>
     <div className="rounded-2xl border border-border/30 bg-muted/4 p-4 flex flex-col justify-between">
-      <span className="text-[11px] font-black uppercase tracking-[0.4em] opacity-25">FILLERS</span>
+      <span className="text-[11px] font-black uppercase tracking-[0.4em] opacity-50">FILLERS</span>
       <div>
         <p className={cn("text-3xl font-black tabular-nums",
           fillerCount === 0 ? "text-emerald-400" : fillerCount <= 2 ? "text-amber-400" : "text-red-400")}>
           {fillerCount}
         </p>
-        <p className="text-[10px] opacity-20 mt-1">
+        <p className="text-[10px] opacity-40 mt-1">
           {fillerCount === 0 ? "clean!" : fillerCount <= 2 ? "manageable" : "reduce"}
         </p>
       </div>
@@ -278,7 +278,7 @@ const FillerSparkline = ({ fillerTimes, duration }: { fillerTimes: number[]; dur
 
   return (
     <div className="space-y-1.5 pt-3 border-t border-border/20">
-      <p className="text-[9px] font-black uppercase tracking-[0.4em] opacity-20">FILLER DENSITY</p>
+      <p className="text-[9px] font-black uppercase tracking-[0.4em] opacity-50">FILLER DENSITY</p>
       <div className="flex items-end gap-1 h-6">
         {counts.map((count, i) => (
           <div key={i}
@@ -306,11 +306,11 @@ const Collapsible = ({ label, icon, defaultOpen = false, children }: {
         onClick={() => setOpen(v => !v)}
         className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-foreground/3 transition-colors"
       >
-        <span className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.5em] opacity-30">
+        <span className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.5em] opacity-50">
           {icon}{label}
         </span>
         <motion.div animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.25 }}>
-          <ChevronDown className="h-3.5 w-3.5 opacity-30" />
+          <ChevronDown className="h-3.5 w-3.5 opacity-50" />
         </motion.div>
       </button>
       <AnimatePresence initial={false}>
@@ -374,11 +374,11 @@ const AudioPlayback = ({ blobUrl }: { blobUrl: string }) => {
     <div className="rounded-[1.5rem] border border-border/25 bg-muted/3 p-4 space-y-2.5">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <Volume2 className="h-3 w-3 opacity-25" />
-          <span className="text-[9px] font-black uppercase tracking-[0.5em] opacity-25">YOUR RECORDING</span>
+          <Volume2 className="h-3 w-3 opacity-50" />
+          <span className="text-[9px] font-black uppercase tracking-[0.5em] opacity-50">YOUR RECORDING</span>
         </div>
         {seconds != null && (
-          <span className="text-[9px] font-black tabular-nums opacity-25">{formatClipDuration(seconds)}</span>
+          <span className="text-[9px] font-black tabular-nums opacity-50">{formatClipDuration(seconds)}</span>
         )}
       </div>
       <audio
@@ -445,12 +445,12 @@ export const ImpromptuReview = ({
       ) : noSpeech ? (
         <div className="rounded-[2rem] border border-border/30 bg-muted/4 py-12 flex flex-col items-center gap-3">
           <Mic2 className="h-9 w-9 opacity-10" />
-          <p className="text-sm font-medium opacity-25">No speech captured.</p>
+          <p className="text-sm font-medium opacity-60">No speech captured.</p>
           <p className="text-xs opacity-15">Enable your mic and try again.</p>
         </div>
       ) : (
         <div className="rounded-[2rem] border border-border/30 bg-muted/4 py-10 text-center">
-          <p className="text-sm font-medium opacity-25">AI analysis unavailable.</p>
+          <p className="text-sm font-medium opacity-60">AI analysis unavailable.</p>
         </div>
       )}
 
@@ -587,7 +587,7 @@ export const ImpromptuReview = ({
         >
           <div className="flex items-center justify-between">
             <SectionLabel icon={<Target className="h-3 w-3" />} color="text-amber-400/70">Framework</SectionLabel>
-            <span className="text-[11px] font-black tabular-nums opacity-30">{fwHits}/{fwTotal} hit</span>
+            <span className="text-[11px] font-black tabular-nums opacity-50">{fwHits}/{fwTotal} hit</span>
           </div>
           <div className="flex flex-wrap gap-1.5">
             {coachReport.frameworkCheck.map((item, i) => (
@@ -595,7 +595,7 @@ export const ImpromptuReview = ({
                 "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider border",
                 item.hit
                   ? "border-emerald-500/30 bg-emerald-500/8 text-emerald-300/80"
-                  : "border-border/30 opacity-40"
+                  : "border-border/30 opacity-50"
               )}>
                 {item.hit
                   ? <Check className="h-2.5 w-2.5" strokeWidth={3} />
@@ -607,7 +607,7 @@ export const ImpromptuReview = ({
           {missed.length > 0 && (
             <div className="space-y-1 pt-1">
               {missed.map((item, i) => (
-                <p key={i} className="text-sm font-medium opacity-40 leading-snug">
+                <p key={i} className="text-sm font-medium opacity-70 leading-snug">
                   <span className="text-amber-400/60 font-bold">{item.step} · </span>{item.note}
                 </p>
               ))}
@@ -659,7 +659,7 @@ export const ImpromptuReview = ({
           >
             <Repeat2 className="h-4 w-4 group-hover:scale-110 transition-transform" />
             <span className="text-sm font-black uppercase tracking-[0.2em]">Drill the Pivot</span>
-            <span className="text-[9px] font-medium opacity-40 ml-1">30s</span>
+            <span className="text-[9px] font-medium opacity-60 ml-1">30s</span>
           </motion.button>
         )}
       </motion.div>

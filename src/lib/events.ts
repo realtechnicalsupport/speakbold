@@ -12,6 +12,7 @@ export type ArenaEvents = {
     oppStrengths?: string;
     exampleSpeech?: string;
     won?: boolean;
+    tie?: boolean;
   };
   "arena:battle-analyzing": { duelId: string };
   "arena:battle-transcript":{ duelId: string; userId: string; transcript: string };

@@ -9,7 +9,8 @@ export type SkillSource =
   | "recording"
   | "coach"
   | "interview"
-  | "public-speaking";
+  | "public-speaking"
+  | "body-language";
 
 /**
  * Persist one skill signal so the Coach learns from this session. Fire-and-forget

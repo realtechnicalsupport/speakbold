@@ -35,17 +35,27 @@ function pushRolling(buf: number[], val: number) {
   if (buf.length > ROLLING) buf.shift();
 }
 
+// All landmark-geometry metrics normalize by shoulder width. Raw normalized
+// deltas shrink as the speaker moves away from the camera, so the previous fixed
+// coefficients made the SAME posture score differently at different distances.
+// Dividing by shoulder width makes every score scale-invariant — the single most
+// important correctness fix here. The remaining coefficients are deliberately
+// heuristic (tuned to feel right at a typical mid-torso framing); true absolute
+// calibration would require a labelled corpus of postures, which we don't claim.
 function computePosture(landmarks: any[]): number {
   if (!landmarks || landmarks.length < 25) return 50;
   const ls = landmarks[11], rs = landmarks[12];
   const lh = landmarks[23], rh = landmarks[24];
   const nose = landmarks[0];
-  const shoulderTilt = Math.abs(ls.y - rs.y);
+  const shoulderWidth = Math.hypot(ls.x - rs.x, ls.y - rs.y) || 1e-4;
   const shoulderMidX = (ls.x + rs.x) / 2;
   const hipMidX = (lh.x + rh.x) / 2;
-  const tiltPenalty = Math.min(shoulderTilt * 400, 30);
-  const leanPenalty = Math.min(Math.abs(shoulderMidX - hipMidX) * 200, 25);
-  const headPenalty = Math.min(Math.abs(nose.x - shoulderMidX) * 150, 20);
+  const tilt = Math.abs(ls.y - rs.y) / shoulderWidth;            // shoulder slope
+  const lean = Math.abs(shoulderMidX - hipMidX) / shoulderWidth; // torso sway off the hips
+  const head = Math.abs(nose.x - shoulderMidX) / shoulderWidth;  // head off-centre
+  const tiltPenalty = Math.min(tilt * 60, 30);
+  const leanPenalty = Math.min(lean * 70, 25);
+  const headPenalty = Math.min(head * 55, 20);
   return Math.round(Math.max(0, 100 - tiltPenalty - leanPenalty - headPenalty));
 }
 
@@ -53,7 +63,14 @@ function computeEyeContact(blendshapes: any[]): number {
   if (!blendshapes?.[0]?.categories) return 50;
   const shapes = blendshapes[0].categories;
   const g = (name: string) => shapes.find((s: any) => s.categoryName === name)?.score ?? 0;
-  const deviation = (g("eyeLookOutLeft") + g("eyeLookOutRight") + g("eyeLookUpLeft") + g("eyeLookDownLeft")) / 4;
+  // Average the off-axis gaze blendshapes SYMMETRICALLY across both eyes and all
+  // four directions. The original sampled only left-up and left-down, so the
+  // score swung with which way the eyes drifted instead of how far off-camera.
+  const deviation = (
+    g("eyeLookOutLeft") + g("eyeLookOutRight") +
+    g("eyeLookUpLeft") + g("eyeLookUpRight") +
+    g("eyeLookDownLeft") + g("eyeLookDownRight")
+  ) / 6;
   return Math.round(Math.max(0, Math.min(100, 100 - deviation * 250)));
 }
 
@@ -68,10 +85,13 @@ function computeExpression(blendshapes: any[]): number {
 
 function computeGesture(curr: any[], prev: any[] | null): number {
   if (!curr || curr.length < 17 || !prev || prev.length < 17) return 50;
+  const shoulderWidth = Math.hypot(curr[11].x - curr[12].x, curr[11].y - curr[12].y) || 1e-4;
   const vel = (a: any, b: any) => Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
-  const avgVel = (vel(curr[15], prev[15]) + vel(curr[16], prev[16])) / 2;
-  const avgExt = (vel(curr[15], curr[11]) + vel(curr[16], curr[12])) / 2;
-  return Math.round(Math.min(100, Math.max(20, avgVel * 2500 + avgExt * 120 + 20)));
+  // Per-frame wrist motion + how far the wrists extend from the shoulders, both
+  // expressed in shoulder-widths so distance from the camera doesn't skew it.
+  const avgVel = ((vel(curr[15], prev[15]) + vel(curr[16], prev[16])) / 2) / shoulderWidth;
+  const avgExt = ((vel(curr[15], curr[11]) + vel(curr[16], curr[12])) / 2) / shoulderWidth;
+  return Math.round(Math.min(100, Math.max(20, avgVel * 600 + avgExt * 30 + 20)));
 }
 
 function getNudge(m: BodyMetrics): string {

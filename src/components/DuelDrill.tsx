@@ -119,7 +119,7 @@ export const DuelDrill = ({
     : duel?.creator || (isCreating ? { name: "AI Debater", avatar: "🤖", rank: { name: "Adaptive", tier: "AI" } } : null);
 
   const [phase, setPhase] = useState<"drilling" | "analyzing" | "results">("drilling");
-  const [verdictResult, setVerdictResult] = useState<{ score: number, oppScore?: number, feedback: string, won: boolean, strengths: string, oppStrengths: string, exampleSpeech?: string, byForfeit?: boolean } | null>(null);
+  const [verdictResult, setVerdictResult] = useState<{ score: number, oppScore?: number, feedback: string, won: boolean, tie?: boolean, strengths: string, oppStrengths: string, exampleSpeech?: string, byForfeit?: boolean } | null>(null);
   // Once a forfeit verdict is shown, ignore late AI-result broadcasts so the
   // victory-by-forfeit screen isn't overwritten by a losing score.
   const forfeitedRef = useRef(false);
@@ -169,7 +169,7 @@ export const DuelDrill = ({
 
   // Listen for authoritative result, transcript, analyzing and forfeit from peer
   useEffect(() => {
-    const handleResult = ({ duelId, score, feedback, oppFeedback, strengths, won, oppScore, oppStrengths, exampleSpeech }: ArenaEvents["arena:battle-result"]) => {
+    const handleResult = ({ duelId, score, feedback, oppFeedback, strengths, won, tie, oppScore, oppStrengths, exampleSpeech }: ArenaEvents["arena:battle-result"]) => {
       if (forfeitedRef.current) return; // forfeit verdict wins — ignore late judge results
       if (duel && duel.id === duelId && !isCreating) {
         const isHost = duel.creator.id === user?.id;
@@ -177,7 +177,10 @@ export const DuelDrill = ({
           setVerdictResult({
             score: isHost ? score : (oppScore || 0),
             feedback: isHost ? feedback : (oppFeedback || feedback),
-            won: isHost ? !!won : !won,
+            // Mirror the host's outcome: a tie is symmetric for both players,
+            // otherwise the non-host's result is the inverse of the host's.
+            won: tie ? false : (isHost ? !!won : !won),
+            tie: !!tie,
             strengths: isHost ? strengths : (oppStrengths || "N/A"),
             oppStrengths: isHost ? (oppStrengths || "N/A") : strengths,
             oppScore: isHost ? oppScore : score,
@@ -413,12 +416,26 @@ export const DuelDrill = ({
 
       const userName = user?.email?.split("@")[0] || "User";
 
+      // Single source of truth for the outcome: the higher of the two displayed
+      // scores. The AI judge returns score, oppScore AND a free-text `winner`
+      // independently, so they can contradict each other — deriving the result
+      // from the numbers the user actually sees keeps the banner, the scores, and
+      // the ELO write in lock-step. Fall back to the judge's own call only when a
+      // score is missing entirely.
+      const myS: number = judgeResult.score;
+      const oppS: number = judgeResult.oppScore || 0;
+      const haveBothScores = typeof judgeResult.score === "number" && typeof judgeResult.oppScore === "number";
+      const derivedWinner: "you" | "opponent" | "tie" = haveBothScores
+        ? (myS > oppS ? "you" : oppS > myS ? "opponent" : "tie")
+        : ((judgeResult.winner as "you" | "opponent" | "tie") ?? "opponent");
+
       const finalVerdict = {
         score: judgeResult.score,
         oppScore: judgeResult.oppScore || 0,
         feedback: judgeResult.feedback,
         oppFeedback: judgeResult.oppFeedback || judgeResult.feedback,
-        won: judgeResult.winner === "you",
+        won: derivedWinner === "you",
+        tie: derivedWinner === "tie",
         strengths: judgeResult.strengths,
         oppStrengths: judgeResult.oppStrengths || "N/A",
         exampleSpeech: judgeResult.exampleSpeech
@@ -447,14 +464,14 @@ export const DuelDrill = ({
           score: judgeResult.oppScore || 0
         },
         status: "active" as any,
-        winner: judgeResult.winner,
+        winner: derivedWinner,
         feedback: judgeResult.feedback,
         timestamp: Date.now()
       };
 
       if (duel) broadcastBattleResult(duel.id, finalVerdict);
 
-      completeDuel(syntheticDuel.id, userName, judgeResult.score, judgeResult.oppScore || 0, judgeResult.feedback, syntheticDuel, judgeResult.winner, {
+      completeDuel(syntheticDuel.id, userName, judgeResult.score, judgeResult.oppScore || 0, judgeResult.feedback, syntheticDuel, derivedWinner, {
         strengths: judgeResult.strengths,
         oppStrengths: judgeResult.oppStrengths,
         oppFeedback: judgeResult.oppFeedback,
@@ -807,10 +824,10 @@ export const DuelDrill = ({
             <div className="text-center mb-12 relative z-10">
               <h2 className={cn("text-sm font-black uppercase tracking-[1em] mb-4",
                 verdictResult.byForfeit ? "text-green-500" :
-                (verdictResult.score === 0 && (verdictResult.oppScore || 0) === 0) ? "text-yellow-500" :
+                (verdictResult.tie || (verdictResult.score === 0 && (verdictResult.oppScore || 0) === 0)) ? "text-yellow-500" :
                 verdictResult.won ? "text-green-500" : "text-red-500")}>
                 {verdictResult.byForfeit ? "VICTORY BY FORFEIT" :
-                  (verdictResult.score === 0 && (verdictResult.oppScore || 0) === 0) ? "TIE" :
+                  (verdictResult.tie || (verdictResult.score === 0 && (verdictResult.oppScore || 0) === 0)) ? "TIE" :
                   verdictResult.won ? "YOU WON" : "YOU LOST"}
               </h2>
               {verdictResult.byForfeit ? (
@@ -828,7 +845,7 @@ export const DuelDrill = ({
                       <span className="text-sm opacity-20 uppercase tracking-widest font-black">VS</span>
                       <div className="text-center">
                         <p className="text-sm opacity-40 uppercase tracking-widest font-black mb-2">THEM</p>
-                        <p className={cn("speak-serif text-6xl md:text-7xl italic", !verdictResult.won ? "text-foreground font-black" : "opacity-40")}>{verdictResult.oppScore}</p>
+                        <p className={cn("speak-serif text-6xl md:text-7xl italic", (!verdictResult.won && !verdictResult.tie) ? "text-foreground font-black" : "opacity-40")}>{verdictResult.oppScore}</p>
                       </div>
                     </>
                   )}

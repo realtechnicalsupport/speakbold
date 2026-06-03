@@ -1,6 +1,6 @@
 # SpeakBold — Developer Handoff
 
-**Last updated:** 2026-05-30  
+**Last updated:** 2026-06-03  
 **Stack:** React 18 + TypeScript + Vite + Tailwind + Framer Motion + Supabase + shadcn/ui
 
 ---
@@ -15,17 +15,17 @@ SpeakBold is an AI-powered public speaking practice platform. Users complete tim
 | `/` | Landing (Hero + features) |
 | `/pathway` | Curriculum — 3-tier lessons, drills, placement test |
 | `/arena` | Practice Lounge — AI duels, debate battles, ELO |
-| `/lab` | The Lab — focused drills (Impromptu, Public Speaking, Interviews) |
+| `/lab` | The Lab — adaptive AI Coach (skill radar + tailored plan) + focused drills (Impromptu, Public Speaking, Interviews) + Body Language camera |
+| `/coach` | Legacy alias → redirects to `/lab` |
 | `/friends` | Friends list, requests, invite tab |
 | `/friends/:userId` | Friend mini-profile |
 | `/friends/invite/:token` | Public invite landing (works signed-out) |
-| `/profile` | Stats, recordings, resume builder |
+| `/profile` | Stats + saved recordings (links out to `/report`) |
 | `/leaderboard` | ELO + XP rankings |
 | `/tracks/*` | Skill tracks (public-speaking, impromptu, interviews, body-language) |
-| `/events`, `/events/new`, `/events/:id` | Event prep + practice plans |
-| `/pitch` | Pitch deck practice |
+| `/events`, `/events/new`, `/events/:id` | Event prep + practice plans (no primary-nav entry point — reached via AI Coach chat only) |
+| `/pitch` | Investor pitch deck (standalone; not linked from the app) |
 | `/report` | Progress report |
-| `/pre-flight` | Pre-session checklist |
 
 ---
 
@@ -248,7 +248,7 @@ After a session, the inline `<ImpromptuReview>` is the **sole** AI feedback scre
 
 ### Live speech vs. recording path (mobile/tablet)
 - Desktop runs live Web Speech recognition. Phones **and tablets** skip it (the mobile speech engine ignores `continuous = true`, auto-stops on silence, and the restart loop blinks the mic) — instead the audio is recorded and transcribed server-side after the turn. The branch is gated by `isMobileDevice()` (`src/lib/isMobileDevice.ts`).
-- `isMobileDevice()` was hardened with a **capability-based fallback** beyond the UA list: a device is treated as touch-primary when the primary pointer is coarse **and** no fine pointer (mouse/trackpad) exists (`(pointer: coarse)` + `!(any-pointer: fine)` + `maxTouchPoints > 0`). This catches tablets the UA list missed (some Android builds, "request desktop site" mode) that were wrongly hitting the desktop path and showing the silence-triggered mic stop/start. Desktops (mouse) and touchscreen laptops (trackpad = fine pointer) are correctly excluded. **Known gap:** a non-Apple tablet used with an attached keyboard/trackpad exposes a fine pointer and would still slip through.
+- `isMobileDevice()` (`src/lib/isMobileDevice.ts`) detects in layers: (1) standard mobile UAs; (2) iPadOS-as-Macintosh via `maxTouchPoints > 1`; (3) **Android in Chrome "Desktop site" mode** — that mode rewrites the UA to desktop-Linux *and* fakes `(any-pointer: fine)`, so it's caught by a dedicated `Linux + !Android + maxTouchPoints > 1` branch (the digitizer is the one thing desktop-site can't fake; scoped to Linux so real Windows/ChromeOS/macOS touch-laptops keep the working live-speech path); (4) a capability fallback for anything the UA list missed (`(pointer: coarse)` + `!(any-pointer: fine)` + `maxTouchPoints > 0`). **Known gap:** a non-Apple tablet with an attached keyboard/trackpad (not in desktop-site mode) exposes a fine pointer and would still slip through.
 
 ---
 

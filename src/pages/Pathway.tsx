@@ -345,7 +345,7 @@ const ChapterCard = ({
 
 /* ── Hero: huge next-drill CTA ──────────────────────────── */
 const NextDrillHero = ({
-  currentDrill, onJumpIn, completePct, completedCount, totalLessons, streakDays
+  currentDrill, onJumpIn, completePct, completedCount, totalLessons, streakDays, focusAreas
 }: {
   currentDrill: { lesson: PathwayLesson; chapter: PathwayChapter; chapterIndex: number } | null;
   onJumpIn: () => void;
@@ -353,6 +353,7 @@ const NextDrillHero = ({
   completedCount: number;
   totalLessons: number;
   streakDays: number;
+  focusAreas: string[];
 }) => {
   const isStart = completedCount === 0;
   const isDone = !currentDrill;
@@ -380,6 +381,27 @@ const NextDrillHero = ({
             ? "Every chapter cleared. Replay any drill, or head to the Lab for freeform practice."
             : `${totalLessons - completedCount} drills to go. One at a time — that's how this works.`}
         </p>
+
+        {/* Personalized focus — surfaces the user's onboarding self-assessment so
+            their first drill feels chosen for them, not generic. */}
+        {isStart && focusAreas.length > 0 && (
+          <div className="space-y-2.5 pt-1">
+            <p className="text-[10px] font-black uppercase tracking-[0.4em] text-primary/70">YOUR FOCUS</p>
+            <div className="flex flex-wrap gap-2">
+              {focusAreas.map((f) => (
+                <span
+                  key={f}
+                  className="px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-[11px] font-bold text-primary"
+                >
+                  {f}
+                </span>
+              ))}
+            </div>
+            <p className="text-xs font-medium opacity-50 leading-relaxed">
+              Your coach will track these as you practice. Start with the drill on the right.
+            </p>
+          </div>
+        )}
 
         {/* Inline stats */}
         <div id="pathway-progress" className="flex flex-wrap items-center gap-4 lg:gap-5 pt-2">
@@ -1049,6 +1071,21 @@ const Pathway = () => {
   const { profile: arenaProfile, completeDuel, handleForfeit } = useArena();
   const { user } = useAuth();
   const [activeDrill, setActiveDrill] = useState<PathwayLesson | null>(null);
+  // Self-reported focus areas from onboarding — surfaced on the cold-start hero
+  // so a brand-new user's "first drill" feels tailored to them rather than a
+  // generic dump into the curriculum. Parentheticals trimmed for tight chips.
+  const [focusAreas, setFocusAreas] = useState<string[]>([]);
+  useEffect(() => {
+    if (!user) { setFocusAreas([]); return; }
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase.from("profiles").select("weaknesses").eq("id", user.id).maybeSingle();
+      if (cancelled) return;
+      const raw = ((data?.weaknesses as string[]) ?? []).filter(Boolean);
+      setFocusAreas(raw.slice(0, 3).map((w) => w.replace(/\s*\(.*\)\s*/g, "").trim()).filter(Boolean));
+    })();
+    return () => { cancelled = true; };
+  }, [user]);
   // Tracks whether the full-screen PlacementTest modal is open.
   const [placementTestOpen, setPlacementTestOpen] = useState(false);
   // Has the user resolved placement (taken the test or skipped)? localStorage is
@@ -1389,6 +1426,7 @@ const Pathway = () => {
           completedCount={completedCount}
           totalLessons={totalLessons}
           streakDays={streakDays}
+          focusAreas={focusAreas}
         />
       </section>
 

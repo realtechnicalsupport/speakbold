@@ -1,10 +1,13 @@
 ﻿import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { RadialBarChart, RadialBar, PolarAngleAxis, ResponsiveContainer } from "recharts";
-import { Sparkles, RotateCcw, Trophy, Eye, Smile, Hand, Activity } from "lucide-react";
+import { Sparkles, RotateCcw, Trophy, Eye, Smile, Hand, Activity, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { BodyLanguageSession } from "@/hooks/useBodyLanguage";
 import { generateBodyLanguageFeedback } from "@/services/geminiService";
+import { useAuth } from "@/context/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { FEEDBACK_SAVED_EVENT } from "@/hooks/useSkillProfile";
 
 interface Props {
   session: BodyLanguageSession;
@@ -23,6 +26,81 @@ function scoreLabel(n: number): { label: string; color: string } {
   if (n >= 65) return { label: "SOLID", color: "text-primary" };
   if (n >= 45) return { label: "DEVELOPING", color: "text-yellow-400" };
   return { label: "NEEDS WORK", color: "text-red-400" };
+}
+
+/**
+ * Recent-sessions delivery trend — the payoff of persisting body-language
+ * sessions. Reads the last few `body-language` skill_events and plots their
+ * overall score oldest → newest so the user can see progress across runs. Hidden
+ * until there are at least two sessions (a single bar isn't a trend). Refetches
+ * on FEEDBACK_SAVED_EVENT so the run that just completed appears as it lands.
+ */
+function DeliveryTrend() {
+  const { user } = useAuth();
+  const [points, setPoints] = useState<number[]>([]);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    const load = async () => {
+      const { data } = await (supabase as any)
+        .from("skill_events")
+        .select("overall, scores, created_at")
+        .eq("user_id", user.id)
+        .eq("source", "body-language")
+        .order("created_at", { ascending: false })
+        .limit(8);
+      if (cancelled || !data) return;
+      const vals: number[] = data
+        .map((r: any) => (typeof r.overall === "number" ? r.overall : Number(r?.scores?.delivery)))
+        .filter((n: number) => Number.isFinite(n))
+        .reverse(); // DB is newest-first → chronological for the strip
+      setPoints(vals);
+    };
+    load();
+    const onSaved = () => load();
+    window.addEventListener(FEEDBACK_SAVED_EVENT, onSaved);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(FEEDBACK_SAVED_EVENT, onSaved);
+    };
+  }, [user?.id]);
+
+  if (points.length < 2) return null;
+
+  const delta = points[points.length - 1] - points[0];
+  const Trend = delta >= 5 ? TrendingUp : delta <= -5 ? TrendingDown : Minus;
+  const trendColor = delta >= 5 ? "text-green-400" : delta <= -5 ? "text-red-400" : "opacity-50";
+
+  return (
+    <div className="p-5 rounded-2xl bg-muted/5 border border-border/60 space-y-4">
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] font-black uppercase tracking-[0.4em] opacity-50">
+          RECENT DELIVERY · LAST {points.length}
+        </span>
+        <span className={cn("flex items-center gap-1 text-[10px] font-black uppercase tracking-widest", trendColor)}>
+          <Trend className="h-3.5 w-3.5" />
+          {delta > 0 ? `+${delta}` : delta}
+        </span>
+      </div>
+      <div className="flex items-end gap-2 h-20">
+        {points.map((p, i) => {
+          const isLast = i === points.length - 1;
+          return (
+            <div key={i} className="flex-1 flex flex-col items-center justify-end gap-1.5 h-full">
+              <span className={cn("text-[9px] font-black tabular-nums", isLast ? "opacity-70" : "opacity-30")}>{p}</span>
+              <motion.div
+                initial={{ height: 0 }}
+                animate={{ height: `${Math.max(6, p)}%` }}
+                transition={{ duration: 0.6, delay: i * 0.05, ease: "easeOut" }}
+                className={cn("w-full rounded-full", isLast ? "bg-primary" : "bg-primary/30")}
+              />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 export function BodyLanguageReport({ session, onReset }: Props) {
@@ -134,6 +212,9 @@ export function BodyLanguageReport({ session, onReset }: Props) {
           })}
         </div>
       </div>
+
+      {/* Delivery trend across recent sessions */}
+      <DeliveryTrend />
 
       {/* AI Coaching */}
       <div className="p-6 md:p-10 rounded-2xl md:rounded-[3rem] bg-muted/5 border border-border/60 space-y-6 relative overflow-hidden">
