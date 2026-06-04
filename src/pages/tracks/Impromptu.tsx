@@ -39,6 +39,7 @@ const Impromptu = () => {
     reviewWpm,
     speechSupported,
     recordingBlobUrl,
+    recordingDurationMs,
     begin,
     pause,
     resume,
@@ -146,6 +147,7 @@ const Impromptu = () => {
                 loadingCoach={loadingCoach}
                 stats={stats}
                 recordingBlobUrl={recordingBlobUrl}
+                recordingDurationMs={recordingDurationMs}
                 curveballText={curveballText}
                 drillMode={drillMode}
                 onGoAgain={goAgain}

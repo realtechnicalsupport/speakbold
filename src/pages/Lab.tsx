@@ -7,6 +7,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { BodyLanguageCamera } from "@/components/BodyLanguageCamera";
 import { CoachHub } from "@/components/CoachHub";
+import { RecentPracticeStrip } from "@/components/RecentPracticeStrip";
 
 // ─── Lab Tools ─────────────────────────────────────────────────────
 const LAB_TOOLS = [
@@ -109,6 +110,11 @@ const Lab = () => {
             >
               {/* ── Main feature: the adaptive AI coach ── */}
               <CoachHub />
+
+              {/* ── Recent practice: history teaser → expands to full popup ── */}
+              <div className="mt-12 md:mt-20">
+                <RecentPracticeStrip />
+              </div>
 
               {/* ── Focused practice: the 4 tracks, below the coach ── */}
               <div className="border-t border-border/60 pt-12 md:pt-20 mt-12 md:mt-20">

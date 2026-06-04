@@ -39,7 +39,8 @@ const Arena = () => {
   const { 
     duels, profile, loading: arenaLoading, completeDuel, findMatch, completedDuels, refresh: refreshArena,
     onlineUsers, incomingRequests, setIncomingRequests, sendDuelRequest, acceptDuelRequest, sendReadyStatus,
-    broadcastBattleResult, broadcastAnalyzing, sendTranscript, sendForfeit, handleForfeit, requestCooldown
+    broadcastBattleResult, broadcastAnalyzing, sendTranscript, sendForfeit, handleForfeit, requestCooldown,
+    sendDebateLive, sendDebateTurnEnd
   } = useArena();
   const { user } = useAuth();
   const location = useLocation();
@@ -226,6 +227,27 @@ const Arena = () => {
   const currentRank = getRankFromElo(profile.elo);
   const userName = user?.email?.split("@")[0] || "You";
   const currentUser = { name: userName, avatar: "👤", rank: currentRank, elo: profile.elo };
+
+  // A live PvP debate: an accepted peer challenge whose gamemode is "debate".
+  // The challenge sender (duel creator) is the host and argues FOR (opens first);
+  // the accepter is the peer and argues AGAINST. AI/custom debates never match
+  // here — they run through the Debate Hall (debateConfig) path instead.
+  const pvpDebateConfig = (() => {
+    if (!activeDrill || isCreating) return null;
+    if (activeDrill.gamemode !== "debate") return null;
+    if (typeof activeDrill.id === "string" && activeDrill.id.startsWith("ai-")) return null;
+    const isHost = activeDrill.creator?.id === user?.id;
+    const oppPlayer = isHost ? activeDrill.challenger : activeDrill.creator;
+    if (!oppPlayer) return null;
+    return {
+      duelId: activeDrill.id,
+      isHost,
+      prompt: activeDrill.prompt,
+      userStand: (isHost ? "FOR" : "AGAINST") as "FOR" | "AGAINST",
+      opponent: oppPlayer,
+      opponentId: oppPlayer.id || "peer",
+    };
+  })();
 
   // ── Phase 3: derived competitive stats ──────────────────────────────────
   const inPlacement = isInPlacement(profile);
@@ -1101,6 +1123,7 @@ const Arena = () => {
                   >
                     <p className="text-2xl speak-serif italic font-bold">FOR</p>
                     <p className="text-[10px] font-bold opacity-60 mt-1 uppercase tracking-widest">Defend the motion</p>
+                    <p className="text-[9px] font-black opacity-40 mt-1.5 uppercase tracking-widest">You speak first</p>
                   </motion.button>
                   <motion.button
                     whileTap={{ scale: 0.97 }}
@@ -1114,6 +1137,7 @@ const Arena = () => {
                   >
                     <p className="text-2xl speak-serif italic font-bold">AGAINST</p>
                     <p className="text-[10px] font-bold opacity-60 mt-1 uppercase tracking-widest">Oppose the motion</p>
+                    <p className="text-[9px] font-black opacity-40 mt-1.5 uppercase tracking-widest">Opponent opens</p>
                   </motion.button>
                 </div>
               </div>
@@ -1152,8 +1176,47 @@ const Arena = () => {
         )}
       </AnimatePresence>
 
+      {/* ── Live PvP turn-based debate ───────────────────────────────────────
+          A peer challenge with the "debate" gamemode now runs the SAME
+          turn-based DebateBattle as the Debate Hall (PvE) — just with a human
+          opponent driven over the realtime channel — instead of the old
+          parallel DuelDrill format. AI/custom debates never reach here (they go
+          through the Debate Hall → debateConfig path). */}
       <AnimatePresence>
-        {(isCreating || activeDrill) && !debateConfig && (
+        {pvpDebateConfig && (
+          <DebateBattle
+            key={`pvp-debate-${pvpDebateConfig.duelId}`}
+            prompt={pvpDebateConfig.prompt}
+            userStand={pvpDebateConfig.userStand}
+            opponent={pvpDebateConfig.opponent}
+            userElo={profile.elo}
+            onClose={() => { setActiveDrill(null); sessionStorage.removeItem("arena_active_drill"); }}
+            onComplete={() => {
+              setActiveDrill(null);
+              sessionStorage.removeItem("arena_active_drill");
+              if (pendingUpdate.current) {
+                const upd = pendingUpdate.current;
+                pendingUpdate.current = null;
+                setTimeout(() => { setEloUpdate(upd); setTimeout(() => setEloUpdate(null), 5500); }, 500);
+              }
+            }}
+            completeDuel={completeDuel}
+            handleForfeit={handleForfeit}
+            peer={{
+              duelId: pvpDebateConfig.duelId,
+              isHost: pvpDebateConfig.isHost,
+              opponentId: pvpDebateConfig.opponentId,
+              sendDebateLive,
+              sendDebateTurnEnd,
+              broadcastBattleResult,
+              sendForfeit,
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {(isCreating || activeDrill) && !debateConfig && !pvpDebateConfig && (
           <DuelDrill
             key={activeDrill?.id || "creating"}
             duel={activeDrill}

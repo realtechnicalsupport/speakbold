@@ -2,9 +2,10 @@ import {
   Shuffle, TrendingUp, TrendingDown, Minus, Scissors, Lightbulb,
   Target, Mic2, ChevronDown, Repeat2, Volume2, Check, ArrowRight,
 } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { ClipPlayer } from "@/components/ClipPlayer";
 import type { ImpromptuCoachReport } from "@/services/geminiService";
 import { ModelSpeech } from "@/components/ModelSpeech";
 import type { ImpromptuTopic } from "@/data/impromptuTopics";
@@ -25,6 +26,7 @@ interface Props {
   loadingCoach: boolean;
   stats: ImpromptuStats;
   recordingBlobUrl: string | null;
+  recordingDurationMs: number | null;
   curveballText: string | null;
   drillMode: boolean;
   onGoAgain: () => void;
@@ -329,83 +331,22 @@ const Collapsible = ({ label, icon, defaultOpen = false, children }: {
 };
 
 // ── Audio playback ────────────────────────────────────────────────────────────
-const formatClipDuration = (secs: number) => {
-  if (!isFinite(secs) || secs < 0) return "";
-  const m = Math.floor(secs / 60);
-  const s = Math.floor(secs % 60);
-  return `${m}:${String(s).padStart(2, "0")}`;
-};
-
-const AudioPlayback = ({ blobUrl }: { blobUrl: string }) => {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const seekedRef = useRef(false);
-  const [seconds, setSeconds] = useState<number | null>(null);
-
-  // MediaRecorder webm/opus blobs ship with NO duration in the container header,
-  // so the native <audio> control reads `duration === Infinity` and shows a
-  // wrong, inflated total time (the recording itself is fine — only the metadata
-  // is missing). Force the browser to compute the real length by seeking past the
-  // end once metadata loads: it scans the file and fires `durationchange` with the
-  // true value, after which we read it and reset the playhead to the start.
-  const onLoadedMetadata = () => {
-    const el = audioRef.current;
-    if (!el) return;
-    if (el.duration === Infinity || Number.isNaN(el.duration)) {
-      seekedRef.current = true;
-      el.currentTime = 1e101;
-    } else {
-      setSeconds(el.duration);
-    }
-  };
-
-  const onDurationChange = () => {
-    const el = audioRef.current;
-    if (!el) return;
-    if (el.duration !== Infinity && !Number.isNaN(el.duration)) {
-      setSeconds(el.duration);
-      if (seekedRef.current) {
-        seekedRef.current = false;
-        el.currentTime = 0;
-      }
-    }
-  };
-
-  return (
-    <div className="rounded-[1.5rem] border border-border/25 bg-muted/3 p-4 space-y-2.5">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <Volume2 className="h-3 w-3 opacity-50" />
-          <span className="text-[9px] font-black uppercase tracking-[0.5em] opacity-50">YOUR RECORDING</span>
-        </div>
-        {seconds != null && (
-          <span className="text-[9px] font-black tabular-nums opacity-50">{formatClipDuration(seconds)}</span>
-        )}
-      </div>
-      {/* Hidden until the seek-to-end hack resolves the real duration.
-          The element stays in the DOM so loadedmetadata / durationchange
-          still fire; visibility:hidden just prevents the native controls
-          from flashing ∞ or an inflated time while the blob is being scanned. */}
-      <audio
-        ref={audioRef}
-        controls
-        src={blobUrl}
-        preload="metadata"
-        onLoadedMetadata={onLoadedMetadata}
-        onDurationChange={onDurationChange}
-        className="w-full h-8"
-        style={{
-          accentColor: "hsl(var(--primary))",
-          visibility: seconds != null ? "visible" : "hidden",
-        }}
-      />
+// Uses the shared ClipPlayer, which drives the readout from the accurate
+// wall-clock `durationMs` rather than the unreliable blob metadata duration.
+const AudioPlayback = ({ blobUrl, durationMs }: { blobUrl: string; durationMs: number | null }) => (
+  <div className="rounded-[1.5rem] border border-border/25 bg-muted/3 p-4 space-y-3">
+    <div className="flex items-center gap-2">
+      <Volume2 className="h-3 w-3 opacity-50" />
+      <span className="text-[9px] font-black uppercase tracking-[0.5em] opacity-50">YOUR RECORDING</span>
     </div>
-  );
-};
+    <ClipPlayer src={blobUrl} durationMs={durationMs} />
+  </div>
+);
 
 // ── Main component ────────────────────────────────────────────────────────────
 export const ImpromptuReview = ({
   duration, liveTranscript, wpm, totalWords, fillerCount, fillerTimes,
-  elapsedSecs, coachReport, loadingCoach, stats, recordingBlobUrl,
+  elapsedSecs, coachReport, loadingCoach, stats, recordingBlobUrl, recordingDurationMs,
   curveballText, drillMode, onGoAgain, onNewTopic, onDrillCurveball,
 }: Props) => {
   const noSpeech = liveTranscript.trim().length < 15;
@@ -548,7 +489,7 @@ export const ImpromptuReview = ({
       {/* Recording */}
       {recordingBlobUrl && (
         <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.22 }}>
-          <AudioPlayback blobUrl={recordingBlobUrl} />
+          <AudioPlayback blobUrl={recordingBlobUrl} durationMs={recordingDurationMs} />
         </motion.div>
       )}
 

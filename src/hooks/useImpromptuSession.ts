@@ -118,6 +118,11 @@ export function useImpromptuSession() {
   const wasRecordingRef = useRef(false);
   /** Object URL for the most recent recording blob — available during review */
   const [recordingBlobUrl, setRecordingBlobUrl] = useState<string | null>(null);
+  /** Wall-clock length of that recording (ms). The single source of truth for the
+   *  playback total — the webm/opus blob's own metadata duration is unreliable
+   *  (Android Chrome reports a wildly inflated value), so the review player uses
+   *  THIS, never `audio.duration`. */
+  const [recordingDurationMs, setRecordingDurationMs] = useState<number | null>(null);
   /** True when the live (browser) transcript was empty and we're waiting on the
    *  recording so we can transcribe it server-side and still produce coaching.
    *  Common on mobile, where Web Speech recognition is weak or unsupported. */
@@ -427,6 +432,7 @@ export function useImpromptuSession() {
       if (prev) URL.revokeObjectURL(prev);
       return null;
     });
+    setRecordingDurationMs(null);
 
     transcriptRef.current = "";
     fillerCountRef.current = 0;
@@ -620,9 +626,10 @@ export function useImpromptuSession() {
     async (blob: Blob, durationMs: number) => {
       markPracticed();
 
-      // Store blob URL for in-review playback
+      // Store blob URL + accurate wall-clock length for in-review playback.
       const url = URL.createObjectURL(blob);
       setRecordingBlobUrl(url);
+      setRecordingDurationMs(durationMs > 0 ? durationMs : null);
 
       // Fallback path: the live transcript was empty, so transcribe the recorded
       // audio server-side and run the impromptu coaching off that instead. This
@@ -730,6 +737,7 @@ export function useImpromptuSession() {
     loadingCoach,
     reviewWpm,
     recordingBlobUrl,
+    recordingDurationMs,
 
     // Misc
     speechSupported,

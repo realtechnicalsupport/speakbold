@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { useRecordings } from "@/hooks/useRecordings";
 import { toast } from "@/hooks/use-toast";
-import { judgeBattle, generateAIArgument, speakWithDeepgramTTS, onAIStatus, transcribeAudio } from "@/services/geminiService";
+import { judgeDebate, generateAIArgument, speakWithDeepgramTTS, onAIStatus, transcribeAudio } from "@/services/geminiService";
 import { setRecordingActive } from "@/lib/recordingState";
 import { setTimerActive } from "@/lib/timerState";
 import { isMobileDevice } from "@/lib/isMobileDevice";
@@ -14,6 +14,15 @@ import { RecorderPanel } from "@/components/RecorderPanel";
 import type { Duel, Gamemode, DuelPlayer } from "@/context/ArenaContext";
 import { getRankColor, getRankFromElo, FORFEIT_PENALTY } from "@/hooks/arenaUtils";
 import { useSoundEffects } from "@/hooks/useSoundEffects";
+import { arenaEmitter, type ArenaEvents } from "@/lib/events";
+import {
+  type DebatePhase,
+  phaseOrderFor,
+  turnNameOf,
+  speakingOrder,
+  turnLabel as turnLabelOf,
+  userOpensFirst as userOpensFirstOf,
+} from "@/lib/debateSync";
 
 // ─── Web Speech API typing ───────────────────────────────────────────────────
 declare global {
@@ -29,15 +38,9 @@ const getSpeechRecognition = () => {
 };
 
 // ─── Phase machine ───────────────────────────────────────────────────────────
-type DebatePhase =
-  | "prep"
-  | "opening-user"
-  | "opening-ai"
-  | "rebuttal-user"
-  | "rebuttal-ai"
-  | "judging"
-  | "results";
-
+// DebatePhase, the FOR/AGAINST phase orders, and the pure turn/label/sync
+// helpers now live in @/lib/debateSync (unit-tested). PHASE_CONFIG stays here
+// because it carries UI-only data (durations + display labels).
 const PHASE_CONFIG: Record<DebatePhase, { duration: number; label: string; speaker: "user" | "ai"; round: string; }> = {
   "prep":          { duration: 5,  label: "GET READY", speaker: "user", round: "PREP" },
   "opening-user":  { duration: 45, label: "OPENING ARGUMENT", speaker: "user", round: "ROUND 1 · 1 of 4" },
@@ -47,10 +50,6 @@ const PHASE_CONFIG: Record<DebatePhase, { duration: number; label: string; speak
   "judging":       { duration: 0,  label: "AI IS DELIBERATING", speaker: "ai",  round: "VERDICT" },
   "results":       { duration: 0,  label: "VERDICT DELIVERED", speaker: "ai",  round: "FINAL" },
 };
-
-// FOR: user opens first; AGAINST: AI (who argues FOR) opens first
-const PHASE_ORDER_FOR: DebatePhase[]     = ["prep", "opening-user", "opening-ai", "rebuttal-user", "rebuttal-ai", "judging", "results"];
-const PHASE_ORDER_AGAINST: DebatePhase[] = ["prep", "opening-ai", "opening-user", "rebuttal-ai", "rebuttal-user", "judging", "results"];
 
 interface DebateBattleProps {
   prompt: string;
@@ -70,6 +69,27 @@ interface DebateBattleProps {
    *   fires onComplete so usePathway marks the lesson as done.
    */
   mode?: "arena" | "pathway";
+  /**
+   * Present ONLY for a live PvP debate (two humans). When absent the debate is
+   * PvE (vs an AI persona) and behaves exactly as before — every PvP code path
+   * is guarded by the presence of this object, so the AI flow is untouched.
+   *
+   * The host (challenge sender / duel creator) argues FOR and opens; the peer
+   * argues AGAINST. The opponent's turns are driven by realtime broadcasts
+   * instead of AI generation: the watcher reads the speaker's streamed
+   * transcript and both clients advance on the speaker's `turn-end` signal. The
+   * host runs the judge and broadcasts the verdict; the peer mirrors it — the
+   * same host-authoritative pattern DuelDrill uses for standard PvP duels.
+   */
+  peer?: {
+    duelId: string;
+    isHost: boolean;
+    opponentId: string;
+    sendDebateLive: (duelId: string, turn: "opening" | "rebuttal", text: string) => void;
+    sendDebateTurnEnd: (duelId: string, turn: "opening" | "rebuttal", transcript: string) => void;
+    broadcastBattleResult: (duelId: string, results: any) => void;
+    sendForfeit: (duelId: string) => void;
+  };
 }
 
 // ─── Deepgram Aura voice pool ────────────────────────────────────────────────
@@ -119,14 +139,15 @@ function debateIdentity(prompt: string, opponentName: string): string {
   return `${prompt}|${opponentName}`;
 }
 
-export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, onComplete, completeDuel, handleForfeit, mode = "arena" }: DebateBattleProps) => {
+export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, onComplete, completeDuel, handleForfeit, mode = "arena", peer }: DebateBattleProps) => {
   const isPathway = mode === "pathway";
+  const isPeer = !!peer;
   const { user } = useAuth();
   const { upload, refresh } = useRecordings("arena");
   const sfx = useSoundEffects();
 
   const oppStand = userStand === "FOR" ? "AGAINST" : "FOR";
-  const phaseOrder = userStand === "AGAINST" ? PHASE_ORDER_AGAINST : PHASE_ORDER_FOR;
+  const phaseOrder = phaseOrderFor(userStand);
 
   // ── Phase + timer (with sessionStorage persistence for tab-discard recovery) ──
   // Recoverable phases: any user/ai speaking turn. "judging" and "results" are not restored.
@@ -501,19 +522,31 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
       if (phaseRef.current === "rebuttal-user") next.userRebuttal = combined;
       return next;
     });
+    return combined;
   }, []);
 
   // ── Advance phase (with side effects per transition) ──────────────────────
   // advancePhaseRef keeps the timer's setInterval from holding a stale closure.
   const advancePhaseRef = useRef<() => void>(() => {});
+  // Guard against a phase being advanced twice — in PvP the watcher can receive
+  // the speaker's `turn-end` AND hit its own timer fallback for the same turn.
+  // Reset in resetDebate so a "try again" replay can re-advance the same phases.
+  const advancedFromRef = useRef<DebatePhase | null>(null);
   const advancePhase = useCallback(() => {
+    if (advancedFromRef.current === phase) return;
     const idx = phaseOrder.indexOf(phase);
     if (idx === -1 || idx >= phaseOrder.length - 1) return;
+    advancedFromRef.current = phase;
     const nextPhase = phaseOrder[idx + 1];
 
-    // If we're leaving a user turn, capture their transcript
+    // If we're leaving a user turn, capture their transcript — and in PvP,
+    // broadcast it as the `turn-end` signal both clients advance on.
     if (PHASE_CONFIG[phase].speaker === "user" && phase !== "judging" && phase !== "results") {
-      captureUserTurnTranscript();
+      const combined = captureUserTurnTranscript();
+      if (isPeer && peer) {
+        const turn = turnNameOf(phase);
+        if (turn) peer.sendDebateTurnEnd(peer.duelId, turn, combined);
+      }
     }
 
     setLiveFinal("");
@@ -539,8 +572,12 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
   };
 
   // ── AI turn: generate + stream argument ───────────────────────────────────
+  // PvE only. In a live PvP debate the opponent is a human: their turn is driven
+  // by realtime broadcasts (debate-live for the streamed transcript, turn-end to
+  // advance), so this AI-generation/TTS engine is skipped entirely.
   useEffect(() => {
     const cfg = PHASE_CONFIG[phase];
+    if (isPeer) return;
     if (cfg.speaker !== "ai" || phase === "judging" || phase === "results") return;
 
     aiAbortRef.current = false;
@@ -847,6 +884,15 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
   // ── Final judging ─────────────────────────────────────────────────────────
   const runJudging = async () => {
     setAnalyzeText("ASSEMBLING DEBATE TRANSCRIPT...");
+
+    // PvP: only the HOST judges (authoritative). The peer waits for the host's
+    // broadcast verdict, which the battle-result listener mirrors — exactly the
+    // pattern DuelDrill uses. Return before any judging/ELO work runs here.
+    if (isPeer && peer && !peer.isHost) {
+      setAnalyzeText("OPPONENT'S JUDGE IS DELIBERATING...");
+      return;
+    }
+
     await new Promise(r => setTimeout(r, 400));
 
     // On mobile, user turns are transcribed server-side after each recording
@@ -858,20 +904,29 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
       pendingTranscriptionsRef.current = [];
     }
 
-    const t = transcriptsRef.current;
-    const userFull = `OPENING:\n${t.userOpening || "(no opening)"}\n\nREBUTTAL:\n${t.userRebuttal || "(no rebuttal)"}`;
-    const aiFull = `OPENING:\n${t.aiOpening || "(no opening)"}\n\nREBUTTAL:\n${t.aiRebuttal || "(no rebuttal)"}`;
+    // PvP host: give a late corrected transcript from a peer on mobile (whose
+    // server-side transcription lands shortly after their turn-end) a moment to
+    // arrive before we read the transcripts for scoring.
+    if (isPeer && peer?.isHost) {
+      setAnalyzeText("COLLECTING BOTH CASES...");
+      await new Promise(r => setTimeout(r, 2500));
+    }
 
+    const t = transcriptsRef.current;
     const userTotalLen = (t.userOpening + t.userRebuttal).trim().length;
-    if (userTotalLen < 20) {
-      // Voided match — don't fabricate a 0-50 fake loss, don't call
-      // completeDuel, don't move ELO. The previous behaviour penalised
-      // users for their OWN broken mic AND inflated the opponent's
-      // unearned score, while never persisting the row.
+    const oppTotalLen = (t.aiOpening + t.aiRebuttal).trim().length;
+    // Void only when there's genuinely nothing to judge:
+    //  - PvE: the user's own speech is empty (don't penalise a broken mic).
+    //  - PvP: BOTH sides are empty — otherwise whoever DID speak should win, so
+    //    we let the judge score the silent side near 0 instead of voiding.
+    const nothingToJudge = isPeer ? (userTotalLen < 20 && oppTotalLen < 20) : (userTotalLen < 20);
+    if (nothingToJudge) {
+      // Voided match — don't fabricate a fake loss, don't call completeDuel,
+      // don't move ELO.
       setVerdict({
         voided: true,
         voidReason:
-          "We couldn't capture enough of your speech to judge this match. Check your microphone, allow access in your browser settings, then try again — your ELO is unchanged.",
+          "We couldn't capture enough speech to judge this match. Check your microphone, allow access in your browser settings, then try again — your ELO is unchanged.",
       });
       setPhase("results");
       return;
@@ -881,7 +936,6 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
 
     const userName = user?.email?.split("@")[0] || "You";
     const oppName = opponent.name;
-    const judgePrompt = `DEBATE TOPIC: "${prompt}"\n\n${userName} argued ${userStand}.\n${oppName} argued ${oppStand}.\n\nThis was a turn-based debate. Judge each speaker on the strength of their opening AND how well they engaged with the opponent's points in the rebuttal.`;
 
     // Surface provider chain progress so the screen never looks frozen for
     // 15+ seconds while Groq → OpenRouter → Cerebras → Gemini fall through.
@@ -895,7 +949,17 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
     });
 
     try {
-      const result = await judgeBattle(userName, userFull, judgePrompt, oppName, aiFull);
+      const result = await judgeDebate({
+        motion: prompt,
+        userName,
+        userStand,
+        userOpening: t.userOpening,
+        userRebuttal: t.userRebuttal,
+        oppName,
+        oppStand,
+        oppOpening: t.aiOpening,
+        oppRebuttal: t.aiRebuttal,
+      });
       const won = result.winner === "you";
 
       const synthDuel: Duel = {
@@ -911,7 +975,9 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
           score: result.score,
         },
         challenger: {
-          id: "ai",
+          // PvP: the real peer's id so submit-battle-result rates BOTH players
+          // and pushes the peer their elo-sync. PvE: the sentinel "ai".
+          id: isPeer && peer ? peer.opponentId : "ai",
           name: oppName,
           avatar: opponent.avatar,
           elo: 0,
@@ -947,6 +1013,21 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
         );
       }
 
+      // PvP host: broadcast the verdict (host's perspective) so the peer mirrors
+      // it. The peer flips score↔oppScore and won, exactly like DuelDrill.
+      if (isPeer && peer?.isHost) {
+        peer.broadcastBattleResult(peer.duelId, {
+          score: result.score,
+          oppScore: result.oppScore,
+          feedback: result.feedback,
+          oppFeedback: result.oppFeedback,
+          strengths: result.strengths,
+          oppStrengths: result.oppStrengths,
+          won,
+          tie: result.winner === "tie",
+        });
+      }
+
       setVerdict({
         score: result.score,
         oppScore: result.oppScore,
@@ -980,6 +1061,98 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
       unsubscribe();
     }
   };
+
+  // ── PvP: receive the opponent's live transcript + turn-end signal ──────────
+  // The opponent is a human here; their words arrive as broadcasts. `debate-live`
+  // streams their in-progress text into their podium; `debate-turn-end` carries
+  // the final transcript and is the signal to advance both clients in lockstep.
+  useEffect(() => {
+    if (!isPeer || !peer) return;
+    const onLive = (p: ArenaEvents["arena:debate-live"]) => {
+      if (p.duelId !== peer.duelId || p.userId !== peer.opponentId) return;
+      setAiStream(p.text);
+    };
+    const onTurnEnd = (p: ArenaEvents["arena:debate-turn-end"]) => {
+      if (p.duelId !== peer.duelId || p.userId !== peer.opponentId) return;
+      // From our perspective the opponent occupies the "ai*" transcript slots.
+      // We store on EVERY turn-end (even a late mobile correction that arrives
+      // after we've moved on) so the host always judges the real text.
+      setTranscripts(prev => ({
+        ...prev,
+        ...(p.turn === "opening" ? { aiOpening: p.transcript } : { aiRebuttal: p.transcript }),
+      }));
+      setAiStream(p.transcript);
+      // Only advance if we're currently watching this exact turn (a late
+      // correction for an already-finished turn must NOT skip a phase).
+      const watchingPhase = p.turn === "opening" ? "opening-ai" : "rebuttal-ai";
+      if (phaseRef.current === watchingPhase) advancePhaseRef.current();
+    };
+    arenaEmitter.on("arena:debate-live", onLive);
+    arenaEmitter.on("arena:debate-turn-end", onTurnEnd);
+    return () => {
+      arenaEmitter.off("arena:debate-live", onLive);
+      arenaEmitter.off("arena:debate-turn-end", onTurnEnd);
+    };
+  }, [isPeer, peer]);
+
+  // ── PvP: stream MY live transcript to the opponent while I speak ───────────
+  const lastLiveSentRef = useRef(0);
+  useEffect(() => {
+    if (!isPeer || !peer || !isUserTurn) return;
+    const turn = turnNameOf(phaseRef.current);
+    if (!turn) return;
+    const now = Date.now();
+    if (now - lastLiveSentRef.current < 450) return; // throttle ~2/sec
+    lastLiveSentRef.current = now;
+    const text = (liveFinal + " " + liveInterim).trim();
+    peer.sendDebateLive(peer.duelId, turn, text);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPeer, peer, isUserTurn, liveFinal, liveInterim]);
+
+  // ── PvP peer: mirror the host's broadcast verdict ─────────────────────────
+  // Same host-authoritative mirroring DuelDrill uses: flip score↔oppScore and
+  // the win flag, since the host broadcasts from its own perspective.
+  useEffect(() => {
+    if (!isPeer || !peer || peer.isHost) return;
+    const onResult = (p: ArenaEvents["arena:battle-result"]) => {
+      if (p.duelId !== peer.duelId) return;
+      const tie = !!p.tie || p.score === p.oppScore;
+      const iWon = tie ? false : !p.won;
+      setVerdict({
+        score: p.oppScore ?? 0,            // my score is the host's oppScore
+        oppScore: p.score,                 // host's score
+        feedback: p.oppFeedback || p.feedback,
+        oppFeedback: p.feedback,
+        won: iWon,
+        strengths: p.oppStrengths || "N/A",
+        oppStrengths: p.strengths || "N/A",
+      });
+      if (iWon) sfx.win(); else sfx.loss();
+      setPhase("results");
+    };
+    arenaEmitter.on("arena:battle-result", onResult);
+    return () => arenaEmitter.off("arena:battle-result", onResult);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPeer, peer]);
+
+  // ── PvP: opponent forfeited (left the debate) → I win ─────────────────────
+  useEffect(() => {
+    if (!isPeer || !peer) return;
+    const onForfeit = (p: ArenaEvents["arena:battle-forfeit"]) => {
+      if (p.duelId !== peer.duelId || p.userId !== peer.opponentId) return;
+      aiAbortRef.current = true;
+      setVerdict({
+        score: 100, oppScore: 0, won: true, byForfeit: true,
+        feedback: `${opponent.name} left the debate. You win by forfeit.`,
+        strengths: "Held the floor", oppStrengths: "N/A",
+      });
+      sfx.win();
+      setPhase("results");
+    };
+    arenaEmitter.on("arena:battle-forfeit", onForfeit);
+    return () => arenaEmitter.off("arena:battle-forfeit", onForfeit);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPeer, peer]);
 
   // ── Clear debate storage when results are shown (battle is done) ─────────
   useEffect(() => {
@@ -1019,6 +1192,7 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
     setAnalyzeText("REVIEWING DEBATE...");
     restoredFromStorageRef.current = false;
     wasRecording.current = false;
+    advancedFromRef.current = null; // allow the replay to advance the same phases again
     phaseStartRef.current = Date.now();
     setSecondsLeft(PHASE_CONFIG[phaseOrder[0]].duration);
     aiAbortRef.current = false;
@@ -1028,6 +1202,13 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
   // ─── RENDER ────────────────────────────────────────────────────────────────
   const cfg = PHASE_CONFIG[phase];
   const isUserTurn = cfg.speaker === "user";
+
+  // Turn order / labels come from the unit-tested helpers. `turnLabel` is derived
+  // from the REAL order so AGAINST debates label their turns correctly (the
+  // static PHASE_CONFIG strings assumed the FOR sequence).
+  const speakingSeq = speakingOrder(phaseOrder);
+  const turnLabel = turnLabelOf(phase, phaseOrder, cfg.round);
+  const userOpensFirst = userOpensFirstOf(phaseOrder);
   const showResults = phase === "results" && verdict;
   const showJudging = phase === "judging";
   const isVoided = !!verdict?.voided;
@@ -1067,7 +1248,7 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
         </button>
 
         <div className="text-center min-w-0 flex-1">
-          <p className="text-[9px] lg:text-[10px] font-semibold text-primary/70 truncate">{cfg.round}</p>
+          <p className="text-[9px] lg:text-[10px] font-semibold text-primary/70 truncate">{turnLabel}</p>
           <p className="text-xs lg:text-sm font-bold mt-0.5 truncate">{cfg.label}</p>
         </div>
 
@@ -1098,6 +1279,36 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
             </div>
           </div>
 
+          {/* Turn order — make who speaks first (and the full sequence)
+              unmistakable. Previously the stance silently decided this and the
+              user just watched the AI start with no explanation. */}
+          <div className="w-full max-w-sm space-y-3">
+            <p className="text-center text-xs font-black uppercase tracking-widest">
+              {userOpensFirst
+                ? <span className="text-primary">You speak first</span>
+                : <><span className="text-primary">{opponent.name}</span> speaks first — you respond</>}
+            </p>
+            <div className="space-y-1.5">
+              {speakingSeq.map((p, i) => {
+                const mine = PHASE_CONFIG[p].speaker === "user";
+                const kind = p.startsWith("opening") ? "Opening" : "Rebuttal";
+                return (
+                  <div
+                    key={p}
+                    className={cn(
+                      "flex items-center gap-3 px-4 py-2 rounded-xl border text-xs font-bold",
+                      mine ? "border-primary/40 bg-primary/5" : "border-border/50 bg-muted/10 opacity-70"
+                    )}
+                  >
+                    <span className="h-5 w-5 rounded-full bg-foreground/10 flex items-center justify-center text-[10px] font-black tabular-nums shrink-0">{i + 1}</span>
+                    <span className="truncate">{mine ? "You" : opponent.name}</span>
+                    <span className="ml-auto text-[10px] font-black uppercase tracking-widest opacity-50">{kind}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
           <AnimatePresence mode="wait">
             <motion.div
               key={secondsLeft}
@@ -1112,12 +1323,20 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
             </motion.div>
           </AnimatePresence>
 
-          <button
-            onClick={() => advancePhaseRef.current()}
-            className="button-pill px-8 py-3 bg-primary text-white shadow-glow hover:scale-[1.02] active:scale-95 transition-all text-xs font-black uppercase tracking-widest flex items-center gap-2"
-          >
-            I&apos;m ready <ChevronRight className="h-4 w-4" />
-          </button>
+          {/* PvE lets you skip prep early. PvP must keep both clients in step,
+              so the round starts automatically when the shared prep timer ends. */}
+          {isPeer ? (
+            <p className="text-[10px] font-black uppercase tracking-widest opacity-40">
+              First speaker begins automatically…
+            </p>
+          ) : (
+            <button
+              onClick={() => advancePhaseRef.current()}
+              className="button-pill px-8 py-3 bg-primary text-white shadow-glow hover:scale-[1.02] active:scale-95 transition-all text-xs font-black uppercase tracking-widest flex items-center gap-2"
+            >
+              I&apos;m ready <ChevronRight className="h-4 w-4" />
+            </button>
+          )}
         </div>
       )}
 
@@ -1367,6 +1586,13 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
                       const text = (await transcribeAudio(rec.blob)).trim();
                       if (text) {
                         setTranscripts(prev => ({ ...prev, [key]: text }));
+                        // PvP: a mobile speaker's live turn-end carried empty/rough
+                        // text (no Web Speech). Now that the server transcript is
+                        // ready, re-broadcast it so the host re-stores the real
+                        // text before judging (its runJudging waits a settle window).
+                        if (isPeer && peer) {
+                          peer.sendDebateTurnEnd(peer.duelId, key === "userOpening" ? "opening" : "rebuttal", text);
+                        }
                       }
                     } catch (err) {
                       console.warn("[Debate] Mobile server transcription failed:", err);
@@ -1423,7 +1649,7 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
                   <>
                     Leaving mid-debate counts as a forfeit. You'll lose{" "}
                     <span className="font-black text-red-500">{FORFEIT_PENALTY} ELO</span>{" "}
-                    and your AI opponent wins by default.
+                    and your {isPeer ? "" : "AI "}opponent wins by default.
                   </>
                 )}
               </p>
@@ -1438,15 +1664,22 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
                     // Pathway drills SKIP the ELO-moving forfeit handler —
                     // they're curriculum, not ranked play. Closing the modal
                     // is enough; usePathway leaves the lesson unfinished.
+                    // PvP: tell the peer first so they get their win-by-forfeit
+                    // even if our ELO call is slow. Use the live duelId so the
+                    // peer's forfeit listener matches.
+                    if (isPeer && peer) {
+                      peer.sendForfeit(peer.duelId);
+                    }
                     if (!isPathway && handleForfeit) {
                       const userName = user?.email?.split("@")[0] || "You";
-                      const duelId = `debate-forfeit-${Date.now()}`;
+                      const duelId = isPeer && peer ? peer.duelId : `debate-forfeit-${Date.now()}`;
                       const forfeitDuel: Duel = {
                         id: duelId,
                         prompt,
                         gamemode: "debate",
                         creator: { id: user?.id, name: userName, avatar: "👤", elo: userElo, rank: getRankFromElo(userElo), score: null },
-                        challenger: { id: "ai", name: opponent.name, avatar: opponent.avatar, elo: opponent.elo, rank: opponent.rank, score: null },
+                        // PvP routes the loss/win ELO to the real peer; PvE uses the AI sentinel.
+                        challenger: { id: isPeer && peer ? peer.opponentId : "ai", name: opponent.name, avatar: opponent.avatar, elo: opponent.elo, rank: opponent.rank, score: null },
                         status: "open",
                         winner: null,
                         feedback: null,

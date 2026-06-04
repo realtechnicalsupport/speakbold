@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { TrackShell } from "@/components/TrackShell";
 import { BodyLanguageCamera } from "@/components/BodyLanguageCamera";
@@ -76,13 +76,48 @@ const BodyLanguage = () => {
           Your body speaks <span className="text-primary italic">before you do.</span>
         </>
       }
-      intro="Real-time AI analysis of your posture, eye contact, facial expression, and gestures — all running in your browser. Stand up, speak, and watch the feedback land in real time."
+      intro="Live, on-device feedback on your posture, eye contact, expression, and gestures."
     >
       {/* Ambient glow */}
       <div className="absolute top-[20%] right-[10%] w-[300px] h-[300px] md:w-[600px] md:h-[600px] bg-primary/5 rounded-full blur-[150px] animate-float opacity-30 pointer-events-none" />
 
       <div className="space-y-12 md:space-y-20 relative z-10">
-        {/* 1 — What the AI measures */}
+        {/* 1 — Speaking prompt */}
+        <div className="p-6 md:p-10 rounded-2xl md:rounded-[3rem] bg-gradient-to-br from-primary/[0.06] via-primary/[0.02] to-transparent border border-primary/20 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-[100px] animate-float opacity-50 pointer-events-none" />
+          <div className="flex flex-col md:flex-row md:items-center gap-6 relative z-10">
+            <div className="flex-1 space-y-4 min-w-0">
+              <div className="flex items-center gap-3 text-xs font-black uppercase tracking-[0.4em] text-primary">
+                <Zap className="h-3.5 w-3.5" />
+                YOUR SPEAKING PROMPT
+              </div>
+              <motion.p
+                key={promptIdx}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4 }}
+                className="speak-serif text-xl md:text-2xl italic leading-snug"
+              >
+                "{PROMPTS[promptIdx]}"
+              </motion.p>
+              <p className="text-xs font-medium opacity-30">
+                Aim for 60–90 seconds. Don't script — just speak.
+              </p>
+            </div>
+            <button
+              onClick={shufflePrompt}
+              className="shrink-0 group flex items-center gap-3 px-6 py-3 rounded-full border border-border/60 hover:border-primary/40 hover:bg-primary/5 transition-all duration-500"
+            >
+              <Shuffle className="h-3.5 w-3.5 opacity-50 group-hover:rotate-180 group-hover:opacity-100 transition-all duration-500" />
+              <span className="text-xs font-black uppercase tracking-[0.3em]">Shuffle</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 2 — The Studio (camera + live analysis + report) — record first */}
+        <BodyLanguageCamera />
+
+        {/* 3 — What the AI measures (reference, below the recording window) */}
         <div className="space-y-8">
           <div className="flex items-center gap-4 text-xs font-black uppercase tracking-[0.5em] opacity-40">
             <Sparkles className="h-3 w-3" />
@@ -120,41 +155,6 @@ const BodyLanguage = () => {
             ))}
           </div>
         </div>
-
-        {/* 2 — Speaking prompt */}
-        <div className="p-6 md:p-10 rounded-2xl md:rounded-[3rem] bg-gradient-to-br from-primary/[0.06] via-primary/[0.02] to-transparent border border-primary/20 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-[100px] animate-float opacity-50 pointer-events-none" />
-          <div className="flex flex-col md:flex-row md:items-center gap-6 relative z-10">
-            <div className="flex-1 space-y-4 min-w-0">
-              <div className="flex items-center gap-3 text-xs font-black uppercase tracking-[0.4em] text-primary">
-                <Zap className="h-3.5 w-3.5" />
-                YOUR SPEAKING PROMPT
-              </div>
-              <motion.p
-                key={promptIdx}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4 }}
-                className="speak-serif text-xl md:text-2xl italic leading-snug"
-              >
-                "{PROMPTS[promptIdx]}"
-              </motion.p>
-              <p className="text-xs font-medium opacity-30">
-                Aim for 60–90 seconds. Don't script — just speak.
-              </p>
-            </div>
-            <button
-              onClick={shufflePrompt}
-              className="shrink-0 group flex items-center gap-3 px-6 py-3 rounded-full border border-border/60 hover:border-primary/40 hover:bg-primary/5 transition-all duration-500"
-            >
-              <Shuffle className="h-3.5 w-3.5 opacity-50 group-hover:rotate-180 group-hover:opacity-100 transition-all duration-500" />
-              <span className="text-xs font-black uppercase tracking-[0.3em]">Shuffle</span>
-            </button>
-          </div>
-        </div>
-
-        {/* 3 — The Studio (camera + live analysis + report) */}
-        <BodyLanguageCamera />
 
         {/* 4 — Privacy footer */}
         <div className="flex flex-col items-center gap-3 pt-4">

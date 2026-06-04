@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Trash2, CloudOff, RefreshCw } from "lucide-react";
 import { Link } from "react-router-dom";
 import { RecordingFeedback } from "@/components/RecordingFeedback";
+import { ClipPlayer } from "@/components/ClipPlayer";
 
 const fmt = (ms: number) => {
   const s = Math.floor(ms / 1000);
@@ -70,7 +71,7 @@ export const RecordingsList = () => {
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
-              {r.signedUrl && <audio controls src={r.signedUrl} className="w-full h-10" />}
+              {r.signedUrl && <ClipPlayer src={r.signedUrl} durationMs={r.duration_ms} />}
               <RecordingFeedback recordingId={r.id} />
             </li>
           ))}

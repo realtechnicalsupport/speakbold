@@ -85,6 +85,8 @@ interface ArenaContextType {
   broadcastBattleResult: (duelId: string, results: any) => Promise<void>;
   broadcastAnalyzing: (duelId: string) => Promise<void>;
   sendTranscript: (duelId: string, transcript: string) => Promise<void>;
+  sendDebateLive: (duelId: string, turn: "opening" | "rebuttal", text: string) => Promise<void>;
+  sendDebateTurnEnd: (duelId: string, turn: "opening" | "rebuttal", transcript: string) => Promise<void>;
   findMatch: (mode: Gamemode) => Promise<any>;
   completedDuels: Duel[];
 }
@@ -340,6 +342,9 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       .on("broadcast", { event: "battle-analyzing" }, ({ payload }) => arenaEmitter.emit("arena:battle-analyzing", payload))
       .on("broadcast", { event: "battle-transcript" }, ({ payload }) => arenaEmitter.emit("arena:battle-transcript", payload))
       .on("broadcast", { event: "battle-forfeit" }, ({ payload }) => arenaEmitter.emit("arena:battle-forfeit", payload))
+      // Live PvP debate turn sync (transcript-only).
+      .on("broadcast", { event: "debate-live" }, ({ payload }) => arenaEmitter.emit("arena:debate-live", payload))
+      .on("broadcast", { event: "debate-turn-end" }, ({ payload }) => arenaEmitter.emit("arena:debate-turn-end", payload))
       // PvP rating sync: the host's authoritative call re-rated us server-side;
       // reflect our new ELO + animate it without writing a duplicate battle row.
       .on("broadcast", { event: "elo-sync" }, ({ payload }) => {
@@ -406,6 +411,17 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const sendTranscript = async (duelId: string, transcript: string) => {
     if (arenaChannel.current) arenaChannel.current.send({ type: "broadcast", event: "battle-transcript", payload: { duelId, userId: user?.id, transcript } });
+  };
+
+  // ── Live PvP debate senders ────────────────────────────────────────────────
+  // Stream the in-progress transcript of the active speaker to the watching peer.
+  const sendDebateLive = async (duelId: string, turn: "opening" | "rebuttal", text: string) => {
+    if (arenaChannel.current) arenaChannel.current.send({ type: "broadcast", event: "debate-live", payload: { duelId, userId: user?.id, turn, text } });
+  };
+  // Signal the end of the active speaker's turn (+ final transcript) so both
+  // clients advance the shared phase machine together.
+  const sendDebateTurnEnd = async (duelId: string, turn: "opening" | "rebuttal", transcript: string) => {
+    if (arenaChannel.current) arenaChannel.current.send({ type: "broadcast", event: "debate-turn-end", payload: { duelId, userId: user?.id, turn, transcript } });
   };
   
   const broadcastBattleResult = async (duelId: string, results: any) => {
@@ -693,7 +709,7 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     <ArenaContext.Provider value={{
       duels, profile, loading, onlineUsers, incomingRequests, requestCooldown, refresh, setIncomingRequests,
       sendDuelRequest, acceptDuelRequest, sendReadyStatus, sendForfeit, handleForfeit, completeDuel, broadcastBattleResult,
-      broadcastAnalyzing, sendTranscript, findMatch, updateStatus,
+      broadcastAnalyzing, sendTranscript, sendDebateLive, sendDebateTurnEnd, findMatch, updateStatus,
       completedDuels: duels.filter(d => d.status === "completed")
     }}>
       {children}
