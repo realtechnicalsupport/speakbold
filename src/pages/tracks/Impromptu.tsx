@@ -1,3 +1,4 @@
+import { useLayoutEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { TrackShell } from "@/components/TrackShell";
 import { RecorderPanel } from "@/components/RecorderPanel";
@@ -60,6 +61,16 @@ const Impromptu = () => {
     recorderStopRef,
     onRecordingComplete,
   } = session;
+
+  // Lock body scroll while the full-screen prep/speaking overlay is visible.
+  // Without this the body (TrackShell is min-h-screen and taller than viewport)
+  // stays scrollable behind the fixed overlay, producing two simultaneous
+  // scrollbars on the right edge of the screen.
+  useLayoutEffect(() => {
+    const isOverlay = phase === "prep" || phase === "speaking";
+    document.body.style.overflow = isOverlay ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
+  }, [phase]);
 
   // Shared recorder panel — rendered once, always in DOM when recording is enabled
   const recorderPanel = recordEnabled && (

@@ -381,6 +381,10 @@ const AudioPlayback = ({ blobUrl }: { blobUrl: string }) => {
           <span className="text-[9px] font-black tabular-nums opacity-50">{formatClipDuration(seconds)}</span>
         )}
       </div>
+      {/* Hidden until the seek-to-end hack resolves the real duration.
+          The element stays in the DOM so loadedmetadata / durationchange
+          still fire; visibility:hidden just prevents the native controls
+          from flashing ∞ or an inflated time while the blob is being scanned. */}
       <audio
         ref={audioRef}
         controls
@@ -389,7 +393,10 @@ const AudioPlayback = ({ blobUrl }: { blobUrl: string }) => {
         onLoadedMetadata={onLoadedMetadata}
         onDurationChange={onDurationChange}
         className="w-full h-8"
-        style={{ accentColor: "hsl(var(--primary))" }}
+        style={{
+          accentColor: "hsl(var(--primary))",
+          visibility: seconds != null ? "visible" : "hidden",
+        }}
       />
     </div>
   );
