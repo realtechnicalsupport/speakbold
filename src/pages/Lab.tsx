@@ -13,6 +13,7 @@ import { RecentPracticeStrip } from "@/components/RecentPracticeStrip";
 const LAB_TOOLS = [
   {
     title: "Speaking Practice",
+    short: "Structured drills",
     description: "Practice your public speaking with structured drills.",
     icon: Mic,
     to: "/tracks/public-speaking",
@@ -22,6 +23,7 @@ const LAB_TOOLS = [
   },
   {
     title: "Quick Thinking",
+    short: "Think on your feet",
     description: "Think on your feet with random topics and limited time.",
     icon: MessageSquare,
     to: "/tracks/impromptu",
@@ -31,6 +33,7 @@ const LAB_TOOLS = [
   },
   {
     title: "Interview Practice",
+    short: "Mock interviews",
     description: "Practice behavioral and technical interview questions with AI.",
     icon: Briefcase,
     to: "/tracks/interviews",
@@ -40,6 +43,7 @@ const LAB_TOOLS = [
   },
   {
     title: "Body Language",
+    short: "Posture & gestures",
     description: "Unlimited free practice — posture, gestures, and video review. No syllabus.",
     icon: Activity,
     to: null,
@@ -108,77 +112,57 @@ const Lab = () => {
               exit={{ opacity: 0 }}
               transition={{ duration: 0.3 }}
             >
+              {/* ── Quick-launch: the 4 tracks, compact + always visible up top
+                     so self-directed practice is never buried below the coach. ── */}
+              <div className="mb-12 md:mb-16">
+                <div className="flex items-center gap-3 text-[10px] md:text-xs font-black uppercase tracking-[0.3em] text-primary mb-5">
+                  <FlaskConical className="h-4 w-4" />
+                  JUMP INTO A FOCUS
+                </div>
+                <div id="lab-grid" className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+                  {LAB_TOOLS.map((tool, index) => {
+                    const Icon = tool.icon;
+                    const inner = (
+                      <>
+                        <div className={`h-10 w-10 rounded-xl ${tool.bg} ${tool.color} flex items-center justify-center shrink-0`}>
+                          <Icon className="h-5 w-5" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold tracking-tight truncate">{tool.title}</p>
+                          <p className="text-[11px] opacity-50 truncate">{tool.short}</p>
+                        </div>
+                      </>
+                    );
+                    const tileClass =
+                      "group flex items-center gap-3 w-full text-left p-4 rounded-2xl glass-card transition-all duration-300 hover:border-primary/40";
+                    return (
+                      <motion.div
+                        key={tool.title}
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.06 }}
+                      >
+                        {tool.inline ? (
+                          <button onClick={() => setShowBodyLanguage(true)} className={tileClass}>
+                            {inner}
+                          </button>
+                        ) : (
+                          <Link to={tool.to!} className={tileClass}>
+                            {inner}
+                          </Link>
+                        )}
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* ── Main feature: the adaptive AI coach ── */}
               <CoachHub />
 
-              {/* ── Recent practice: history teaser → expands to full popup ── */}
-              <div className="mt-12 md:mt-20">
+              {/* ── Recent practice: history footer → expands to full popup ── */}
+              <div className="border-t border-border/60 pt-12 md:pt-16 mt-12 md:mt-16">
                 <RecentPracticeStrip />
-              </div>
-
-              {/* ── Focused practice: the 4 tracks, below the coach ── */}
-              <div className="border-t border-border/60 pt-12 md:pt-20 mt-12 md:mt-20">
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  className="space-y-4 mb-10 max-w-2xl"
-                >
-                  <div className="flex items-center gap-4 text-xs font-black uppercase tracking-[0.3em] text-primary">
-                    <FlaskConical className="h-4 w-4" />
-                    FOCUSED PRACTICE
-                  </div>
-                  <h2 className="speak-serif text-3xl md:text-5xl tracking-tighter leading-[0.9]">
-                    Or pick a <span className="text-primary italic">focus.</span>
-                  </h2>
-                  <p className="text-base md:text-lg font-medium opacity-40 leading-relaxed">
-                    Practice a specific skill on your own terms, outside the coach's plan.
-                  </p>
-                </motion.div>
-
-              <div id="lab-grid" className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {LAB_TOOLS.map((tool, index) => {
-                  const Icon = tool.icon;
-                  const inner = (
-                    <>
-                      <div className={`h-14 w-14 rounded-full ${tool.bg} ${tool.color} flex items-center justify-center mb-6`}>
-                        <Icon className="h-7 w-7" />
-                      </div>
-                      <h3 className="speak-serif text-2xl mb-3 tracking-tight">{tool.title}</h3>
-                      <p className="text-sm opacity-50 font-medium leading-relaxed mb-6">{tool.description}</p>
-                      <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-primary opacity-0 group-hover:opacity-100 transition-opacity">
-                        {tool.inline ? "OPEN PRACTICE" : "ENTER LAB"}{" "}
-                        <span className="text-lg leading-none">→</span>
-                      </div>
-                    </>
-                  );
-
-                  return (
-                    <motion.div
-                      key={tool.title}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.1 }}
-                    >
-                      {tool.inline ? (
-                        <button
-                          onClick={() => setShowBodyLanguage(true)}
-                          className="group block w-full text-left p-5 md:p-8 rounded-2xl md:rounded-[2rem] glass-card transition-all duration-300 relative overflow-hidden h-full"
-                        >
-                          {inner}
-                        </button>
-                      ) : (
-                        <Link
-                          to={tool.to!}
-                          className="group block p-5 md:p-8 rounded-2xl md:rounded-[2rem] glass-card transition-all duration-300 relative overflow-hidden h-full"
-                        >
-                          {inner}
-                        </Link>
-                      )}
-                    </motion.div>
-                  );
-                })}
-              </div>
               </div>
             </motion.div>
           ) : (
