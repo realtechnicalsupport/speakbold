@@ -55,6 +55,9 @@ export interface Duel {
   exampleSpeech?: string;
   timestamp: number;
   eloChange?: number;
+  /** For debate duels: the stance the CREATOR (challenge sender) argues. The
+   *  challenger argues the opposite. Drives who is FOR/AGAINST in a PvP debate. */
+  stance?: "FOR" | "AGAINST";
 }
 
 export const AI_PERSONAS = [
@@ -76,7 +79,7 @@ interface ArenaContextType {
   requestCooldown: number;
   refresh: (silent?: boolean) => Promise<void>;
   setIncomingRequests: React.Dispatch<React.SetStateAction<any[]>>;
-  sendDuelRequest: (targetUserId: string, gamemode: Gamemode, prompt: string) => Promise<void>;
+  sendDuelRequest: (targetUserId: string, gamemode: Gamemode, prompt: string, stance?: "FOR" | "AGAINST") => Promise<void>;
   acceptDuelRequest: (request: any) => Promise<void>;
   sendReadyStatus: (duelId: string, isReady: boolean) => Promise<void>;
   sendForfeit: (duelId: string) => Promise<void>;
@@ -374,11 +377,11 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return () => { supabase.removeChannel(channel); arenaChannel.current = null; };
   }, [user, profile.elo]);
 
-  const sendDuelRequest = async (targetUserId: string, gamemode: Gamemode, prompt: string) => {
+  const sendDuelRequest = async (targetUserId: string, gamemode: Gamemode, prompt: string, stance?: "FOR" | "AGAINST") => {
     if (!user || !arenaChannel.current) return;
     if (requestCooldown > 0) return;
 
-    await arenaChannel.current.send({ type: "broadcast", event: "duel-request", payload: { id: `req-${user.id}-${Date.now()}`, senderId: user.id, senderName: user.email?.split("@")[0], senderRank: getRankFromElo(profile.elo), targetUserId, gamemode, prompt } });
+    await arenaChannel.current.send({ type: "broadcast", event: "duel-request", payload: { id: `req-${user.id}-${Date.now()}`, senderId: user.id, senderName: user.email?.split("@")[0], senderRank: getRankFromElo(profile.elo), targetUserId, gamemode, prompt, stance } });
     toast({ title: "Request Sent", description: "Waiting for opponent..." });
 
     // 10-second cooldown — prevents spamming requests

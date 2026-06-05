@@ -151,6 +151,9 @@ const Arena = () => {
   const [challengeMode, setChallengeMode] = useState<Gamemode>("standard");
   const [challengePrompt, setChallengePrompt] = useState("");
   const [generatingPrompt, setGeneratingPrompt] = useState(false);
+  // The challenger's chosen stance for a DEBATE challenge (they argue this; the
+  // accepter argues the opposite). Mirrors the Debate Hall's FOR/AGAINST picker.
+  const [challengeStand, setChallengeStand] = useState<"FOR" | "AGAINST">("FOR");
 
   // Challenge ids whose acceptance we've ALREADY acted on. Makes accept-handling
   // idempotent: a duplicate/late "request-accepted", or an effect re-running once
@@ -188,9 +191,12 @@ const Arena = () => {
       status: "active",
       winner: null,
       feedback: null,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      // Debate stance chosen by the challenge sender (creator); accepter takes
+      // the opposite. Carried on both the original request and the acceptance.
+      stance: request.stance,
     };
-    
+
     if (request.isAcceptedChallenge) {
       toast({ 
         title: "Challenge Accepted!", 
@@ -263,11 +269,15 @@ const Arena = () => {
     const isHost = activeDrill.creator?.id === user?.id;
     const oppPlayer = isHost ? activeDrill.challenger : activeDrill.creator;
     if (!oppPlayer) return null;
+    // The creator (challenge sender) argues the stance they picked; the accepter
+    // argues the opposite. Defaults to FOR if an older request carried no stance.
+    const hostStand: "FOR" | "AGAINST" = activeDrill.stance === "AGAINST" ? "AGAINST" : "FOR";
+    const myStand: "FOR" | "AGAINST" = isHost ? hostStand : (hostStand === "FOR" ? "AGAINST" : "FOR");
     return {
       duelId: activeDrill.id,
       isHost,
       prompt: activeDrill.prompt,
-      userStand: (isHost ? "FOR" : "AGAINST") as "FOR" | "AGAINST",
+      userStand: myStand,
       opponent: oppPlayer,
       opponentId: oppPlayer.id || "peer",
     };
@@ -1386,9 +1396,44 @@ const Arena = () => {
                      </div>
                    </div>
 
+                   {challengeMode === "debate" && (
+                     <div>
+                       <label className="text-xs font-black uppercase tracking-widest opacity-40 mb-3 block">Your stand</label>
+                       <div className="grid grid-cols-2 gap-3">
+                         <button
+                           type="button"
+                           onClick={() => setChallengeStand("FOR")}
+                           className={cn(
+                             "p-4 rounded-xl border-2 transition-all text-center",
+                             challengeStand === "FOR"
+                               ? "border-green-500 bg-green-500/10 text-green-600 dark:text-green-400"
+                               : "border-border bg-muted/20 text-foreground/40 hover:border-green-500/50"
+                           )}
+                         >
+                           <p className="text-lg speak-serif italic font-bold">FOR</p>
+                           <p className="text-[9px] font-black opacity-50 mt-1 uppercase tracking-widest">You speak first</p>
+                         </button>
+                         <button
+                           type="button"
+                           onClick={() => setChallengeStand("AGAINST")}
+                           className={cn(
+                             "p-4 rounded-xl border-2 transition-all text-center",
+                             challengeStand === "AGAINST"
+                               ? "border-red-500 bg-red-500/10 text-red-600 dark:text-red-400"
+                               : "border-border bg-muted/20 text-foreground/40 hover:border-red-500/50"
+                           )}
+                         >
+                           <p className="text-lg speak-serif italic font-bold">AGAINST</p>
+                           <p className="text-[9px] font-black opacity-50 mt-1 uppercase tracking-widest">Opponent opens</p>
+                         </button>
+                       </div>
+                       <p className="text-[10px] opacity-40 mt-2">{challengeTarget.name} argues the opposite side.</p>
+                     </div>
+                   )}
+
                    <div>
                      <div className="flex justify-between items-center mb-3">
-                       <label className="text-xs font-black uppercase tracking-widest opacity-40 block">Custom Prompt (Optional)</label>
+                       <label className="text-xs font-black uppercase tracking-widest opacity-40 block">{challengeMode === "debate" ? "The Motion (Optional)" : "Custom Prompt (Optional)"}</label>
                        <button
                          onClick={async () => {
                            setGeneratingPrompt(true);
@@ -1430,10 +1475,11 @@ const Arena = () => {
                           }
                           setGeneratingPrompt(false);
                         }
-                        sendDuelRequest(challengeTarget.id, challengeMode, finalPrompt);
+                        sendDuelRequest(challengeTarget.id, challengeMode, finalPrompt, challengeMode === "debate" ? challengeStand : undefined);
                         setChallengeTarget(null);
                         setChallengePrompt("");
                         setChallengeMode("standard");
+                        setChallengeStand("FOR");
                      }}
                      className="w-full py-4 bg-primary text-white rounded-xl text-sm font-black uppercase tracking-widest hover:scale-[1.02] active:scale-95 transition-all shadow-glow disabled:opacity-50 disabled:scale-100 disabled:cursor-not-allowed"
                      disabled={generatingPrompt || requestCooldown > 0}
