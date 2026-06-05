@@ -1096,18 +1096,22 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
   }, [isPeer, peer]);
 
   // ── PvP: stream MY live transcript to the opponent while I speak ───────────
+  // Derive "is it my turn" from `phase` (declared up top) rather than the
+  // render-section `isUserTurn` const — listing isUserTurn in the dep array
+  // evaluated it DURING render before its declaration, a TDZ that blanked the
+  // whole debate screen (PvE and PvP alike).
   const lastLiveSentRef = useRef(0);
   useEffect(() => {
-    if (!isPeer || !peer || !isUserTurn) return;
-    const turn = turnNameOf(phaseRef.current);
-    if (!turn) return;
+    if (!isPeer || !peer) return;
+    const turn = turnNameOf(phase);
+    if (!turn || PHASE_CONFIG[phase].speaker !== "user") return; // only my speaking turns
     const now = Date.now();
     if (now - lastLiveSentRef.current < 450) return; // throttle ~2/sec
     lastLiveSentRef.current = now;
     const text = (liveFinal + " " + liveInterim).trim();
     peer.sendDebateLive(peer.duelId, turn, text);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPeer, peer, isUserTurn, liveFinal, liveInterim]);
+  }, [isPeer, peer, phase, liveFinal, liveInterim]);
 
   // ── PvP peer: mirror the host's broadcast verdict ─────────────────────────
   // Same host-authoritative mirroring DuelDrill uses: flip score↔oppScore and

@@ -335,7 +335,7 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (payload.targetUserId === user.id) setIncomingRequests(prev => prev.some(r => r.id === payload.id) ? prev : [payload, ...prev]);
       })
       .on("broadcast", { event: "request-accepted" }, ({ payload }) => {
-        if (payload.senderId === user.id) setIncomingRequests(prev => [{ ...payload, isAcceptedChallenge: true }, ...prev]);
+        if (payload.senderId === user.id) setIncomingRequests(prev => prev.some(r => r.id === payload.id) ? prev : [{ ...payload, isAcceptedChallenge: true }, ...prev]);
       })
       .on("broadcast", { event: "ready-status" }, ({ payload }) => arenaEmitter.emit("arena:ready-status", payload))
       .on("broadcast", { event: "battle-result" }, ({ payload }) => arenaEmitter.emit("arena:battle-result", payload))

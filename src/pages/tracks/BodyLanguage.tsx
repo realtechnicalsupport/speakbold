@@ -77,6 +77,7 @@ const BodyLanguage = () => {
         </>
       }
       intro="Live, on-device feedback on your posture, eye contact, expression, and gestures."
+      compact
     >
       {/* Ambient glow */}
       <div className="absolute top-[20%] right-[10%] w-[300px] h-[300px] md:w-[600px] md:h-[600px] bg-primary/5 rounded-full blur-[150px] animate-float opacity-30 pointer-events-none" />

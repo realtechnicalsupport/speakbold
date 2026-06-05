@@ -773,7 +773,7 @@ const LessonDrill = ({
   return (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[60] glass overflow-y-auto overflow-x-hidden scrollbar-hide text-foreground flex flex-col"
+      className="fixed inset-0 z-[60] bg-background overflow-y-auto overflow-x-hidden scrollbar-hide text-foreground flex flex-col"
     >
       <div className="fixed inset-0 pointer-events-none">
         <div className="absolute top-[10%] left-[-10%] w-[50%] h-[50%] bg-primary/5 rounded-full blur-[150px] animate-pulse" />

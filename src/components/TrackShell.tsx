@@ -42,7 +42,9 @@ export const TrackShell = ({ eyebrow, title, intro, children, hideHeader = false
 
       <section className={cn(
         "px-4 md:container relative z-10 pb-20",
-        hideHeader ? "pt-24 md:pt-32" : "pt-32 md:pt-48"
+        // Tighter top clearance on phone/tablet so the hero doesn't fill the
+        // screen and push content below the fold; full drama returns on lg+.
+        hideHeader ? "pt-24 md:pt-28 lg:pt-32" : "pt-24 md:pt-28 lg:pt-48"
       )}>
         <motion.div
           initial={{ opacity: 0, x: -20 }}
@@ -51,14 +53,14 @@ export const TrackShell = ({ eyebrow, title, intro, children, hideHeader = false
         >
           <Link
             to="/"
-            className="inline-flex items-center gap-3 text-xs font-black uppercase tracking-[0.3em] md:tracking-[0.4em] text-primary opacity-40 hover:opacity-100 transition-all mb-8 md:mb-16"
+            className="inline-flex items-center gap-3 text-xs font-black uppercase tracking-[0.3em] md:tracking-[0.4em] text-primary opacity-40 hover:opacity-100 transition-all mb-6 md:mb-8 lg:mb-16"
           >
             <ArrowLeft className="h-4 w-4" />
             RETURN TO OPERATIONAL HUB
           </Link>
         </motion.div>
 
-        <div className="grid lg:grid-cols-[1.2fr_1fr] gap-8 md:gap-16 items-end mb-10 md:mb-24">
+        <div className="grid lg:grid-cols-[1.2fr_1fr] gap-6 md:gap-8 lg:gap-16 items-end mb-8 md:mb-10 lg:mb-24">
           <motion.div 
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}

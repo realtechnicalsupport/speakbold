@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useArena, type Duel, type Gamemode, GAMEMODES, getRankColor, getRankFromElo, AI_PERSONAS } from "@/hooks/useArena";
 import { useLocalStorageState } from "@/hooks/useLocalStorageState";
 import { isInPlacement, getMatchesPlayed, getSeasonInfo, estimateEloAtStake, getNextRankInfo, ELO_FLOOR } from "@/hooks/arenaUtils";
@@ -44,6 +44,7 @@ const Arena = () => {
   } = useArena();
   const { user } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const arenasfx = useSoundEffects();
 
   const [activeDrill, setActiveDrill] = useState<Duel | null>(() => {
@@ -151,6 +152,11 @@ const Arena = () => {
   const [challengePrompt, setChallengePrompt] = useState("");
   const [generatingPrompt, setGeneratingPrompt] = useState(false);
 
+  // Challenge ids whose acceptance we've ALREADY acted on. Makes accept-handling
+  // idempotent: a duplicate/late "request-accepted", or an effect re-running once
+  // a duel ends, can never re-toast "accepted" or restart a finished duel.
+  const processedAcceptedRef = useRef<Set<string>>(new Set());
+
   const handleAcceptRequest = (request: any) => {
     if (!request) return;
     
@@ -204,25 +210,43 @@ const Arena = () => {
   };
 
   useEffect(() => {
-    const accepted = incomingRequests.find(r => r.isAcceptedChallenge);
-    if (accepted && activeDrill?.id !== accepted.id) {
+    // A peer accepted our challenge. Act on each accepted entry EXACTLY ONCE.
+    // NOTE: deliberately NOT depending on activeDrill?.id — that was the bug:
+    // when a duel ended (activeDrill → null) this effect re-ran and re-fired the
+    // stale acceptance, restarting the finished duel.
+    const accepted = incomingRequests.find(
+      r => r.isAcceptedChallenge && !processedAcceptedRef.current.has(r.id)
+    );
+    if (accepted) {
+      processedAcceptedRef.current.add(accepted.id);
       toast({ title: "Peer Accepted!", description: "Synchronizing combat start..." });
       handleAcceptRequest(accepted);
-      // Clear it from inbox after processing so it doesn't re-trigger
-      setIncomingRequests(prev => prev.filter(r => r.id !== accepted.id));
     }
-  }, [incomingRequests, activeDrill?.id]);
+    // Purge any already-handled accepted entries so a duplicate can't linger and
+    // resurface as a stale notification after the duel is over.
+    if (incomingRequests.some(r => r.isAcceptedChallenge && processedAcceptedRef.current.has(r.id))) {
+      setIncomingRequests(prev =>
+        prev.filter(r => !(r.isAcceptedChallenge && processedAcceptedRef.current.has(r.id)))
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [incomingRequests]);
 
-  // Handle request accepted from outside the arena page
+  // Handle a request accepted from OUTSIDE the arena page (recipient tapped
+  // ACCEPT in the header notification, then navigated here with router state).
   useEffect(() => {
-    if (location.state?.acceptRequest) {
-      const request = location.state.acceptRequest;
+    const request = location.state?.acceptRequest;
+    if (request && !processedAcceptedRef.current.has(request.id)) {
+      processedAcceptedRef.current.add(request.id);
       console.log("[Arena] Handling accepted request from navigation state:", request.id);
       handleAcceptRequest(request);
-      // Clear navigation state
-      window.history.replaceState({}, document.title);
+      // Clear router state via navigate — window.history.replaceState does NOT
+      // update React Router's location.state, so without this the request would
+      // replay on a later re-render (e.g. once the duel ends).
+      navigate(location.pathname, { replace: true, state: {} });
     }
-  }, [location.state, activeDrill?.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
 
   const currentRank = getRankFromElo(profile.elo);
   const userName = user?.email?.split("@")[0] || "You";

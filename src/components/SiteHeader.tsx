@@ -129,10 +129,16 @@ const DuelRequestNotification = () => {
   const navigate = useNavigate();
   const { pathname } = useLocation();
 
-  // Don't show notifications if we are already on the arena page (it has its own UI)
-  if (pathname === "/arena" || incomingRequests.length === 0) return null;
+  // Only genuine INCOMING invites belong here. `isAcceptedChallenge` entries are
+  // the sender-side signal that THEIR challenge was accepted — surfacing those
+  // here showed a bogus "you've been invited" popup (with the user's own name),
+  // and could linger after the duel ended.
+  const invites = incomingRequests.filter(r => !r.isAcceptedChallenge);
 
-  const currentRequest = incomingRequests[0];
+  // Don't show notifications if we are already on the arena page (it has its own UI)
+  if (pathname === "/arena" || invites.length === 0) return null;
+
+  const currentRequest = invites[0];
 
   return (
     <AnimatePresence>
