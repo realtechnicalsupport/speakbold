@@ -424,7 +424,11 @@ export async function generateAIArgument(prompt: string, durationSeconds: number
       gamemodeInstructions = "Write a strong, argumentative opening statement for a debate IN FAVOR OF the motion";
     }
   }
-  if (gamemode === "pitch") gamemodeInstructions = "Act as a strict investor/client. State a complex problem or objection in 2-3 sentences that the user must pitch a solution for";
+  // Pitch is a head-to-head: the AI must deliver its OWN competing pitch for the
+  // same product/idea so the judge compares two pitches. (It used to merely STATE
+  // a problem, which the judge then scored against the user's pitch as if it were
+  // a rival speech — an apples-to-oranges comparison.)
+  if (gamemode === "pitch") gamemodeInstructions = "Deliver a compelling, persuasive PITCH for the product/idea in the topic — as a rival founder pitching the SAME idea to investors. Hook them, name the problem it solves, and make the value undeniable";
   if (gamemode === "blitz") gamemodeInstructions = "Deliver a rapid-fire, high-energy impromptu speech";
 
   // Tier-specific quality guidance — beatable by a thoughtful human at every

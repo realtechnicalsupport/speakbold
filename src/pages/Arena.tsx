@@ -896,7 +896,13 @@ const Arena = () => {
                    <Radar className="h-5 w-5" /> {selectedMode === "debate" ? "ENTER DEBATE HALL" : "FIND PARTNER"}
                  </button>
                  <button
-                   onClick={() => setIsCreating(true)}
+                   onClick={() => {
+                     // Debate has ONE experience (the turn-based Debate Hall /
+                     // DebateBattle). Custom debates must not fall through to
+                     // DuelDrill's old parallel-debate branch.
+                     if (selectedMode === "debate") setDebateSetupOpen(true);
+                     else setIsCreating(true);
+                   }}
                    className="btn-tactile btn-tactile-surface w-full py-6 rounded-2xl text-sm font-black uppercase tracking-wide flex items-center justify-center gap-3"
                  >
                    <Zap className="h-4 w-4" /> NEW SESSION
