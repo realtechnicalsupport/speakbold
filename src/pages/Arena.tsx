@@ -361,36 +361,40 @@ const Arena = () => {
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 z-[150] flex items-center justify-center bg-background/80 backdrop-blur-md p-4"
           >
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.95, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              className="bg-card border border-border rounded-[2.5rem] w-full max-w-2xl max-h-[85vh] overflow-hidden shadow-2xl flex flex-col"
+              // max-h uses dvh (not vh) so on mobile the footer button isn't
+              // pushed below the visible viewport / behind the bottom nav, which
+              // happens with vh (it measures the LARGE viewport incl. browser UI).
+              className="bg-card border border-border rounded-[2rem] md:rounded-[2.5rem] w-full max-w-2xl max-h-[88dvh] overflow-hidden shadow-2xl flex flex-col"
             >
-              <div className="p-8 border-b border-border flex justify-between items-center bg-muted/30">
-                <div>
+              <div className="p-5 md:p-8 border-b border-border flex justify-between items-center gap-3 bg-muted/30">
+                <div className="min-w-0">
                   <p className="text-[10px] font-black uppercase tracking-[0.4em] text-primary mb-1">SESSION ARCHIVE</p>
-                  <h3 className="speak-serif text-2xl font-bold italic">{selectedDuel.gamemode.toUpperCase()} BATTLE</h3>
+                  <h3 className="speak-serif text-xl md:text-2xl font-bold italic truncate">{selectedDuel.gamemode.toUpperCase()} BATTLE</h3>
                 </div>
-                <button onClick={() => setSelectedDuel(null)} className="h-10 w-10 rounded-full bg-background border border-border flex items-center justify-center hover:bg-muted transition-colors">
+                <button onClick={() => setSelectedDuel(null)} className="h-10 w-10 shrink-0 rounded-full bg-background border border-border flex items-center justify-center hover:bg-muted transition-colors">
                   <X className="h-5 w-5" />
                 </button>
               </div>
 
-              <div className="flex-grow overflow-y-auto p-8 space-y-10">
-                {/* Scoreboard */}
-                <div className="flex items-center justify-center gap-8 md:gap-12 py-6 bg-muted/20 rounded-[2rem] border border-border">
-                  <div className="text-center">
+              <div className="flex-grow overflow-y-auto p-5 md:p-8 space-y-6 md:space-y-10">
+                {/* Scoreboard — each side is flex-1 + min-w-0 so a long username
+                    shrinks/truncates inside the box instead of overflowing it. */}
+                <div className="flex items-center justify-center gap-3 md:gap-12 py-6 px-3 md:px-6 bg-muted/20 rounded-[2rem] border border-border">
+                  <div className="text-center min-w-0 flex-1">
                     <div className="text-4xl md:text-5xl font-black mb-2">{selectedDuel.creator.score}</div>
-                    <div className="flex items-center gap-2 justify-center">
-                      <div className={cn("h-6 w-6 rounded-full flex items-center justify-center text-[10px] border", getRankColor(selectedDuel.creator.rank))}>{selectedDuel.creator.avatar}</div>
-                      <span className="text-[10px] font-black uppercase tracking-widest opacity-40">{selectedDuel.creator.name}</span>
+                    <div className="flex items-center gap-2 justify-center min-w-0">
+                      <div className={cn("h-6 w-6 shrink-0 rounded-full flex items-center justify-center text-[10px] border", getRankColor(selectedDuel.creator.rank))}>{selectedDuel.creator.avatar}</div>
+                      <span className="text-[10px] font-black uppercase tracking-widest opacity-40 truncate">{selectedDuel.creator.name}</span>
                     </div>
                   </div>
-                  <div className="speak-serif text-3xl opacity-20 italic">vs</div>
-                  <div className="text-center">
+                  <div className="speak-serif text-2xl md:text-3xl opacity-20 italic shrink-0 self-center">vs</div>
+                  <div className="text-center min-w-0 flex-1">
                     <div className="text-4xl md:text-5xl font-black mb-2">{selectedDuel.challenger?.score}</div>
-                    <div className="flex items-center gap-2 justify-center">
-                      <div className={cn("h-6 w-6 rounded-full flex items-center justify-center text-[10px] border", getRankColor(selectedDuel.challenger?.rank || currentRank))}>{selectedDuel.challenger?.avatar || "🤖"}</div>
-                      <span className="text-[10px] font-black uppercase tracking-widest opacity-40">{selectedDuel.challenger?.name}</span>
+                    <div className="flex items-center gap-2 justify-center min-w-0">
+                      <div className={cn("h-6 w-6 shrink-0 rounded-full flex items-center justify-center text-[10px] border", getRankColor(selectedDuel.challenger?.rank || currentRank))}>{selectedDuel.challenger?.avatar || "🤖"}</div>
+                      <span className="text-[10px] font-black uppercase tracking-widest opacity-40 truncate">{selectedDuel.challenger?.name}</span>
                     </div>
                   </div>
                 </div>
@@ -400,7 +404,7 @@ const Arena = () => {
                   <p className="text-[10px] font-black uppercase tracking-widest opacity-30 flex items-center gap-2">
                     <Target className="h-3 w-3" /> THE CHALLENGE
                   </p>
-                  <p className="speak-serif text-xl md:text-2xl italic leading-relaxed border-l-4 border-primary/20 pl-6 py-2">
+                  <p className="speak-serif text-xl md:text-2xl italic leading-relaxed border-l-4 border-primary/20 pl-4 md:pl-6 py-2 break-words">
                     "{selectedDuel.prompt}"
                   </p>
                 </div>
@@ -412,7 +416,7 @@ const Arena = () => {
                       <p className="text-[10px] font-black uppercase tracking-widest opacity-30 flex items-center gap-2">
                         <Sparkles className="h-3 w-3" /> COACH'S VERDICT
                       </p>
-                      <p className="text-sm leading-relaxed opacity-70 italic font-medium">
+                      <p className="text-sm leading-relaxed opacity-70 italic font-medium break-words">
                         "{selectedDuel.feedback}"
                       </p>
                     </div>
@@ -433,18 +437,18 @@ const Arena = () => {
 
                 {/* Example Speech */}
                 {selectedDuel.exampleSpeech && (
-                  <div className="space-y-4 p-6 bg-primary/5 rounded-[1.5rem] border border-primary/10">
+                  <div className="space-y-4 p-4 md:p-6 bg-primary/5 rounded-[1.5rem] border border-primary/10">
                     <p className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-2">
-                      <Mic className="h-3 w-3" /> HOW AN EXPERT WOULD SAY IT
+                      <Mic className="h-3 w-3 shrink-0" /> HOW AN EXPERT WOULD SAY IT
                     </p>
-                    <p className="text-sm leading-relaxed opacity-80 whitespace-pre-wrap">
+                    <p className="text-sm leading-relaxed opacity-80 whitespace-pre-wrap break-words">
                       {selectedDuel.exampleSpeech}
                     </p>
                   </div>
                 )}
               </div>
 
-              <div className="p-8 border-t border-border bg-muted/10 flex justify-end">
+              <div className="p-5 md:p-8 border-t border-border bg-muted/10 flex justify-end">
                 <button 
                   onClick={() => setSelectedDuel(null)}
                   className="px-8 py-3 bg-primary text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:scale-105 active:scale-95 transition-all shadow-glow"

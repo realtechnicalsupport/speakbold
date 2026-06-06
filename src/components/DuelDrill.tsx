@@ -602,7 +602,10 @@ export const DuelDrill = ({
         // so the timer never collides with it. justify-start on mobile prevents
         // tall content (timer + prompt + recorder + RecorderPanel) from being
         // vertically centred and then clipped off-screen.
-        "px-4 md:container max-w-4xl mx-auto pt-16 pb-10 md:py-16 relative z-10 flex-grow flex flex-col justify-start",
+        // w-full + min-w-0 pin this flex item to the viewport width and let it
+        // shrink — without min-w-0 a flex item's default `min-width:auto` lets
+        // wide content push it past the screen, clipping the whole results card.
+        "w-full min-w-0 px-4 md:container max-w-4xl mx-auto pt-16 pb-10 md:py-16 relative z-10 flex-grow flex flex-col justify-start",
         phase === "results" ? "md:justify-start" : "md:justify-center"
       )}>
         <div className="absolute top-8 left-4 md:left-0 flex items-center gap-6">
@@ -819,7 +822,7 @@ export const DuelDrill = ({
         )}
 
         {phase === "results" && verdictResult && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-2xl mx-auto bg-muted/20 border border-border rounded-2xl md:rounded-[2.5rem] p-4 md:p-8 relative">
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full min-w-0 max-w-2xl mx-auto bg-muted/20 border border-border rounded-2xl md:rounded-[2.5rem] p-4 md:p-8 relative overflow-hidden">
             <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-transparent via-primary to-transparent opacity-50" />
 
             <div className="text-center mb-12 relative z-10">
