@@ -823,7 +823,7 @@ export const DuelDrill = ({
             <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-transparent via-primary to-transparent opacity-50" />
 
             <div className="text-center mb-12 relative z-10">
-              <h2 className={cn("text-sm font-black uppercase tracking-[1em] mb-4",
+              <h2 className={cn("text-sm font-black uppercase tracking-[0.3em] md:tracking-[1em] mb-4 break-words leading-tight px-2",
                 verdictResult.byForfeit ? "text-green-500" :
                 (verdictResult.tie || (verdictResult.score === 0 && (verdictResult.oppScore || 0) === 0)) ? "text-yellow-500" :
                 verdictResult.won ? "text-green-500" : "text-red-500")}>
@@ -857,7 +857,7 @@ export const DuelDrill = ({
             <div className="space-y-6 relative z-10">
               <div className="bg-background/50 border border-border rounded-2xl p-6">
                 <p className="text-sm font-black uppercase tracking-[0.4em] text-primary mb-3">AI VERDICT</p>
-                <p className="text-sm leading-relaxed opacity-80 whitespace-pre-wrap">{verdictResult.feedback}</p>
+                <p className="text-sm leading-relaxed opacity-80 whitespace-pre-wrap break-words">{verdictResult.feedback}</p>
               </div>
 
               {verdictResult.exampleSpeech && (
@@ -894,33 +894,33 @@ export const DuelDrill = ({
                         exit={{ height: 0, opacity: 0 }}
                         className="px-6 pb-6"
                       >
-                        <p className="speak-serif text-base italic leading-relaxed opacity-70 whitespace-pre-wrap">"{oppTranscript}"</p>
+                        <p className="speak-serif text-base italic leading-relaxed opacity-70 whitespace-pre-wrap break-words">"{oppTranscript}"</p>
                       </motion.div>
                     )}
                   </AnimatePresence>
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-background/30 border border-border rounded-xl p-4">
-                  <p className="text-[11px] font-black uppercase tracking-[0.3em] text-green-500 mb-2">YOUR STRENGTHS</p>
+              <div className="grid grid-cols-2 gap-3 md:gap-4">
+                <div className="bg-background/30 border border-border rounded-xl p-3 md:p-4 min-w-0">
+                  <p className="text-[11px] font-black uppercase tracking-[0.3em] text-green-500 mb-2 break-words">YOUR STRENGTHS</p>
                   <div className="space-y-1">
                     {(typeof verdictResult.strengths === 'string'
                       ? verdictResult.strengths.split(',')
                       : (Array.isArray(verdictResult.strengths) ? verdictResult.strengths : [])
                     ).filter(s => s && String(s).trim()).map((s, i) => (
-                      <p key={i} className="text-[11px] opacity-70 leading-tight flex gap-2">
-                        <span className="text-green-500">•</span> {String(s).trim()}
+                      <p key={i} className="text-[11px] opacity-70 leading-tight flex gap-2 break-words min-w-0">
+                        <span className="text-green-500 shrink-0">•</span> {String(s).trim()}
                       </p>
                     ))}
                   </div>
                 </div>
-                <div className="bg-background/30 border border-border rounded-xl p-4">
-                  <p className="text-[11px] font-black uppercase tracking-[0.3em] text-orange-500 mb-2">OPPONENT NOTE</p>
+                <div className="bg-background/30 border border-border rounded-xl p-3 md:p-4 min-w-0">
+                  <p className="text-[11px] font-black uppercase tracking-[0.3em] text-orange-500 mb-2 break-words">OPPONENT NOTE</p>
                   <div className="space-y-1">
                     {verdictResult.oppStrengths.split(',').filter(s => s.trim()).map((s, i) => (
-                      <p key={i} className="text-[11px] opacity-70 leading-tight flex gap-2">
-                        <span className="text-orange-500">•</span> {s.trim()}
+                      <p key={i} className="text-[11px] opacity-70 leading-tight flex gap-2 break-words min-w-0">
+                        <span className="text-orange-500 shrink-0">•</span> {s.trim()}
                       </p>
                     ))}
                   </div>

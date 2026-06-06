@@ -153,7 +153,7 @@ export function ModelSpeech({ text, label = "Model speech", compact = false, cla
 
       <p
         className={cn(
-          "speak-serif italic leading-relaxed opacity-80 whitespace-pre-wrap",
+          "speak-serif italic leading-relaxed opacity-80 whitespace-pre-wrap break-words",
           compact ? "text-sm" : "text-base md:text-lg",
         )}
       >
