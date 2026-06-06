@@ -176,8 +176,16 @@ const App = () => {
 
                   <Route path="*" element={<NotFound />} />
                 </Routes>
+                {/* MobileNav lives INSIDE this z-10 content wrapper on purpose.
+                    The wrapper's `relative z-10` creates a stacking context, so
+                    every page modal (Arena archive z-150, duel screens z-180,
+                    etc.) is confined to it. A root-level nav at z-50 would paint
+                    OVER all of them — a modal's z-150 only outranks siblings in
+                    the SAME context. Rendering the nav here lets those modals
+                    (all z > 50) correctly sit above it app-wide, so nothing has
+                    to hide the nav just to keep its buttons tappable. */}
+                {!timerActive && <MobileNav />}
               </div>
-              {!timerActive && <MobileNav />}
               <MicrophoneBorder />
               <GlobalStatusBar />
               <OnboardingModal />
