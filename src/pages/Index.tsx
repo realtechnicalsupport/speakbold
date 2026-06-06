@@ -5,10 +5,14 @@ import { Progress } from "@/components/Progress";
 import { CTA } from "@/components/CTA";
 import { ImpactBanner } from "@/components/ImpactBanner";
 import { WhyItMatters } from "@/components/WhyItMatters";
+import { BodyLanguageHero } from "@/components/BodyLanguageHero";
 
 // Landing sections, in scroll order. Labels drive the right-side dot nav.
+// The live Body-Language studio sits second — the app's strongest, most
+// SDG-4-aligned feature, in front of every cold-open visitor/judge.
 const SECTIONS = [
   { id: "intro",   label: "Intro",   Component: Hero },
+  { id: "studio",  label: "Live Studio", Component: BodyLanguageHero },
   { id: "impact",  label: "Impact",  Component: ImpactBanner },
   { id: "mission", label: "Mission", Component: WhyItMatters },
   { id: "ranks",   label: "Ranks",   Component: Progress },

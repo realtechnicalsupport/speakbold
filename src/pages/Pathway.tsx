@@ -22,6 +22,7 @@ import { DebateBattle } from "@/components/DebateBattle";
 import { useArena, AI_PERSONAS } from "@/hooks/useArena";
 import { STARTING_ELO } from "@/hooks/arenaUtils";
 import { ChapterCelebration } from "@/components/ChapterCelebration";
+import { BodyLanguageHero } from "@/components/BodyLanguageHero";
 
 /** Build an AI opponent for an Orator debate drill from its personaSkill. */
 const makeDebateOpponent = (personaSkill?: string): any => {
@@ -1428,6 +1429,13 @@ const Pathway = () => {
           streakDays={streakDays}
           focusAreas={focusAreas}
         />
+      </section>
+
+      {/* Live Body-Language studio — surface the app's strongest, most
+          SDG-4-aligned feature high on the first signed-in screen so a judge
+          exploring the app lands on it instead of hunting through the Lab. */}
+      <section className="px-4 md:container relative z-10 pb-4 lg:pb-12">
+        <BodyLanguageHero />
       </section>
 
       {/* Chapter stack */}

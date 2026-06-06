@@ -19,9 +19,14 @@ const DEFAULT_METRICS: BodyMetrics = { posture: 0, eyeContact: 0, expression: 0,
 
 // WASM served locally from public/mediapipe-wasm (copied from node_modules at install time)
 const WASM_CDN = "/mediapipe-wasm";
-const POSE_MODEL =
+// Models are self-hosted first (same origin → no cross-origin CDN dependency that
+// can choke on congested venue/conference wifi), with Google's CDN kept as an
+// automatic fallback if the local asset is missing or fails to load.
+const POSE_MODEL_LOCAL = "/mediapipe-models/pose_landmarker_lite.task";
+const FACE_MODEL_LOCAL = "/mediapipe-models/face_landmarker.task";
+const POSE_MODEL_CDN =
   "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task";
-const FACE_MODEL =
+const FACE_MODEL_CDN =
   "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task";
 
 const ROLLING = 20;
@@ -282,18 +287,32 @@ export function useBodyLanguage() {
       const { PoseLandmarker, FaceLandmarker, FilesetResolver } = await import("@mediapipe/tasks-vision");
       const vision = await FilesetResolver.forVisionTasks(WASM_CDN);
 
-      const [pLM, fLM] = await Promise.all([
+      const createPose = (path: string) =>
         PoseLandmarker.createFromOptions(vision, {
-          baseOptions: { modelAssetPath: POSE_MODEL, delegate: "CPU" },
+          baseOptions: { modelAssetPath: path, delegate: "CPU" },
           runningMode: "VIDEO",
           numPoses: 1,
-        }),
+        });
+      const createFace = (path: string) =>
         FaceLandmarker.createFromOptions(vision, {
-          baseOptions: { modelAssetPath: FACE_MODEL, delegate: "CPU" },
+          baseOptions: { modelAssetPath: path, delegate: "CPU" },
           outputFaceBlendshapes: true,
           runningMode: "VIDEO",
           numFaces: 1,
-        }),
+        });
+      // Self-hosted first; fall back to the CDN copy on any load failure.
+      async function withFallback<T>(make: (p: string) => Promise<T>, local: string, cdn: string, label: string): Promise<T> {
+        try {
+          return await make(local);
+        } catch (err) {
+          console.warn(`[useBodyLanguage] self-hosted ${label} model failed, falling back to CDN:`, err);
+          return await make(cdn);
+        }
+      }
+
+      const [pLM, fLM] = await Promise.all([
+        withFallback(createPose, POSE_MODEL_LOCAL, POSE_MODEL_CDN, "pose"),
+        withFallback(createFace, FACE_MODEL_LOCAL, FACE_MODEL_CDN, "face"),
       ]);
 
       poseLMRef.current = pLM;
