@@ -11,6 +11,7 @@ import { setTimerActive } from "@/lib/timerState";
 import { isMobileDevice } from "@/lib/isMobileDevice";
 import { MicrophoneBorder } from "@/components/MicrophoneBorder";
 import { RecorderPanel } from "@/components/RecorderPanel";
+import { SpamButton } from "@/components/SpamButton";
 import type { Duel, Gamemode, DuelPlayer } from "@/context/ArenaContext";
 import { getRankColor, getRankFromElo, FORFEIT_PENALTY } from "@/hooks/arenaUtils";
 import { useSoundEffects } from "@/hooks/useSoundEffects";
@@ -259,6 +260,10 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
   const [analyzeText, setAnalyzeText] = useState("REVIEWING DEBATE...");
   const [showAbandonConfirm, setShowAbandonConfirm] = useState(false);
   const [micError, setMicError] = useState(false);
+  // Brief, non-blocking "Round 2 · Rebuttals" announcement. Previously the
+  // debate jumped straight from the openings into the rebuttals with no beat,
+  // so users missed that the format had moved on.
+  const [showRoundBanner, setShowRoundBanner] = useState(false);
 
   // ── Recording integration (for upload to user history) ────────────────────
   const [lastRecording, setLastRecording] = useState<{ blob: Blob; durationMs: number } | null>(null);
@@ -1158,6 +1163,21 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPeer, peer]);
 
+  // ── Round-transition banner ───────────────────────────────────────────────
+  // Announce the start of Round 2 (rebuttals) with a short, non-blocking beat
+  // when this client enters whichever side rebuts first. Purely cosmetic — the
+  // phase timer + recording keep running underneath, and both PvP clients hit
+  // their respective first-rebuttal phase together, so it never desyncs them.
+  useEffect(() => {
+    const firstRebuttal = speakingOrder(phaseOrder)[2]; // index 2 = opens Round 2
+    if (phase === firstRebuttal) {
+      setShowRoundBanner(true);
+      const t = setTimeout(() => setShowRoundBanner(false), 1700);
+      return () => clearTimeout(t);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
+
   // ── Clear debate storage when results are shown (battle is done) ─────────
   useEffect(() => {
     if (phase === "results") clearDebateStorage();
@@ -1243,13 +1263,13 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
 
       {/* Header */}
       <div className="px-3 md:px-12 pt-4 lg:pt-8 pb-3 lg:pb-4 flex items-center justify-between gap-2 border-b border-border/40 backdrop-blur-md bg-background/30 sticky top-0 z-10">
-        <button
+        <SpamButton
           onClick={() => (showResults ? onClose() : setShowAbandonConfirm(true))}
           aria-label="Leave debate"
           className="flex items-center gap-1.5 text-xs lg:text-sm font-semibold text-foreground/60 hover:text-primary transition-colors shrink-0"
         >
           <ArrowLeft className="h-4 w-4" /> <span className="hidden sm:inline">Leave</span>
-        </button>
+        </SpamButton>
 
         <div className="text-center min-w-0 flex-1">
           <p className="text-[9px] lg:text-[10px] font-semibold text-primary/70 truncate">{turnLabel}</p>
@@ -1334,12 +1354,12 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
               First speaker begins automatically…
             </p>
           ) : (
-            <button
+            <SpamButton
               onClick={() => advancePhaseRef.current()}
               className="button-pill px-8 py-3 bg-primary text-white shadow-glow hover:scale-[1.02] active:scale-95 transition-all text-xs font-black uppercase tracking-widest flex items-center gap-2"
             >
               I&apos;m ready <ChevronRight className="h-4 w-4" />
-            </button>
+            </SpamButton>
           )}
         </div>
       )}
@@ -1391,18 +1411,23 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
           </div>
 
           <div className="flex flex-col gap-2 mt-2 md:mt-4">
-            <button
-              onClick={resetDebate}
-              className="w-full py-4 md:py-5 bg-primary text-white rounded-2xl text-xs md:text-sm font-black uppercase tracking-widest md:tracking-[0.4em] hover:scale-[1.02] active:scale-95 transition-all shadow-glow"
-            >
-              Try again
-            </button>
-            <button
+            {/* "Try again" replays the local phase machine on the same topic —
+                valid for PvE / pathway, but in a live PvP debate the opponent
+                has already left, so resetting solo just bugs out. Hide it there. */}
+            {!isPeer && (
+              <SpamButton
+                onClick={resetDebate}
+                className="w-full py-4 md:py-5 bg-primary text-white rounded-2xl text-xs md:text-sm font-black uppercase tracking-widest md:tracking-[0.4em] hover:scale-[1.02] active:scale-95 transition-all shadow-glow"
+              >
+                Try again
+              </SpamButton>
+            )}
+            <SpamButton
               onClick={onClose}
               className="w-full py-3 md:py-4 bg-transparent border border-border/60 text-foreground/70 rounded-2xl text-[10px] md:text-xs font-black uppercase tracking-widest hover:bg-muted/20 transition-all"
             >
               {isPathway ? "Back to Pathway" : "Back to Arena"}
-            </button>
+            </SpamButton>
           </div>
         </motion.div>
       )}
@@ -1453,7 +1478,7 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
             ))}
           </div>
 
-          <button
+          <SpamButton
             id="tutorial-close-drill"
             onClick={() => {
               window.dispatchEvent(new CustomEvent("speakbold:drill-complete"));
@@ -1462,7 +1487,7 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
             className="w-full mt-2 md:mt-4 py-4 md:py-5 bg-primary text-white rounded-2xl text-xs md:text-sm font-black uppercase tracking-widest md:tracking-[0.4em] hover:scale-[1.02] active:scale-95 transition-all shadow-glow"
           >
             {isPathway ? "Back to Pathway" : "Back to Arena"}
-          </button>
+          </SpamButton>
         </motion.div>
       )}
 
@@ -1478,12 +1503,19 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
         if (phase === "rebuttal-user") {
           userPrevText = transcripts.userOpening;
         } else if (phase === "rebuttal-ai") {
-          if (userStand === "FOR" && transcripts.userRebuttal) {
+          // Has the user's OWN rebuttal already happened in this client's order?
+          // FOR: …rebuttal-user → rebuttal-ai, so yes — show "Your rebuttal".
+          // AGAINST: …rebuttal-ai → rebuttal-user, so no — they've only opened.
+          // Keying off the order (not `userRebuttal` being non-empty) stops the
+          // opening from flashing on mobile/tablet, where the rebuttal transcript
+          // arrives a beat later from server-side transcription and the old
+          // `&& transcripts.userRebuttal` guard fell back to the opening until then.
+          const userRebuttalDone =
+            phaseOrder.indexOf("rebuttal-user") < phaseOrder.indexOf("rebuttal-ai");
+          if (userRebuttalDone) {
             userPrevText = transcripts.userRebuttal;
             userPrevLabel = "Your rebuttal";
           } else {
-            // AGAINST order: user has only spoken their opening at this point.
-            // FOR order with empty rebuttal: fall back to opening for context.
             userPrevText = transcripts.userOpening;
           }
         }
@@ -1544,13 +1576,13 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
               {secondsLeft}<span className="text-base md:text-lg opacity-30 ml-1">s</span>
             </div>
             {isUserTurn && (
-              <button
+              <SpamButton
                 onClick={handleEndTurn}
                 className="button-pill px-6 md:px-8 py-3 md:py-4 bg-primary text-white shadow-glow hover:scale-[1.02] active:scale-95 transition-all text-xs font-black uppercase tracking-widest flex items-center gap-2"
               >
                 End turn
                 <ChevronRight className="h-4 w-4" />
-              </button>
+              </SpamButton>
             )}
             {!isUserTurn && (
               <div className="text-[10px] font-black uppercase tracking-widest opacity-40 flex items-center gap-2">
@@ -1658,7 +1690,7 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
                 )}
               </p>
               <div className="flex flex-col gap-2">
-                <button
+                <SpamButton
                   onClick={async () => {
                     isClosingRef.current = true;
                     // Defence in depth: nuke persisted state up-front so even
@@ -1701,14 +1733,42 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
                   )}
                 >
                   {isPathway ? "LEAVE DRILL" : "FORFEIT"}
-                </button>
-                <button
+                </SpamButton>
+                <SpamButton
                   onClick={() => setShowAbandonConfirm(false)}
                   className="text-[10px] font-black uppercase tracking-wide opacity-40 hover:opacity-100 transition-opacity py-2"
                 >
                   {isPathway ? "KEEP PRACTISING" : "STAY IN DEBATE"}
-                </button>
+                </SpamButton>
               </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Round-transition banner — a centered pill (no full backdrop, so the
+          stage stays visible) that fades in/out. pointer-events-none keeps it
+          from intercepting taps on the active podium / End-turn button. */}
+      <AnimatePresence>
+        {showRoundBanner && phase !== "results" && phase !== "judging" && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[190] flex items-center justify-center pointer-events-none"
+          >
+            <motion.div
+              initial={{ scale: 0.85, y: 8 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 1.05, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 280, damping: 22 }}
+              className="bg-background/90 backdrop-blur-md border border-primary/30 rounded-3xl px-10 py-6 text-center shadow-glow"
+            >
+              <p className="text-[10px] font-black uppercase tracking-[0.4em] text-primary/60 mb-1">Round 2</p>
+              <p className="speak-serif text-3xl md:text-4xl italic leading-none">Rebuttals</p>
+              <p className="text-[10px] font-black uppercase tracking-widest opacity-50 mt-3">
+                {PHASE_CONFIG[speakingOrder(phaseOrder)[2]].speaker === "user"
+                  ? "You respond first"
+                  : `${opponent.name} responds first`}
+              </p>
             </motion.div>
           </motion.div>
         )}

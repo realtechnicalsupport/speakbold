@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ThemeToggle } from "./ThemeToggle";
 import { useArena } from "@/hooks/useArena";
 import { FriendsBadge } from "./FriendsBadge";
+import { useRetailMode } from "@/lib/retailMode";
 
 const NAV = [
   { to: "/pathway", label: "Pathway" },
@@ -17,6 +18,9 @@ export const SiteHeader = () => {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
+  // In retail/kiosk mode a stranger must not be able to sign the demo device
+  // out of its seeded account, so the sign-out control is hidden.
+  const retail = useRetailMode();
 
   const handleSignOut = async () => {
     await signOut();
@@ -100,13 +104,15 @@ export const SiteHeader = () => {
                     </span>
                   </div>
                 </Link>
-                <button
-                  onClick={handleSignOut}
-                  aria-label="Sign out"
-                  className="p-2 -m-2 opacity-40 hover:opacity-100 hover:text-destructive transition-all"
-                >
-                  <LogOut className="h-4 w-4" />
-                </button>
+                {!retail && (
+                  <button
+                    onClick={handleSignOut}
+                    aria-label="Sign out"
+                    className="p-2 -m-2 opacity-40 hover:opacity-100 hover:text-destructive transition-all"
+                  >
+                    <LogOut className="h-4 w-4" />
+                  </button>
+                )}
               </div>
             ) : (
               <Link

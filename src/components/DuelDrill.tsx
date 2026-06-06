@@ -12,6 +12,7 @@ import { useSoundEffects } from "@/hooks/useSoundEffects";
 import { toast } from "@/hooks/use-toast";
 import { RecorderPanel } from "@/components/RecorderPanel";
 import { MicrophoneBorder } from "@/components/MicrophoneBorder";
+import { SpamButton } from "@/components/SpamButton";
 import { setRecordingActive } from "@/lib/recordingState";
 import { transcribeAudio, judgeBattle, generateAIArgument, generateArenaPrompt, speakWithDeepgramTTS } from "@/services/geminiService";
 import { ModelSpeech } from "@/components/ModelSpeech";
@@ -605,7 +606,7 @@ export const DuelDrill = ({
         phase === "results" ? "md:justify-start" : "md:justify-center"
       )}>
         <div className="absolute top-8 left-4 md:left-0 flex items-center gap-6">
-          <button
+          <SpamButton
             onClick={() => {
               if (finished || phase === "results") onClose();
               else setShowAbandonConfirm(true);
@@ -613,7 +614,7 @@ export const DuelDrill = ({
             className="flex items-center gap-3 text-sm font-black uppercase tracking-wide text-foreground/40 hover:text-primary transition-all"
           >
             <ArrowLeft className="h-4 w-4" /> LEAVE BATTLE
-          </button>
+          </SpamButton>
           {(running || micError) && (
             <>
               <div className="h-4 w-px bg-border" />
@@ -709,7 +710,7 @@ export const DuelDrill = ({
                       </div>
                     </div>
                   )}
-                  <button
+                  <SpamButton
                     disabled={!customPrompt.trim()}
                     onClick={() => {
                       if (mode === "debate") {
@@ -722,7 +723,7 @@ export const DuelDrill = ({
                   >
                     <span className="text-sm font-black uppercase tracking-wide">FIND MATCH</span>
                     <Sparkles className="h-4 w-4 group-hover:rotate-12 transition-transform" />
-                  </button>
+                  </SpamButton>
                 </div>
               ) : (
                 <p className="speak-serif text-xl sm:text-2xl md:text-4xl italic tracking-tight leading-relaxed text-center">"{promptToUse}"</p>
@@ -732,7 +733,7 @@ export const DuelDrill = ({
             <div className="max-w-md mx-auto w-full">
               {!finished ? (
                 !userReady && (!isCreating || draftingDone) ? (
-                  <button
+                  <SpamButton
                     disabled={isCreating && !customPrompt.trim()}
                     onClick={() => {
                       setUserReady(true);
@@ -742,7 +743,7 @@ export const DuelDrill = ({
                   >
                     <span className="text-sm font-black uppercase tracking-wide">READY UP ({readyTimer}s)</span>
                     <Sparkles className="h-4 w-4 group-hover:rotate-12 transition-transform" />
-                  </button>
+                  </SpamButton>
                 ) : opponent && (!isCreating || draftingDone) ? (
                   <div className="bg-muted/50 border border-border rounded-2xl p-4 flex flex-col gap-4">
                     <div className="flex justify-between items-center px-4">
@@ -927,12 +928,12 @@ export const DuelDrill = ({
               </div>
             </div>
 
-            <button
+            <SpamButton
               onClick={() => onComplete(verdictResult.score, promptToUse, mode, verdictResult.feedback)}
               className="w-full mt-8 py-5 bg-primary text-white rounded-2xl text-sm font-black uppercase tracking-wider hover:scale-[1.02] active:scale-95 transition-all shadow-glow"
             >
               RETURN TO ARENA
-            </button>
+            </SpamButton>
           </motion.div>
         )}
 
@@ -980,7 +981,7 @@ export const DuelDrill = ({
                 </p>
               </div>
               <div className="flex flex-col gap-3">
-                <button
+                <SpamButton
                   onClick={() => {
                     isClosingRef.current = true;
                     if (duel) {
@@ -997,13 +998,13 @@ export const DuelDrill = ({
                   className="button-pill py-4 bg-transparent text-foreground/40 border border-border/50 hover:bg-red-500 hover:text-white hover:border-red-500 transition-all text-xs font-black uppercase tracking-widest"
                 >
                   FORFEIT & LEAVE (-{FORFEIT_PENALTY} ELO)
-                </button>
-                <button
+                </SpamButton>
+                <SpamButton
                   onClick={() => setShowAbandonConfirm(false)}
                   className="text-xs font-black uppercase tracking-widest opacity-40 hover:opacity-100 transition-opacity py-2"
                 >
                   STAY IN BATTLE
-                </button>
+                </SpamButton>
               </div>
             </motion.div>
           </motion.div>

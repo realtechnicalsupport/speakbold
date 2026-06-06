@@ -284,9 +284,31 @@ export function computeEloChange(input: EloComputationInput): number {
     delta = -Math.min(LOW_SCORE_PENALTY_CAP, Math.abs(delta) || 1);
   }
 
+  // ── Outcome-sign guarantee ──────────────────────────────────────────
+  // The performance + quality terms above are a hybrid of chess-ELO and judged
+  // margin, so a narrow loss to a stronger opponent (or a high-scoring loss)
+  // can come out positive — "you beat expectations" — which reads as a bug
+  // when the match history says you LOST. Pin the delta's SIGN to the actual
+  // score outcome for decisive, scored matches: a loss never gains rating, a
+  // win never loses it. Magnitudes (incl. genuine upset wins) are untouched —
+  // only sign mismatches are corrected. A sub-30 "win" stays a loss (the
+  // near-silent rule above already owns that case).
+  if (haveScores && !isTie && myScore != null && oppScore != null && myScore !== oppScore) {
+    const iWon = myScore > oppScore;
+    if (!iWon && delta > 0) {
+      delta = -Math.min(LOW_SCORE_PENALTY_CAP, Math.abs(delta) || 1);
+    } else if (iWon && delta < 0 && myScore >= 30) {
+      delta = Math.min(LOW_SCORE_PENALTY_CAP, Math.abs(delta) || 1);
+    }
+  }
+
   // ── Minimum non-zero swing on decisive outcomes ─────────────────────
   const rounded = Math.round(delta);
   if (rounded === 0 && !isTie) {
+    // A near-silent score never earns the +1 decisive nudge — even on a
+    // technical win (both sides nearly silent), staying consistent with the
+    // "sub-30 never gains" rule above.
+    if (myScore != null && myScore < 30) return -1;
     if (perfMargin > 0) return 1;
     if (perfMargin < 0) return -1;
     // No scores supplied → respect expected-margin direction

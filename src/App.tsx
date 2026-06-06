@@ -41,6 +41,7 @@ import { GuidedTour } from "./components/GuidedTour";
 import { FloatingNodes } from "./components/FloatingNodes";
 import { AICoachChat } from "./components/AICoachChat";
 import { GlobalStatusBar } from "./components/GlobalStatusBar";
+import { RetailShell } from "./components/RetailShell";
 
 const queryClient = new QueryClient();
 
@@ -181,6 +182,7 @@ const App = () => {
               <GlobalStatusBar />
               <OnboardingModal />
               <AICoachChat />
+              <RetailShell />
               </ChatProvider>
             </BrowserRouter>
           </ReminderWrapper>
