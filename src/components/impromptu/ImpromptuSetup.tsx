@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { Shuffle, Mic, MicOff, Zap, Lock, Eye, X, ArrowRight, ChevronDown } from "lucide-react";
+import { Shuffle, Mic, MicOff, Zap, Lock, Eye, X, ArrowRight, ArrowLeft, Check } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -73,29 +73,7 @@ const DIFF_STYLE: Record<string, {
   },
 };
 
-// Difficulty pill on recent-session rows — keyed directly off the stored level.
-const DIFF_PILL: Record<Difficulty, string> = {
-  Easy: "text-emerald-400 border-emerald-400/25 bg-emerald-400/5",
-  Medium: "text-amber-400 border-amber-400/25 bg-amber-400/5",
-  Hard: "text-red-400 border-red-400/25 bg-red-400/5",
-  News: "text-sky-400 border-sky-400/25 bg-sky-400/5",
-};
-
 const DURATIONS = [30, 60, 90, 120];
-
-const scoreColor = (s: number) =>
-  s >= 75 ? "text-emerald-400" : s >= 50 ? "text-amber-400" : "text-red-400";
-
-function timeAgo(ts: number): string {
-  const mins = Math.floor((Date.now() - ts) / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  if (days < 7) return `${days}d ago`;
-  return new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric" });
-}
 
 const SEEN_KEY = "speakbold:impromptu:seen";
 const FW_SEEN_PREFIX = "speakbold:impromptu:fw-seen:";
@@ -249,7 +227,6 @@ export const ImpromptuSetup = ({
   recordEnabled,
   challengeMode,
   stats,
-  recentHistory,
   hasUser,
   onBegin,
   onShuffle,
@@ -264,18 +241,8 @@ export const ImpromptuSetup = ({
 
   const [seenTopics, setSeenTopics] = useState<Set<string>>(() => loadSeenTopics());
   const [showTutorial, setShowTutorial] = useState(false);
-  const [expandedSession, setExpandedSession] = useState<string | null>(null);
 
   const isTopicSeen = seenTopics.has(topic.id);
-
-  // Enter key to begin
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Enter" && !e.metaKey && !e.ctrlKey && !showTutorial) onBegin();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onBegin, showTutorial]);
 
   const handleBegin = useCallback(() => {
     if (!hasSeenFramework(topic.framework)) {
@@ -306,6 +273,33 @@ export const ImpromptuSetup = ({
     worstFw = sorted[sorted.length - 1][0];
   }
 
+  // ── Stepped setup: difficulty → format → ready ──────────────────────────
+  // One decision per screen so a first-timer is never staring at topic +
+  // difficulty + duration + 3 toggles + history all at once. Props/handlers
+  // are unchanged — this only re-paces WHEN each control is shown.
+  const STEP_LABELS = ["Difficulty", "Format", "Ready"] as const;
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const goNext = useCallback(() => setStep(s => (s < 3 ? ((s + 1) as 1 | 2 | 3) : s)), []);
+  const goBack = useCallback(() => setStep(s => (s > 1 ? ((s - 1) as 1 | 2 | 3) : s)), []);
+
+  // Enter advances through the steps, then launches on the final one.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Enter" || e.metaKey || e.ctrlKey || showTutorial) return;
+      if (step < 3) goNext();
+      else handleBegin();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [step, showTutorial, goNext, handleBegin]);
+
+  const recordSub = !hasUser ? "SIGN IN" : recordEnabled ? "SAVING" : "OFF";
+  const toggleSummary = [
+    curveballEnabled && "Curveball",
+    challengeMode && "Challenge",
+    recordEnabled && "Recording",
+  ].filter(Boolean).join(" · ") || "No add-ons";
+
   return (
     <>
       <AnimatePresence>
@@ -318,362 +312,353 @@ export const ImpromptuSetup = ({
         )}
       </AnimatePresence>
 
-      <div className="grid lg:grid-cols-[minmax(0,1fr)_360px] gap-8 lg:gap-12">
+      {/* Single, centered column — every step fits a phone without a sidebar. */}
+      <div className="max-w-2xl mx-auto min-w-0">
 
-        {/* ── LEFT: Topic hero ────────────────────────────────────────────── */}
-        {/* min-w-0 so no wide child (stats pills, long topic/category) can push
-            the column past the viewport on mobile — the root cause of the
-            "cards extend beyond the screen" overflow. */}
-        <div className="space-y-6 min-w-0">
-
-          {/* Stats strip */}
-          {stats.totalSessions > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-              className="flex items-center gap-3 flex-wrap"
-            >
-              {[
-                { label: "SESSIONS", value: stats.totalSessions, color: "text-foreground" },
-                { label: "AVG", value: `${stats.avgScore}`, color: stats.avgScore >= 70 ? "text-emerald-400" : stats.avgScore >= 50 ? "text-amber-400" : "text-red-400" },
-                { label: "BEST", value: `${stats.bestScore}`, color: "text-amber-400" },
-                { label: "STREAK", value: `${stats.streak}d`, color: stats.streak > 0 ? "text-orange-400" : "text-foreground" },
-              ].map((s) => (
-                <div key={s.label} className={cn(
-                  "flex items-center gap-2 px-4 py-2 rounded-full border",
-                  "bg-muted/5 border-border/40"
+        {/* ── Step indicator (tap a past step to go back) ── */}
+        <div className="flex items-center gap-2.5 mb-8 md:mb-10">
+          {STEP_LABELS.map((label, i) => {
+            const n = (i + 1) as 1 | 2 | 3;
+            const done = step > n;
+            const active = step === n;
+            return (
+              <button
+                key={label}
+                type="button"
+                onClick={() => n < step && setStep(n)}
+                disabled={n >= step}
+                className={cn("flex-1 text-left space-y-2 group", n < step && "cursor-pointer")}
+              >
+                <div className={cn(
+                  "h-1.5 rounded-full transition-colors duration-300",
+                  active || done ? "bg-primary" : "bg-border/40"
+                )} />
+                <p className={cn(
+                  "text-[9px] font-black uppercase tracking-[0.3em] flex items-center gap-1.5 transition-colors",
+                  active ? "text-primary" : done ? "opacity-50 group-hover:opacity-90" : "opacity-25"
                 )}>
-                  <span className={cn("text-sm font-black tabular-nums", s.color)}>{s.value}</span>
-                  <span className="text-[9px] font-black uppercase tracking-[0.4em] opacity-30">{s.label}</span>
-                </div>
-              ))}
+                  {done ? <Check className="h-2.5 w-2.5" /> : <span className="tabular-nums">{n}</span>}
+                  <span className="truncate">{label}</span>
+                </p>
+              </button>
+            );
+          })}
+        </div>
 
-              {/* Framework strength chips */}
-              {bestFw && worstFw && bestFw !== worstFw && (
-                <>
-                  <div className="flex items-center gap-2 px-4 py-2 rounded-full border bg-emerald-500/5 border-emerald-500/20">
-                    <span className="text-sm font-black text-emerald-400">↑</span>
-                    <span className="text-[9px] font-black uppercase tracking-[0.3em] text-emerald-400/70">
-                      {bestFw.split(" · ")[0]}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 px-4 py-2 rounded-full border bg-amber-500/5 border-amber-500/20">
-                    <span className="text-sm font-black text-amber-400">↓</span>
-                    <span className="text-[9px] font-black uppercase tracking-[0.3em] text-amber-400/70">
-                      {worstFw.split(" · ")[0]}
-                    </span>
-                  </div>
-                </>
+        <AnimatePresence mode="wait">
+          {/* ════════ STEP 1 — DIFFICULTY ════════ */}
+          {step === 1 && (
+            <motion.div
+              key="step-difficulty"
+              initial={{ opacity: 0, x: 24 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -24 }}
+              transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+              className="space-y-7"
+            >
+              <div className="space-y-2">
+                <h2 className="speak-serif text-3xl md:text-4xl tracking-tighter leading-tight">
+                  How hard do you <span className="text-primary italic">want it?</span>
+                </h2>
+                <p className="text-sm opacity-40 font-medium">Pick a challenge level — you can shuffle the topic later.</p>
+              </div>
+
+              {/* Difficulty cards */}
+              <div className="grid grid-cols-2 gap-3">
+                {DIFFICULTIES.map(d => {
+                  const style = DIFF_STYLE[d.color];
+                  const selected = difficulty === d.level;
+                  return (
+                    <button
+                      key={d.level}
+                      onClick={() => onSetDifficulty(d.level)}
+                      className={cn(
+                        "relative p-4 md:p-5 rounded-2xl border-2 transition-all duration-300 text-left group overflow-hidden",
+                        selected ? style.selected : "border-border/40 bg-muted/3 hover:border-border/80"
+                      )}
+                    >
+                      <div className="flex gap-1 mb-3">
+                        {[1, 2, 3].map(n => (
+                          <div key={n} className={cn(
+                            "h-1.5 w-4 rounded-full transition-all duration-300",
+                            n <= d.dots
+                              ? selected ? style.dotActive : "bg-foreground/20"
+                              : "bg-foreground/6"
+                          )} />
+                        ))}
+                      </div>
+                      <p className={cn(
+                        "text-xs font-black uppercase tracking-[0.3em] transition-colors",
+                        selected ? style.textActive : "text-foreground/40"
+                      )}>
+                        {d.level}
+                      </p>
+                      <p className="text-[9px] font-medium opacity-30 mt-0.5">{d.label}</p>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Slim stats strip for returning users */}
+              {stats.totalSessions > 0 && (
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  {[
+                    { label: "SESSIONS", value: stats.totalSessions, color: "text-foreground" },
+                    { label: "AVG", value: `${stats.avgScore}`, color: stats.avgScore >= 70 ? "text-emerald-400" : stats.avgScore >= 50 ? "text-amber-400" : "text-red-400" },
+                    { label: "BEST", value: `${stats.bestScore}`, color: "text-amber-400" },
+                    { label: "STREAK", value: `${stats.streak}d`, color: stats.streak > 0 ? "text-orange-400" : "text-foreground" },
+                  ].map((s) => (
+                    <div key={s.label} className="flex items-center gap-2 px-3.5 py-1.5 rounded-full border bg-muted/5 border-border/40">
+                      <span className={cn("text-sm font-black tabular-nums", s.color)}>{s.value}</span>
+                      <span className="text-[9px] font-black uppercase tracking-[0.4em] opacity-30">{s.label}</span>
+                    </div>
+                  ))}
+                  {bestFw && worstFw && bestFw !== worstFw && (
+                    <>
+                      <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full border bg-emerald-500/5 border-emerald-500/20">
+                        <span className="text-sm font-black text-emerald-400">↑</span>
+                        <span className="text-[9px] font-black uppercase tracking-[0.3em] text-emerald-400/70">{bestFw.split(" · ")[0]}</span>
+                      </div>
+                      <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full border bg-amber-500/5 border-amber-500/20">
+                        <span className="text-sm font-black text-amber-400">↓</span>
+                        <span className="text-[9px] font-black uppercase tracking-[0.3em] text-amber-400/70">{worstFw.split(" · ")[0]}</span>
+                      </div>
+                    </>
+                  )}
+                </div>
               )}
             </motion.div>
           )}
 
-          {/* Difficulty selector */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {DIFFICULTIES.map(d => {
-              const style = DIFF_STYLE[d.color];
-              const selected = difficulty === d.level;
-              return (
-                <button
-                  key={d.level}
-                  onClick={() => onSetDifficulty(d.level)}
-                  className={cn(
-                    "relative p-4 rounded-2xl border-2 transition-all duration-300 text-left group overflow-hidden",
-                    selected ? style.selected : "border-border/40 bg-muted/3 hover:border-border/80"
-                  )}
-                >
-                  <div className="flex gap-1 mb-3">
-                    {[1, 2, 3].map(n => (
-                      <div key={n} className={cn(
-                        "h-1.5 w-4 rounded-full transition-all duration-300",
-                        n <= d.dots
-                          ? selected ? style.dotActive : "bg-foreground/20"
-                          : "bg-foreground/6"
-                      )} />
-                    ))}
-                  </div>
-                  <p className={cn(
-                    "text-xs font-black uppercase tracking-[0.3em] transition-colors",
-                    selected ? style.textActive : "text-foreground/40"
-                  )}>
-                    {d.level}
-                  </p>
-                  <p className="text-[9px] font-medium opacity-30 mt-0.5 hidden md:block">{d.label}</p>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Topic card — the hero */}
-          <AnimatePresence mode="wait">
+          {/* ════════ STEP 2 — FORMAT ════════ */}
+          {step === 2 && (
             <motion.div
-              key={topic.id}
-              initial={{ opacity: 0, scale: 0.98, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.98, y: -10 }}
-              transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-              className="relative rounded-[2.5rem] overflow-hidden border border-border/60 shadow-[0_2px_40px_rgba(0,0,0,0.3)]"
+              key="step-format"
+              initial={{ opacity: 0, x: 24 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -24 }}
+              transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+              className="space-y-7"
             >
-              {/* Ambient glow */}
-              <div className={cn(
-                "absolute inset-0 opacity-20 pointer-events-none transition-all duration-700",
-                DIFF_STYLE[diff.color].glow
-              )} />
-
-              <div className="relative z-10 p-8 md:p-12 space-y-6 bg-muted/5">
-                {/* Decorative quote mark — absolute so it never affects layout */}
-                <div className="absolute top-16 left-8 md:left-12 speak-serif text-[7rem] leading-none text-foreground/5 select-none pointer-events-none">
-                  "
-                </div>
-
-                {/* Top bar */}
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-2 flex-wrap min-w-0">
-                    <span className={cn(
-                      "text-[10px] font-black uppercase tracking-[0.25em] md:tracking-[0.4em] px-3 py-1.5 rounded-full border shrink-0",
-                      DIFF_STYLE[diff.color].badge
-                    )}>
-                      {topic.difficulty}
-                    </span>
-                    <span className="text-[10px] font-black uppercase tracking-[0.2em] md:tracking-[0.4em] opacity-25 min-w-0 truncate">
-                      {topic.category}
-                    </span>
-                    {/* Seen indicator */}
-                    {isTopicSeen && (
-                      <span className="flex items-center gap-1 text-[9px] font-black uppercase tracking-widest opacity-25 shrink-0">
-                        <Eye className="h-2.5 w-2.5" />
-                        done
-                      </span>
-                    )}
-                  </div>
-
-                  <button
-                    onClick={onShuffle}
-                    aria-label="Shuffle topic"
-                    className="group h-10 w-10 rounded-full border border-border/50 flex items-center justify-center hover:border-primary/40 hover:bg-primary/5 transition-all shrink-0"
-                  >
-                    <Shuffle className="h-3.5 w-3.5 opacity-30 group-hover:opacity-100 group-hover:rotate-180 transition-all duration-500" />
-                  </button>
-                </div>
-
-                {/* Topic text */}
-                <h2 className="speak-serif text-2xl md:text-4xl lg:text-5xl leading-[1.1] tracking-tighter">
-                  {topic.text}
-                </h2>
-
-                {/* Framework */}
-                {framework && (
-                  <div className="pt-6 border-t border-border/30 flex items-center justify-between">
-                    <div className="space-y-1">
-                      <p className="text-[9px] font-black uppercase tracking-[0.5em] opacity-25">FRAMEWORK</p>
-                      <p className="text-sm font-black text-primary italic">{framework.name}</p>
-                    </div>
-                    <p className="text-[10px] font-medium opacity-25 text-right max-w-[200px] leading-relaxed hidden md:block">
-                      {framework.expanded}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          </AnimatePresence>
-
-          {/* Recent sessions */}
-          {recentHistory.length > 0 && (
-            <div className="space-y-3">
-              <p className="text-[9px] font-black uppercase tracking-[0.5em] opacity-25">RECENT</p>
               <div className="space-y-2">
-                {recentHistory.slice(0, 3).map((s, i) => {
-                  const open = expandedSession === s.id;
-                  return (
-                    <motion.div
-                      key={s.id}
-                      initial={{ opacity: 0, x: -8 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: i * 0.05 }}
+                <h2 className="speak-serif text-3xl md:text-4xl tracking-tighter leading-tight">
+                  Set your <span className="text-primary italic">format.</span>
+                </h2>
+                <p className="text-sm opacity-40 font-medium">How long you speak, and the optional twists.</p>
+              </div>
+
+              {/* Duration */}
+              <div className="rounded-[1.75rem] border border-border/40 bg-muted/3 p-5 space-y-4">
+                <p className="text-[9px] font-black uppercase tracking-[0.5em] opacity-30">DURATION</p>
+                <div className="grid grid-cols-4 gap-2">
+                  {DURATIONS.map(d => (
+                    <button
+                      key={d}
+                      onClick={() => onSetDuration(d)}
                       className={cn(
-                        "rounded-2xl bg-muted/3 border overflow-hidden transition-colors",
-                        open ? "border-border/70" : "border-border/30 hover:border-border/60"
+                        "py-3 rounded-xl text-xs font-black tracking-widest border transition-all duration-200",
+                        duration === d
+                          ? "bg-primary text-white border-primary shadow-glow"
+                          : "border-border/40 opacity-40 hover:opacity-80"
                       )}
                     >
-                      <button
-                        type="button"
-                        onClick={() => setExpandedSession(open ? null : s.id)}
-                        className="w-full flex items-center gap-4 px-4 py-3 text-left"
-                      >
-                        <span className={cn("text-sm font-black tabular-nums w-10 shrink-0", scoreColor(s.score))}>
-                          {s.score}
-                        </span>
-                        <span className="flex-1 text-xs font-medium opacity-40 truncate">{s.topicText}</span>
-                        <span className="text-[9px] font-black uppercase tracking-widest opacity-20 shrink-0">
-                          {s.duration}s
-                        </span>
-                        <motion.div animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.25 }} className="shrink-0">
-                          <ChevronDown className="h-3.5 w-3.5 opacity-30" />
-                        </motion.div>
-                      </button>
-
-                      <AnimatePresence initial={false}>
-                        {open && (
-                          <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: "auto", opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            transition={{ height: { duration: 0.3, ease: [0.22, 1, 0.36, 1] }, opacity: { duration: 0.2 } }}
-                            className="overflow-hidden"
-                          >
-                            <div className="px-4 pb-4 pt-3 border-t border-border/20 space-y-3">
-                              {s.verdict && (
-                                <p className="speak-serif text-sm italic leading-snug opacity-60">"{s.verdict}"</p>
-                              )}
-                              <div className="grid grid-cols-3 gap-2">
-                                {[
-                                  { label: "WPM", value: s.wpm > 0 ? s.wpm : "—" },
-                                  { label: "FILLERS", value: s.fillerCount },
-                                  { label: "WORDS", value: s.totalWords },
-                                ].map(m => (
-                                  <div key={m.label} className="rounded-xl border border-border/25 bg-muted/4 px-3 py-2">
-                                    <p className="text-sm font-black tabular-nums leading-none">{m.value}</p>
-                                    <p className="text-[8px] font-black uppercase tracking-[0.3em] opacity-25 mt-1">{m.label}</p>
-                                  </div>
-                                ))}
-                              </div>
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className={cn(
-                                  "text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border",
-                                  DIFF_PILL[s.difficulty]
-                                )}>
-                                  {s.difficulty}
-                                </span>
-                                {s.framework && (
-                                  <span className="text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border border-primary/25 bg-primary/5 text-primary/70">
-                                    {s.framework.split(" · ")[0]}
-                                  </span>
-                                )}
-                                <span className="text-[9px] font-medium uppercase tracking-widest opacity-25 ml-auto">
-                                  {timeAgo(s.timestamp)}
-                                </span>
-                              </div>
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </motion.div>
-                  );
-                })}
+                      {d}s
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
-        </div>
 
-        {/* ── RIGHT: Config + BEGIN ──────────────────────────────────────── */}
-        <aside className="min-w-0">
-          <div className="sticky top-28 space-y-4">
-
-            {/* Duration */}
-            <div className="rounded-[1.75rem] border border-border/40 bg-muted/3 p-5 space-y-4">
-              <p className="text-[9px] font-black uppercase tracking-[0.5em] opacity-30">DURATION</p>
-              <div className="grid grid-cols-4 gap-2">
-                {DURATIONS.map(d => (
-                  <button
-                    key={d}
-                    onClick={() => onSetDuration(d)}
-                    className={cn(
-                      "py-2.5 rounded-xl text-xs font-black tracking-widest border transition-all duration-200",
-                      duration === d
-                        ? "bg-primary text-white border-primary shadow-glow"
-                        : "border-border/40 opacity-40 hover:opacity-80"
-                    )}
-                  >
-                    {d}s
-                  </button>
+              {/* Toggles */}
+              <div className="rounded-[1.75rem] border border-border/40 bg-muted/3 p-5 divide-y divide-border/30">
+                {[
+                  {
+                    key: "curveball",
+                    icon: <Zap className="h-3.5 w-3.5" />,
+                    label: "CURVEBALL",
+                    sub: curveballEnabled ? "TWIST AT 55%" : "A surprise prompt mid-speech",
+                    active: curveballEnabled,
+                    activeColor: "text-primary border-primary/30 bg-primary/8",
+                    toggle: onSetCurveball,
+                    value: curveballEnabled,
+                    disabled: false,
+                  },
+                  {
+                    key: "challenge",
+                    icon: <Lock className="h-3.5 w-3.5" />,
+                    label: "CHALLENGE",
+                    sub: challengeMode ? "HINTS LOCKED" : "Hide the framework hints",
+                    active: challengeMode,
+                    activeColor: "text-amber-400 border-amber-400/30 bg-amber-400/8",
+                    toggle: onSetChallenge,
+                    value: challengeMode,
+                    disabled: false,
+                  },
+                  {
+                    key: "record",
+                    icon: recordEnabled ? <Mic className="h-3.5 w-3.5" /> : <MicOff className="h-3.5 w-3.5" />,
+                    label: "RECORD",
+                    sub: recordSub === "SIGN IN" ? "Sign in to save & get AI feedback" : recordEnabled ? "Saving for AI feedback" : "Off",
+                    active: recordEnabled,
+                    activeColor: "text-primary border-primary/30 bg-primary/8",
+                    toggle: onSetRecord,
+                    value: recordEnabled,
+                    disabled: !hasUser,
+                  },
+                ].map(item => (
+                  <div key={item.key} className="flex items-center justify-between py-4 first:pt-0 last:pb-0">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={cn(
+                        "h-8 w-8 shrink-0 rounded-full flex items-center justify-center border transition-all",
+                        item.active ? item.activeColor : "text-foreground/20 border-border/30"
+                      )}>
+                        {item.icon}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-black uppercase tracking-[0.35em]">{item.label}</p>
+                        <p className="text-[10px] font-medium opacity-30 truncate">{item.sub}</p>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={item.value}
+                      onCheckedChange={item.toggle}
+                      disabled={item.disabled}
+                    />
+                  </div>
                 ))}
               </div>
-            </div>
+            </motion.div>
+          )}
 
-            {/* Toggles */}
-            <div className="rounded-[1.75rem] border border-border/40 bg-muted/3 p-5 divide-y divide-border/30">
-              {[
-                {
-                  key: "curveball",
-                  icon: <Zap className="h-3.5 w-3.5" />,
-                  label: "CURVEBALL",
-                  sub: curveballEnabled ? "TWIST AT 55%" : "OFF",
-                  active: curveballEnabled,
-                  activeColor: "text-primary border-primary/30 bg-primary/8",
-                  toggle: onSetCurveball,
-                  value: curveballEnabled,
-                  disabled: false,
-                },
-                {
-                  key: "challenge",
-                  icon: <Lock className="h-3.5 w-3.5" />,
-                  label: "CHALLENGE",
-                  sub: challengeMode ? "HINTS LOCKED" : "OFF",
-                  active: challengeMode,
-                  activeColor: "text-amber-400 border-amber-400/30 bg-amber-400/8",
-                  toggle: onSetChallenge,
-                  value: challengeMode,
-                  disabled: false,
-                },
-                {
-                  key: "record",
-                  icon: recordEnabled ? <Mic className="h-3.5 w-3.5" /> : <MicOff className="h-3.5 w-3.5" />,
-                  label: "RECORD",
-                  sub: !hasUser ? "SIGN IN" : recordEnabled ? "SAVING" : "OFF",
-                  active: recordEnabled,
-                  activeColor: "text-primary border-primary/30 bg-primary/8",
-                  toggle: onSetRecord,
-                  value: recordEnabled,
-                  disabled: !hasUser,
-                },
-              ].map(item => (
-                <div key={item.key} className="flex items-center justify-between py-4 first:pt-0 last:pb-0">
-                  <div className="flex items-center gap-3">
-                    <div className={cn(
-                      "h-8 w-8 rounded-full flex items-center justify-center border transition-all",
-                      item.active ? item.activeColor : "text-foreground/20 border-border/30"
-                    )}>
-                      {item.icon}
+          {/* ════════ STEP 3 — READY ════════ */}
+          {step === 3 && (
+            <motion.div
+              key="step-ready"
+              initial={{ opacity: 0, x: 24 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -24 }}
+              transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+              className="space-y-6"
+            >
+              <div className="space-y-2">
+                <h2 className="speak-serif text-3xl md:text-4xl tracking-tighter leading-tight">
+                  You're <span className="text-primary italic">up.</span>
+                </h2>
+                <p className="text-sm opacity-40 font-medium">Here's your prompt — shuffle if it doesn't spark.</p>
+              </div>
+
+              {/* Topic card — the hero, revealed at the end */}
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={topic.id}
+                  initial={{ opacity: 0, scale: 0.98, y: 10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.98, y: -10 }}
+                  transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+                  className="relative rounded-[2.5rem] overflow-hidden border border-border/60 shadow-[0_2px_40px_rgba(0,0,0,0.3)]"
+                >
+                  <div className={cn(
+                    "absolute inset-0 opacity-20 pointer-events-none transition-all duration-700",
+                    DIFF_STYLE[diff.color].glow
+                  )} />
+                  <div className="relative z-10 p-7 md:p-10 space-y-6 bg-muted/5">
+                    <div className="absolute top-14 left-7 md:left-10 speak-serif text-[7rem] leading-none text-foreground/5 select-none pointer-events-none">
+                      "
                     </div>
-                    <div>
-                      <p className="text-[10px] font-black uppercase tracking-[0.35em]">{item.label}</p>
-                      <p className="text-[9px] font-medium opacity-25 uppercase tracking-widest">{item.sub}</p>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-2 flex-wrap min-w-0">
+                        <span className={cn(
+                          "text-[10px] font-black uppercase tracking-[0.25em] md:tracking-[0.4em] px-3 py-1.5 rounded-full border shrink-0",
+                          DIFF_STYLE[diff.color].badge
+                        )}>
+                          {topic.difficulty}
+                        </span>
+                        <span className="text-[10px] font-black uppercase tracking-[0.2em] md:tracking-[0.4em] opacity-25 min-w-0 truncate">
+                          {topic.category}
+                        </span>
+                        {isTopicSeen && (
+                          <span className="flex items-center gap-1 text-[9px] font-black uppercase tracking-widest opacity-25 shrink-0">
+                            <Eye className="h-2.5 w-2.5" />
+                            done
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        onClick={onShuffle}
+                        aria-label="Shuffle topic"
+                        className="group h-10 w-10 rounded-full border border-border/50 flex items-center justify-center hover:border-primary/40 hover:bg-primary/5 transition-all shrink-0"
+                      >
+                        <Shuffle className="h-3.5 w-3.5 opacity-30 group-hover:opacity-100 group-hover:rotate-180 transition-all duration-500" />
+                      </button>
                     </div>
+                    <h2 className="speak-serif text-2xl md:text-4xl leading-[1.1] tracking-tighter">
+                      {topic.text}
+                    </h2>
+                    {framework && (
+                      <div className="pt-6 border-t border-border/30 flex items-center justify-between gap-4">
+                        <div className="space-y-1 min-w-0">
+                          <p className="text-[9px] font-black uppercase tracking-[0.5em] opacity-25">FRAMEWORK</p>
+                          <p className="text-sm font-black text-primary italic truncate">{framework.name}</p>
+                        </div>
+                        <p className="text-[10px] font-medium opacity-25 text-right max-w-[200px] leading-relaxed hidden md:block">
+                          {framework.expanded}
+                        </p>
+                      </div>
+                    )}
                   </div>
-                  <Switch
-                    checked={item.value}
-                    onCheckedChange={item.toggle}
-                    disabled={item.disabled}
-                  />
-                </div>
-              ))}
-            </div>
+                </motion.div>
+              </AnimatePresence>
 
-            {/* BEGIN */}
+              {/* Config recap chips */}
+              <div className="flex items-center justify-center gap-2 flex-wrap text-[10px] font-black uppercase tracking-widest">
+                <span className="px-3 py-1.5 rounded-full border border-border/50 bg-muted/5">{difficulty}</span>
+                <span className="px-3 py-1.5 rounded-full border border-border/50 bg-muted/5">{duration}s</span>
+                <span className="px-3 py-1.5 rounded-full border border-border/50 bg-muted/5 opacity-60">{toggleSummary}</span>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ── Footer nav: Back · Next / Take the Stage ── */}
+        <div className="flex items-center gap-3 mt-8 md:mt-10">
+          {step > 1 && (
+            <button
+              onClick={goBack}
+              className="shrink-0 h-14 px-5 rounded-[1.5rem] border border-border/50 flex items-center gap-2 text-xs font-black uppercase tracking-[0.2em] opacity-50 hover:opacity-100 transition-opacity"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back
+            </button>
+          )}
+
+          {step < 3 ? (
+            <motion.button
+              onClick={goNext}
+              whileTap={{ scale: 0.98 }}
+              className="flex-1 h-14 rounded-[1.5rem] bg-primary text-white flex items-center justify-center gap-3 shadow-glow group"
+            >
+              <span className="text-sm font-black uppercase tracking-[0.3em]">Next</span>
+              <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+            </motion.button>
+          ) : (
             <motion.button
               onClick={handleBegin}
-              whileHover={{ scale: 1.01 }}
               whileTap={{ scale: 0.98 }}
-              className="relative w-full py-6 rounded-[1.75rem] bg-primary text-white overflow-hidden group"
+              className="relative flex-1 h-14 rounded-[1.5rem] bg-primary text-white overflow-hidden group"
               style={{ boxShadow: "0 0 40px rgba(var(--primary-rgb, 139,92,246), 0.35)" }}
             >
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
               <div className="relative flex items-center justify-center gap-3">
-                <span className="text-sm font-black uppercase tracking-[0.3em]">TAKE THE STAGE</span>
+                <span className="text-sm font-black uppercase tracking-[0.3em]">Take the Stage</span>
                 <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
               </div>
             </motion.button>
+          )}
+        </div>
 
-            {/* Keyboard hint */}
-            <p className="text-center text-[9px] font-medium opacity-15 uppercase tracking-[0.4em]">
-              or press <kbd className="font-mono bg-foreground/10 px-1.5 py-0.5 rounded text-[9px]">Enter</kbd>
-            </p>
-
-            {/* Session summary */}
-            <p className="text-center text-[9px] font-medium opacity-20 uppercase tracking-widest">
-              {framework?.name} · {duration}s · {difficulty}
-            </p>
-          </div>
-        </aside>
+        {/* Keyboard hint */}
+        <p className="text-center text-[9px] font-medium opacity-15 uppercase tracking-[0.4em] mt-4">
+          or press <kbd className="font-mono bg-foreground/10 px-1.5 py-0.5 rounded text-[9px]">Enter</kbd>
+        </p>
       </div>
     </>
   );
