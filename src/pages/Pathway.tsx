@@ -8,7 +8,7 @@ import { useRecordings, useSyncedStreak } from "@/hooks/useRecordings";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import {
   Check, Lock, Trophy, Play, Pause, RotateCcw, Mic, MicOff,
@@ -177,7 +177,8 @@ const DrillNode = ({
 
 /* ── Chapter Card (current/completed = expanded with nodes) ─ */
 const ChapterCard = ({
-  chapter, index, isCurrent, isComplete, isLocked, currentDrillId, getNodeStatus, getScoreHistory, onNodeClick
+  chapter, index, isCurrent, isComplete, isLocked, currentDrillId, getNodeStatus, getScoreHistory, onNodeClick,
+  placementLocked = false, onLockedTap
 }: {
   chapter: PathwayChapter;
   index: number;
@@ -188,8 +189,15 @@ const ChapterCard = ({
   getNodeStatus: (id: string) => NodeStatus;
   getScoreHistory: (id: string) => number[];
   onNodeClick: (lesson: PathwayLesson) => void;
+  // First-run: the whole stack is veiled until placement resolves. Distinct
+  // from `isLocked` (locked because the previous chapter isn't done) — tapping
+  // a placement-locked card redirects to the gate instead of being inert.
+  placementLocked?: boolean;
+  onLockedTap?: () => void;
 }) => {
   const [collapsed, setCollapsed] = useState(isComplete);
+  // Either lock reason hides the nodes + shows the lock badge.
+  const lockedView = isLocked || placementLocked;
 
   const completed = chapter.lessons.filter(l => {
     const s = getNodeStatus(l.id);
@@ -209,19 +217,21 @@ const ChapterCard = ({
     >
       {/* Header card */}
       <motion.div
-        whileHover={!isLocked ? { scale: 1.01, rotateX: 2, rotateY: -2 } : {}}
+        whileHover={!lockedView ? { scale: 1.01, rotateX: 2, rotateY: -2 } : {}}
         style={{ perspective: 1000 }}
         className={cn(
-          "p-6 md:p-10 relative overflow-hidden transition-all",
-          isLocked
+          "p-6 md:p-10 relative overflow-hidden transition-all duration-500",
+          placementLocked
+            ? "glass-card opacity-[0.62] cursor-pointer hover:opacity-95 hover:shadow-clay-primary"
+            : isLocked
             ? "glass-card opacity-60"
             : isComplete
             ? "glass-card cursor-pointer select-none hover:shadow-clay-primary"
             : "glass-card"
         )}
-        onClick={isComplete ? () => setCollapsed(c => !c) : undefined}
+        onClick={placementLocked ? onLockedTap : isComplete ? () => setCollapsed(c => !c) : undefined}
       >
-        {!isLocked && (
+        {!lockedView && (
           <div
             className="absolute -top-32 -right-32 h-64 w-64 rounded-full blur-[100px] animate-float opacity-30"
             style={{ backgroundColor: chapter.color }}
@@ -233,11 +243,11 @@ const ChapterCard = ({
           <div
             className={cn(
               "h-16 w-16 md:h-20 md:w-20 rounded-[1.5rem] flex items-center justify-center shrink-0 shadow-lg",
-              isLocked ? "bg-muted/30" : ""
+              lockedView ? "bg-muted/30" : ""
             )}
-            style={{ backgroundColor: !isLocked ? chapter.color : undefined }}
+            style={{ backgroundColor: !lockedView ? chapter.color : undefined }}
           >
-            {isLocked ? (
+            {lockedView ? (
               <Lock className="h-7 w-7 text-muted-foreground" />
             ) : isComplete ? (
               <Check className="h-8 w-8 text-white stroke-[4]" />
@@ -269,7 +279,13 @@ const ChapterCard = ({
           </div>
 
           {/* Right side: progress or unlock hint */}
-          {isLocked ? (
+          {placementLocked ? (
+            <div className="md:w-48 shrink-0 text-right space-y-1">
+              <p className="text-[10px] font-black uppercase tracking-[0.3em] text-primary/70">LOCKED</p>
+              <p className="speak-serif text-base italic opacity-70 leading-tight">Take the placement to unlock</p>
+              <p className="text-[10px] font-medium opacity-30">{total} drills · {formatSeconds(totalSeconds)}</p>
+            </div>
+          ) : isLocked ? (
             <div className="md:w-48 shrink-0 text-right space-y-1">
               <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">UNLOCKS AFTER</p>
               <p className="speak-serif text-lg italic opacity-70">Chapter {index}</p>
@@ -300,7 +316,7 @@ const ChapterCard = ({
 
       {/* Drill nodes — collapsible for completed chapters */}
       <AnimatePresence initial={false}>
-        {!isLocked && (!isComplete || !collapsed) && (
+        {!lockedView && (!isComplete || !collapsed) && (
           <motion.div
             key="nodes"
             initial={{ opacity: 0, height: 0 }}
@@ -1055,41 +1071,51 @@ const TierHeader = ({ tier, done, total, locked }: {
   );
 };
 
-/* ── Placement nudge (non-blocking) ──────────────────────────
-   Was a full-screen blocking gate; council cut it to an optional banner so a
-   fresh user lands straight on their first drill (as a Beginner) and can
-   *choose* to test ahead. */
-const PlacementBanner = ({ onTakeTest, onSkip }: { onTakeTest: () => void; onSkip: () => void }) => {
+/* ── Placement Gate (first-run "aha") ────────────────────────
+   The fresh-user hero: ONE prominent action — take the 60-second placement —
+   which is the aha moment (speak → AI reads you → tells you your level →
+   unlocks the matching chapters). The whole chapter stack below renders
+   veiled/locked until this resolves. A quiet subordinate "skip" keeps it a
+   soft gate (a judge who won't grant the mic is never trapped).
+   `pulse` briefly scales the gate when the user taps a locked chapter, drawing
+   the eye to the one thing they can do. */
+const PlacementGate = ({ onTakeTest, onSkip, pulse }: { onTakeTest: () => void; onSkip: () => void; pulse?: boolean }) => {
+  const reduce = useReducedMotion();
   useEffect(() => { track("placement_shown"); }, []);
   return (
     <motion.div
-      initial={{ opacity: 0, y: -8 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="mb-6 lg:mb-8 flex flex-col sm:flex-row sm:items-center gap-4 p-5 md:p-6 rounded-3xl border border-primary/20 bg-primary/[0.04] relative overflow-hidden"
+      initial={{ opacity: 0, y: 16 }}
+      animate={pulse && !reduce ? { opacity: 1, y: 0, scale: [1, 1.025, 1] } : { opacity: 1, y: 0 }}
+      transition={{ duration: pulse ? 0.45 : 0.5, ease: "easeOut" }}
+      className="mb-10 lg:mb-14 relative overflow-hidden glass-card p-8 md:p-12 text-center"
     >
-      <div className="flex items-start gap-4 flex-1 min-w-0">
-        <div className="h-11 w-11 shrink-0 rounded-2xl bg-primary/10 border border-primary/20 text-primary flex items-center justify-center">
-          <Compass className="h-5 w-5" />
+      <div className="absolute -top-24 left-1/2 -translate-x-1/2 h-56 w-56 rounded-full blur-[110px] bg-primary/30 animate-float pointer-events-none" />
+      <div className="relative z-10 max-w-xl mx-auto space-y-5">
+        <div className="h-16 w-16 md:h-20 md:w-20 mx-auto rounded-[1.6rem] bg-primary flex items-center justify-center shadow-glow shadow-primary/40">
+          <Compass className="h-8 w-8 md:h-10 md:w-10 text-white" />
         </div>
-        <div className="min-w-0">
-          <p className="speak-serif text-lg md:text-xl italic leading-tight">Skip ahead to your level?</p>
-          <p className="text-xs md:text-sm font-medium opacity-50 leading-relaxed">
-            Take a 60-second placement test and we'll start you at the right tier — or just begin from the top.
+        <div className="space-y-2">
+          <p className="text-[10px] md:text-xs font-black uppercase tracking-[0.5em] text-primary">UNLOCK YOUR PATH</p>
+          <h2 className="speak-serif text-3xl md:text-5xl tracking-tighter leading-tight">
+            Find your <span className="text-primary italic">level</span>.
+          </h2>
+          <p className="text-sm md:text-base font-medium opacity-60 leading-relaxed max-w-md mx-auto">
+            Speak for 60 seconds. Our AI finds your level and unlocks the right chapters — so you start exactly where you should.
           </p>
         </div>
-      </div>
-      <div className="flex items-center gap-4 shrink-0">
         <button
           onClick={onTakeTest}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-primary text-white text-xs font-black uppercase tracking-wide shadow-glow hover:scale-[1.03] active:scale-95 transition-transform"
+          className="button-pill w-full sm:w-auto sm:min-w-[280px] mx-auto py-5 px-10 bg-primary text-white shadow-glow hover:scale-[1.02] active:scale-100 flex items-center justify-center gap-3 transition-all"
         >
-          <Play className="h-3.5 w-3.5 fill-current" /> 60s test
+          <Play className="h-4 w-4 fill-current" />
+          <span className="text-sm font-black uppercase tracking-[0.25em]">Start placement</span>
+          <ArrowRight className="h-4 w-4" />
         </button>
         <button
           onClick={onSkip}
-          className="text-[11px] font-black uppercase tracking-widest opacity-40 hover:opacity-90 transition-opacity"
+          className="block mx-auto text-[11px] font-black uppercase tracking-widest opacity-30 hover:opacity-80 transition-opacity"
         >
-          Dismiss
+          skip — start from the top
         </button>
       </div>
     </motion.div>
@@ -1111,7 +1137,12 @@ const Pathway = () => {
   const { count: streakDays } = useSyncedStreak();
   const { profile: arenaProfile, completeDuel, handleForfeit } = useArena();
   const { user } = useAuth();
+  const reduceMotion = useReducedMotion();
   const [activeDrill, setActiveDrill] = useState<PathwayLesson | null>(null);
+  // First-run placement gate: ref so a tap on a locked chapter can scroll back
+  // to the gate, and a pulse to draw the eye to the one available action.
+  const gateRef = useRef<HTMLDivElement>(null);
+  const [gatePulse, setGatePulse] = useState(false);
   // Self-reported focus areas from onboarding — surfaced on the cold-start hero
   // so a brand-new user's "first drill" feels tailored to them rather than a
   // generic dump into the curriculum. Parentheticals trimmed for tight chips.
@@ -1395,6 +1426,14 @@ const Pathway = () => {
     setActiveDrill(lesson);
   };
 
+  // Tapping a placement-locked chapter isn't a dead no-op — it sends the user
+  // to the one thing they can do: the gate (scroll + pulse).
+  const handleLockedTap = useCallback(() => {
+    gateRef.current?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "center" });
+    setGatePulse(true);
+    window.setTimeout(() => setGatePulse(false), 700);
+  }, [reduceMotion]);
+
   // Derive current drill (first available across all chapters)
   const currentDrill = useMemo(() => {
     for (let ci = 0; ci < chapters.length; ci++) {
@@ -1430,7 +1469,12 @@ const Pathway = () => {
   // test. We only render the banner once the server check has resolved, so a
   // cross-device skipper never flashes it.
   const needsPlacement = !!user && !placementSkipped && !placedAlready;
-  const showPlacementBanner = needsPlacement && placementChecked && !placementTestOpen;
+  // First-run gate is active once the server check resolves (so a cross-device
+  // skipper never flashes it). While active: the gate is the hero and the whole
+  // chapter stack renders veiled/locked. Taking OR skipping the placement flips
+  // this off, and the path reveals (veil lifts via the cards' opacity/badge
+  // transition).
+  const placementGateActive = needsPlacement && placementChecked;
 
   if (loading) {
     return (
@@ -1458,22 +1502,25 @@ const Pathway = () => {
       {/* Hero with Next-Drill CTA */}
       <section className="px-4 md:container pt-20 md:pt-44 pb-8 lg:pb-16 relative z-10">
 
-        {showPlacementBanner && (
-          <PlacementBanner
-            onTakeTest={() => setPlacementTestOpen(true)}
-            onSkip={handleSkipPlacement}
+        {placementGateActive ? (
+          <div ref={gateRef}>
+            <PlacementGate
+              pulse={gatePulse}
+              onTakeTest={() => setPlacementTestOpen(true)}
+              onSkip={handleSkipPlacement}
+            />
+          </div>
+        ) : (
+          <NextDrillHero
+            currentDrill={currentDrill}
+            onJumpIn={() => currentDrill && handleStartDrill(currentDrill.lesson)}
+            completePct={progressPercent}
+            completedCount={completedCount}
+            totalLessons={totalLessons}
+            streakDays={streakDays}
+            focusAreas={focusAreas}
           />
         )}
-
-        <NextDrillHero
-          currentDrill={currentDrill}
-          onJumpIn={() => currentDrill && handleStartDrill(currentDrill.lesson)}
-          completePct={progressPercent}
-          completedCount={completedCount}
-          totalLessons={totalLessons}
-          streakDays={streakDays}
-          focusAreas={focusAreas}
-        />
       </section>
 
       {/* Chapter stack */}
@@ -1492,7 +1539,7 @@ const Pathway = () => {
 
           return (
             <div key={tier.id} className="space-y-12 lg:space-y-20">
-              <TierHeader tier={tier} done={tierDone} total={tierLessons.length} locked={tierLocked} />
+              <TierHeader tier={tier} done={tierDone} total={tierLessons.length} locked={tierLocked || placementGateActive} />
 
               {tierChapters.map((chapter) => {
                 const ci = chapters.indexOf(chapter);
@@ -1512,6 +1559,8 @@ const Pathway = () => {
                     getNodeStatus={getNodeStatus}
                     getScoreHistory={getScoreHistory}
                     onNodeClick={handleStartDrill}
+                    placementLocked={placementGateActive}
+                    onLockedTap={handleLockedTap}
                   />
                 );
               })}
