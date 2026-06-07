@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { BodyLanguageCamera } from "@/components/BodyLanguageCamera";
 import { CoachHub } from "@/components/CoachHub";
 import { RecentPracticeStrip } from "@/components/RecentPracticeStrip";
+import { GrowthReport } from "@/components/GrowthReport";
 
 // ─── Lab Tools ─────────────────────────────────────────────────────
 const LAB_TOOLS = [
@@ -178,6 +179,13 @@ const Lab = () => {
                     );
                   })}
                 </div>
+              </div>
+
+              {/* ── Proof of progress: the improvement curve, kept above the
+                     coach so "look how far you've come" is the first thing seen
+                     (this is also the kiosk/demo landing — RETAIL_HOME). ── */}
+              <div className="mb-12 md:mb-16">
+                <GrowthReport compact />
               </div>
 
               {/* ── Main feature: the adaptive AI coach ── */}

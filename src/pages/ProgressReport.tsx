@@ -6,6 +6,7 @@ import { SiteHeader } from "@/components/SiteHeader";
 import { motion } from "framer-motion";
 import { Trophy, CheckCircle, Star, Calendar, Download, Printer, Award, Globe, Mic, Target } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { GrowthReport } from "@/components/GrowthReport";
 
 const ShieldCheck = ({ className }: { className?: string }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
@@ -135,6 +136,12 @@ const ProgressReport = () => {
                   <p className="speak-serif text-3xl font-bold italic print:text-black">{s.value}</p>
                 </div>
               ))}
+            </div>
+
+            {/* Improvement delta — proof of learning (the demo money-shot). */}
+            <div className="space-y-8">
+               <p className="text-xs font-black uppercase tracking-[0.4em] opacity-30 border-b border-border/60 pb-4 print:text-black print:border-black">MEASURED IMPROVEMENT</p>
+               <GrowthReport />
             </div>
 
             {/* Detailed Mastery */}

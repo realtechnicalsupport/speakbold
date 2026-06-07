@@ -94,6 +94,106 @@ export interface AdaptivePlan {
   basedOnCount: number;
 }
 
+// ─── Growth / improvement-delta ──────────────────────────────────────────────
+// The SkillProfile above answers "what am I weak at right now". This answers a
+// different, demo-critical question: "have I actually got better?" — a proof of
+// LEARNING, not just measurement. It is deliberately a baseline→latest (first
+// session vs most-recent) comparison rather than the rolling recent/older-half
+// trend, because "52 → 81" is the story that reads as improvement. It consumes
+// the FULL history (not the rolling-10 window) so the baseline is the genuine
+// first session, and fires from as few as 2 sessions so it shows up in the short
+// window a judge/new user spends in the app.
+
+const MIN_GROWTH_SESSIONS = 2;
+
+export interface SessionPoint {
+  at: string; // ISO timestamp of the session
+  overall: number; // mean of the dimensions scored in that session, 0-100
+}
+
+export interface DimensionGrowth {
+  dimension: Dimension;
+  label: string;
+  baseline: number; // earliest scored value for this dimension
+  latest: number; // most-recent scored value
+  delta: number; // latest - baseline
+}
+
+export interface GrowthReport {
+  hasData: boolean; // >= MIN_GROWTH_SESSIONS sessions with a scorable overall
+  sessions: number; // number of points in the series
+  baseline: number; // overall of the first session
+  latest: number; // overall of the latest session
+  delta: number; // latest - baseline (the headline number)
+  series: SessionPoint[]; // chronological overall-per-session (sparkline data)
+  perDimension: DimensionGrowth[]; // dims scored in >= 2 sessions, biggest gain first
+  firstAt: string | null;
+  latestAt: string | null;
+}
+
+/** Mean of the known DIMENSION scores present on one session's `scores` blob. */
+function sessionOverall(scores: Record<string, number>): number | null {
+  const vals = DIMENSIONS.map((d) => scores[d]).filter(
+    (v): v is number => typeof v === "number"
+  );
+  return vals.length ? mean(vals) : null;
+}
+
+export function computeGrowth(feedback: ScoredFeedback[]): GrowthReport {
+  const empty: GrowthReport = {
+    hasData: false,
+    sessions: 0,
+    baseline: 0,
+    latest: 0,
+    delta: 0,
+    series: [],
+    perDimension: [],
+    firstAt: null,
+    latestAt: null,
+  };
+
+  // Oldest → newest; keep only sessions with a scorable overall.
+  const chronological = [...feedback]
+    .filter((f) => f && f.scores && typeof f.scores === "object")
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+  const series: SessionPoint[] = [];
+  for (const f of chronological) {
+    const overall = sessionOverall(f.scores);
+    if (overall !== null) series.push({ at: f.created_at, overall: Math.round(overall) });
+  }
+
+  if (series.length < MIN_GROWTH_SESSIONS) return empty;
+
+  const baseline = series[0].overall;
+  const latest = series[series.length - 1].overall;
+
+  // Per-dimension baseline→latest, for dims scored in at least 2 sessions.
+  const perDimension: DimensionGrowth[] = DIMENSIONS.map((dim) => {
+    const scored = chronological
+      .filter((f) => typeof f.scores[dim] === "number")
+      .map((f) => f.scores[dim]);
+    if (scored.length < 2) return null;
+    const b = Math.round(scored[0]);
+    const l = Math.round(scored[scored.length - 1]);
+    return { dimension: dim, label: DIMENSION_LABELS[dim], baseline: b, latest: l, delta: l - b };
+  })
+    .filter((d): d is DimensionGrowth => d !== null)
+    .sort((a, b) => b.delta - a.delta);
+
+  return {
+    hasData: true,
+    sessions: series.length,
+    baseline,
+    latest,
+    delta: latest - baseline,
+    series,
+    perDimension,
+    firstAt: series[0].at,
+    latestAt: series[series.length - 1].at,
+  };
+}
+
 const ROLLING_WINDOW = 10; // most-recent N recordings feed the averages
 const MIN_SAMPLES = 1; // one scored session activates the coach (exits cold start)
 const STALE_DAYS = 14;

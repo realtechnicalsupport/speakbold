@@ -6,6 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useTimerActive } from "@/lib/timerState";
 import { TOUR } from "@/lib/tourSteps";
+import { seedGrowthDemo } from "@/lib/seedGrowthDemo";
 
 const LS_INDEX = (uid: string) => `speakbold_tour_index_${uid}`;
 const PAD = 8;     // spotlight padding around the target
@@ -193,7 +194,12 @@ export const GuidedTour = () => {
         window.location.reload();
       } catch (err) { console.error("Failed to reset:", err); }
     };
-    return () => { delete (window as any).startTutorial; delete (window as any).resetOnboarding; };
+    (window as any).seedGrowthDemo = () => seedGrowthDemo();
+    return () => {
+      delete (window as any).startTutorial;
+      delete (window as any).resetOnboarding;
+      delete (window as any).seedGrowthDemo;
+    };
   }, [uid]);
 
   // Hide entirely during live drills so we never cover a recording.

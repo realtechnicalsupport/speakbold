@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
-import { computeSkillProfile, type SkillProfile, type ScoredFeedback } from "@/lib/skillProfile";
+import {
+  computeSkillProfile,
+  computeGrowth,
+  type SkillProfile,
+  type GrowthReport,
+  type ScoredFeedback,
+} from "@/lib/skillProfile";
 
 /** Dispatched by RecordingFeedback after new feedback is generated. */
 export const FEEDBACK_SAVED_EVENT = "speakbold:feedback-saved";
@@ -9,11 +15,13 @@ export const FEEDBACK_SAVED_EVENT = "speakbold:feedback-saved";
 export const useSkillProfile = () => {
   const { user } = useAuth();
   const [profile, setProfile] = useState<SkillProfile | null>(null);
+  const [growth, setGrowth] = useState<GrowthReport | null>(null);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
     if (!user) {
       setProfile(null);
+      setGrowth(null);
       setLoading(false);
       return;
     }
@@ -51,9 +59,13 @@ export const useSkillProfile = () => {
       const weaknesses: string[] = (profRes.data as any)?.weaknesses ?? [];
 
       setProfile(computeSkillProfile(merged, weaknesses));
+      // Growth uses the FULL merged history (not the rolling-10 window) so the
+      // baseline is the genuine first session.
+      setGrowth(computeGrowth(merged));
     } catch (err) {
       console.error("[useSkillProfile] failed to compute profile", err);
       setProfile(null);
+      setGrowth(null);
     } finally {
       setLoading(false);
     }
@@ -70,5 +82,5 @@ export const useSkillProfile = () => {
     return () => window.removeEventListener(FEEDBACK_SAVED_EVENT, handler);
   }, [refresh]);
 
-  return { profile, loading, refresh };
+  return { profile, growth, loading, refresh };
 };
