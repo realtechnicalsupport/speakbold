@@ -16,28 +16,46 @@ const tierForScore = (score: number): TierId =>
 
 type Phase = "offer" | "recording" | "analyzing" | "result";
 
-export const PlacementTest = ({ userName, onPlace, onSkip }: {
+export const PlacementTest = ({ userName, onPlace, onSkip, autoStart = false }: {
   userName: string;
   onPlace: (tier: TierId) => void;
   onSkip: () => void;
+  // When the caller (the Pathway placement gate) has ALREADY made the "take the
+  // test" pitch, skip the redundant in-modal offer screen and drop the user
+  // straight into recording — no second tap to actually begin.
+  autoStart?: boolean;
 }) => {
   const [phase, setPhase] = useState<Phase>("offer");
   const [seconds, setSeconds] = useState(PLACEMENT_SECONDS);
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<{ tier: TierId; feedback: string } | null>(null);
   const [micError, setMicError] = useState(false);
+  const [micChecked, setMicChecked] = useState(false);
 
   const idRef = useRef<number | null>(null);
   const recorderStartRef = useRef<() => void>(() => {});
   const recorderStopRef = useRef<() => void>(() => {});
   const phaseRef = useRef(phase);
   useEffect(() => { phaseRef.current = phase; }, [phase]);
+  const autoStartedRef = useRef(false);
 
   useEffect(() => {
     navigator.mediaDevices.getUserMedia({ audio: true })
       .then(s => { setMicError(false); s.getTracks().forEach(t => t.stop()); })
-      .catch(() => setMicError(true));
+      .catch(() => setMicError(true))
+      .finally(() => setMicChecked(true));
   }, []);
+
+  // Auto-start once the mic check resolves, so the countdown never runs behind a
+  // permission dialog. If the mic was denied, handleStart() toasts and leaves us
+  // on the offer screen as a graceful fallback (with its skip option).
+  useEffect(() => {
+    if (autoStart && micChecked && !autoStartedRef.current && phaseRef.current === "offer") {
+      autoStartedRef.current = true;
+      handleStart();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoStart, micChecked]);
 
   useEffect(() => {
     if (!running) { if (idRef.current) clearInterval(idRef.current); return; }

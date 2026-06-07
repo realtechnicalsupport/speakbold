@@ -1623,6 +1623,9 @@ const Pathway = () => {
             userName={user?.email?.split("@")[0] || "Speaker"}
             onPlace={handlePlace}
             onSkip={() => { setPlacementTestOpen(false); }}
+            // Launched from the first-run gate (which already pitched the test) →
+            // skip the redundant in-modal offer and start recording on open.
+            autoStart={placementGateActive}
           />
         )}
       </AnimatePresence>
