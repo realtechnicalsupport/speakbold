@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "@/hooks/use-toast";
+import { track } from "@/lib/analytics";
 import { motion, AnimatePresence } from "framer-motion";
 
 type AuthMode = "login" | "signup" | "forgot";
@@ -58,6 +59,7 @@ const Login = () => {
           },
         });
         if (error) throw error;
+        track("signup", { method: "email" });
         toast({ title: "Check your email", description: "Confirm your address to finish signing up." });
       } else if (mode === "login") {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -87,6 +89,7 @@ const Login = () => {
         },
       });
       if (error) throw error;
+      if (mode === "signup") track("signup", { method: "google" });
       if (data?.url) window.location.href = data.url;
     } catch (error: any) {
       toast({ title: "Google sign-in failed", description: error?.message || "Unexpected error occurred" });

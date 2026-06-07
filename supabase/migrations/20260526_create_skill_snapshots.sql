@@ -13,18 +13,26 @@ CREATE TABLE IF NOT EXISTS public.skill_snapshots (
 ALTER TABLE public.skill_snapshots ENABLE ROW LEVEL SECURITY;
 
 -- RLS policies: a user can only read/write their own snapshot
-CREATE POLICY "Users can view their own skill snapshot"
-  ON public.skill_snapshots FOR SELECT
-  USING (auth.uid() = user_id);
+DO $$ BEGIN
+  CREATE POLICY "Users can view their own skill snapshot"
+    ON public.skill_snapshots FOR SELECT
+    USING (auth.uid() = user_id);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-CREATE POLICY "Users can insert their own skill snapshot"
-  ON public.skill_snapshots FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
+DO $$ BEGIN
+  CREATE POLICY "Users can insert their own skill snapshot"
+    ON public.skill_snapshots FOR INSERT
+    WITH CHECK (auth.uid() = user_id);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-CREATE POLICY "Users can update their own skill snapshot"
-  ON public.skill_snapshots FOR UPDATE
-  USING (auth.uid() = user_id);
+DO $$ BEGIN
+  CREATE POLICY "Users can update their own skill snapshot"
+    ON public.skill_snapshots FOR UPDATE
+    USING (auth.uid() = user_id);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-CREATE POLICY "Users can delete their own skill snapshot"
-  ON public.skill_snapshots FOR DELETE
-  USING (auth.uid() = user_id);
+DO $$ BEGIN
+  CREATE POLICY "Users can delete their own skill snapshot"
+    ON public.skill_snapshots FOR DELETE
+    USING (auth.uid() = user_id);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;

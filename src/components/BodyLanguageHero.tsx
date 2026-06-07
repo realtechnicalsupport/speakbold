@@ -1,7 +1,9 @@
+import { useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Camera, Loader2, AlertCircle, Lock, ArrowRight, Activity, Eye, Smile, Hand } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useBodyLanguage } from "@/hooks/useBodyLanguage";
+import { track } from "@/lib/analytics";
 
 /**
  * A compact, LIVE Body-Language hero — the on-device webcam coach, front and
@@ -23,6 +25,13 @@ const METRICS = [
 export function BodyLanguageHero({ className }: { className?: string }) {
   const { videoRef, canvasRef, status, liveMetrics, inFrame, error, activate, deactivate } = useBodyLanguage();
   const isLive = status === "live" || status === "recording";
+
+  // Funnel: the camera is the "earned upgrade" hook. Track the request (tap) and
+  // the grant (camera actually goes live) so activation can be measured.
+  const requestCamera = () => { track("camera_requested", { surface: "landing_hero" }); activate(); };
+  useEffect(() => {
+    if (status === "live") track("camera_granted", { surface: "landing_hero" });
+  }, [status]);
 
   return (
     <div className={cn("w-full max-w-5xl mx-auto px-4 md:px-8 py-8 md:py-12", className)}>
@@ -69,7 +78,7 @@ export function BodyLanguageHero({ className }: { className?: string }) {
 
             {/* Idle — one tap to go live */}
             {status === "idle" && (
-              <button onClick={activate} className="absolute inset-0 flex flex-col items-center justify-center gap-3 group">
+              <button onClick={requestCamera} className="absolute inset-0 flex flex-col items-center justify-center gap-3 group">
                 <div className="h-16 w-16 rounded-full bg-primary text-white flex items-center justify-center shadow-glow group-hover:scale-110 transition-transform">
                   <Camera className="h-7 w-7" />
                 </div>
@@ -90,7 +99,7 @@ export function BodyLanguageHero({ className }: { className?: string }) {
 
             {/* Error / denied */}
             {(status === "error" || status === "denied") && (
-              <button onClick={activate} className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-6 text-center">
+              <button onClick={requestCamera} className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-6 text-center">
                 <AlertCircle className="h-8 w-8 text-destructive" />
                 <p className="text-sm font-medium opacity-70 max-w-xs leading-relaxed">{error}</p>
                 <span className="text-[10px] font-black uppercase tracking-[0.3em] text-primary">Tap to retry</span>

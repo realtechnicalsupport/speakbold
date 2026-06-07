@@ -2,7 +2,6 @@
 import { Link } from "react-router-dom";
 import { usePathway, TIERS, ALL_LESSONS, getLessonTier, type PathwayLesson, type NodeStatus, type PathwayChapter, type PathwayTier, type TierId } from "@/hooks/usePathway";
 import { PlacementTest } from "@/components/PlacementTest";
-import { PlacementGate } from "@/components/PlacementGate";
 import { SiteHeader } from "@/components/SiteHeader";
 import { RecorderPanel } from "@/components/RecorderPanel";
 import { useRecordings, useSyncedStreak } from "@/hooks/useRecordings";
@@ -17,6 +16,7 @@ import {
   Award, Brain, ChevronDown, ChevronRight, ArrowRight, Flame, Clock, Swords, Volume2
 } from "lucide-react";
 import { transcribeAudio, judgePathwayDrill, speakWithDeepgramTTS } from "@/services/geminiService";
+import { track } from "@/lib/analytics";
 import { ModelSpeech } from "@/components/ModelSpeech";
 import { DebateBattle } from "@/components/DebateBattle";
 import { useArena, AI_PERSONAS } from "@/hooks/useArena";
@@ -1055,6 +1055,47 @@ const TierHeader = ({ tier, done, total, locked }: {
   );
 };
 
+/* ── Placement nudge (non-blocking) ──────────────────────────
+   Was a full-screen blocking gate; council cut it to an optional banner so a
+   fresh user lands straight on their first drill (as a Beginner) and can
+   *choose* to test ahead. */
+const PlacementBanner = ({ onTakeTest, onSkip }: { onTakeTest: () => void; onSkip: () => void }) => {
+  useEffect(() => { track("placement_shown"); }, []);
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="mb-6 lg:mb-8 flex flex-col sm:flex-row sm:items-center gap-4 p-5 md:p-6 rounded-3xl border border-primary/20 bg-primary/[0.04] relative overflow-hidden"
+    >
+      <div className="flex items-start gap-4 flex-1 min-w-0">
+        <div className="h-11 w-11 shrink-0 rounded-2xl bg-primary/10 border border-primary/20 text-primary flex items-center justify-center">
+          <Compass className="h-5 w-5" />
+        </div>
+        <div className="min-w-0">
+          <p className="speak-serif text-lg md:text-xl italic leading-tight">Skip ahead to your level?</p>
+          <p className="text-xs md:text-sm font-medium opacity-50 leading-relaxed">
+            Take a 60-second placement test and we'll start you at the right tier — or just begin from the top.
+          </p>
+        </div>
+      </div>
+      <div className="flex items-center gap-4 shrink-0">
+        <button
+          onClick={onTakeTest}
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-primary text-white text-xs font-black uppercase tracking-wide shadow-glow hover:scale-[1.03] active:scale-95 transition-transform"
+        >
+          <Play className="h-3.5 w-3.5 fill-current" /> 60s test
+        </button>
+        <button
+          onClick={onSkip}
+          className="text-[11px] font-black uppercase tracking-widest opacity-40 hover:opacity-90 transition-opacity"
+        >
+          Dismiss
+        </button>
+      </div>
+    </motion.div>
+  );
+};
+
 /* ── Main Pathway Page ───────────────────────────────────── */
 const Pathway = () => {
   const {
@@ -1328,6 +1369,7 @@ const Pathway = () => {
   }, [user, applyPlacement, debugSetProgress, getNodeStatus, chapters]);
 
   const handlePlace = (tier: TierId) => {
+    track("placement_taken", { tier });
     applyPlacement(tier);
     if (user) {
       localStorage.setItem(`speakbold:placement-skipped:${user.id}`, "1");
@@ -1338,12 +1380,19 @@ const Pathway = () => {
   };
 
   const handleSkipPlacement = () => {
+    track("placement_skipped");
     if (user) {
       localStorage.setItem(`speakbold:placement-skipped:${user.id}`, "1");
       supabase.from("profiles").update({ placement_done: true }).eq("id", user.id);
     }
     setPlacementSkipped(true);
     setPlacementTestOpen(false);
+  };
+
+  // Start a drill (Next-Drill hero or a node) — instrument the aha funnel.
+  const handleStartDrill = (lesson: PathwayLesson) => {
+    track("drill_started", { id: lesson.id, title: lesson.title, type: lesson.type });
+    setActiveDrill(lesson);
   };
 
   // Derive current drill (first available across all chapters)
@@ -1376,12 +1425,14 @@ const Pathway = () => {
     () => Object.values(progress).some((s) => s === "completed" || s === "tested-out"),
     [progress],
   );
+  // Placement is now a non-blocking nudge: a fresh, unplaced user still sees the
+  // full pathway (starting as a Beginner) with a dismissible banner offering the
+  // test. We only render the banner once the server check has resolved, so a
+  // cross-device skipper never flashes it.
   const needsPlacement = !!user && !placementSkipped && !placedAlready;
-  // Wait for the server placement check before first paint — but only when it
-  // could still flip the decision (not locally resolved, not already placed).
-  const awaitingPlacementCheck = !!user && !placementChecked && !placementSkipped && !placedAlready;
+  const showPlacementBanner = needsPlacement && placementChecked && !placementTestOpen;
 
-  if (loading || awaitingPlacementCheck) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center space-y-8">
         <motion.div
@@ -1403,25 +1454,20 @@ const Pathway = () => {
 
       <SiteHeader />
 
-      {needsPlacement ? (
-        // Gate: pathway is inaccessible until placement is taken or skipped.
-        // While the test modal is open we render nothing here (it covers the
-        // screen); cancelling the test returns to the gate, not the pathway.
-        placementTestOpen ? null : (
-          <PlacementGate
-            userName={user?.email?.split("@")[0] || "Speaker"}
-            onTakeTest={() => setPlacementTestOpen(true)}
-            onSkip={handleSkipPlacement}
-          />
-        )
-      ) : (
-        <>
+      <>
       {/* Hero with Next-Drill CTA */}
       <section className="px-4 md:container pt-20 md:pt-44 pb-8 lg:pb-16 relative z-10">
 
+        {showPlacementBanner && (
+          <PlacementBanner
+            onTakeTest={() => setPlacementTestOpen(true)}
+            onSkip={handleSkipPlacement}
+          />
+        )}
+
         <NextDrillHero
           currentDrill={currentDrill}
-          onJumpIn={() => currentDrill && setActiveDrill(currentDrill.lesson)}
+          onJumpIn={() => currentDrill && handleStartDrill(currentDrill.lesson)}
           completePct={progressPercent}
           completedCount={completedCount}
           totalLessons={totalLessons}
@@ -1465,7 +1511,7 @@ const Pathway = () => {
                     currentDrillId={currentDrill?.lesson.id || null}
                     getNodeStatus={getNodeStatus}
                     getScoreHistory={getScoreHistory}
-                    onNodeClick={setActiveDrill}
+                    onNodeClick={handleStartDrill}
                   />
                 );
               })}
@@ -1492,8 +1538,7 @@ const Pathway = () => {
           </motion.div>
         )}
       </section>
-        </>
-      )}
+      </>
 
       <AnimatePresence>
         {activeDrill && activeDrill.type === "debate" && (
@@ -1518,7 +1563,7 @@ const Pathway = () => {
           <LessonDrill
             lesson={activeDrill}
             onClose={() => setActiveDrill(null)}
-            onComplete={(score) => { completeLesson(activeDrill.id, score); }}
+            onComplete={(score) => { track("drill_completed", { id: activeDrill.id, score }); completeLesson(activeDrill.id, score); }}
           />
         )}
       </AnimatePresence>

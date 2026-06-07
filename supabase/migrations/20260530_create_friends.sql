@@ -17,22 +17,30 @@ CREATE INDEX IF NOT EXISTS idx_friendships_user_a ON public.friendships(user_a) 
 CREATE INDEX IF NOT EXISTS idx_friendships_user_b ON public.friendships(user_b) WHERE status = 'accepted';
 CREATE INDEX IF NOT EXISTS idx_friendships_pending ON public.friendships(user_b, requested_by) WHERE status = 'pending';
 
-CREATE POLICY "friendships_select_own" ON public.friendships
-  FOR SELECT USING (auth.uid() = user_a OR auth.uid() = user_b);
+DO $$ BEGIN
+  CREATE POLICY "friendships_select_own" ON public.friendships
+    FOR SELECT USING (auth.uid() = user_a OR auth.uid() = user_b);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-CREATE POLICY "friendships_insert_self" ON public.friendships
-  FOR INSERT WITH CHECK (
-    auth.uid() = requested_by
-    AND (auth.uid() = user_a OR auth.uid() = user_b)
-  );
+DO $$ BEGIN
+  CREATE POLICY "friendships_insert_self" ON public.friendships
+    FOR INSERT WITH CHECK (
+      auth.uid() = requested_by
+      AND (auth.uid() = user_a OR auth.uid() = user_b)
+    );
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-CREATE POLICY "friendships_update_accept" ON public.friendships
-  FOR UPDATE
-  USING (auth.uid() = user_a OR auth.uid() = user_b)
-  WITH CHECK (auth.uid() = user_a OR auth.uid() = user_b);
+DO $$ BEGIN
+  CREATE POLICY "friendships_update_accept" ON public.friendships
+    FOR UPDATE
+    USING (auth.uid() = user_a OR auth.uid() = user_b)
+    WITH CHECK (auth.uid() = user_a OR auth.uid() = user_b);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-CREATE POLICY "friendships_delete_either" ON public.friendships
-  FOR DELETE USING (auth.uid() = user_a OR auth.uid() = user_b);
+DO $$ BEGIN
+  CREATE POLICY "friendships_delete_either" ON public.friendships
+    FOR DELETE USING (auth.uid() = user_a OR auth.uid() = user_b);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- ─── friend_invites ───────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.friend_invites (
@@ -48,30 +56,38 @@ ALTER TABLE public.friend_invites ENABLE ROW LEVEL SECURITY;
 
 CREATE INDEX IF NOT EXISTS idx_friend_invites_inviter ON public.friend_invites(inviter_id);
 
-CREATE POLICY "friend_invites_select_own" ON public.friend_invites
-  FOR SELECT USING (auth.uid() = inviter_id OR auth.uid() = claimed_by);
+DO $$ BEGIN
+  CREATE POLICY "friend_invites_select_own" ON public.friend_invites
+    FOR SELECT USING (auth.uid() = inviter_id OR auth.uid() = claimed_by);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-CREATE POLICY "friend_invites_insert_self" ON public.friend_invites
-  FOR INSERT WITH CHECK (auth.uid() = inviter_id);
+DO $$ BEGIN
+  CREATE POLICY "friend_invites_insert_self" ON public.friend_invites
+    FOR INSERT WITH CHECK (auth.uid() = inviter_id);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-CREATE POLICY "friend_invites_delete_own" ON public.friend_invites
-  FOR DELETE USING (auth.uid() = inviter_id);
+DO $$ BEGIN
+  CREATE POLICY "friend_invites_delete_own" ON public.friend_invites
+    FOR DELETE USING (auth.uid() = inviter_id);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- ─── Extend streaks RLS so friends can read each other's streaks ─────────────
 DROP POLICY IF EXISTS "st_select_own" ON public.streaks;
 
-CREATE POLICY "st_select_self_or_friend" ON public.streaks
-  FOR SELECT USING (
-    auth.uid() = user_id
-    OR EXISTS (
-      SELECT 1 FROM public.friendships f
-      WHERE f.status = 'accepted'
-        AND (
-          (f.user_a = auth.uid() AND f.user_b = user_id)
-          OR (f.user_b = auth.uid() AND f.user_a = user_id)
-        )
-    )
-  );
+DO $$ BEGIN
+  CREATE POLICY "st_select_self_or_friend" ON public.streaks
+    FOR SELECT USING (
+      auth.uid() = user_id
+      OR EXISTS (
+        SELECT 1 FROM public.friendships f
+        WHERE f.status = 'accepted'
+          AND (
+            (f.user_a = auth.uid() AND f.user_b = user_id)
+            OR (f.user_b = auth.uid() AND f.user_a = user_id)
+          )
+      )
+    );
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- ─── last_active_at on profiles ───────────────────────────────────────────────
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMPTZ;

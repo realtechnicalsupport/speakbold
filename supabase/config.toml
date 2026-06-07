@@ -1,1 +1,9 @@
 project_id = "xriasdhqzapgwnszkvzp"
+
+# The landing-page "try a drill, no signup" trial transcribes a short clip for
+# anonymous visitors (incl. mobile, where live Web Speech is unreliable). That
+# requires the gateway to let unauthenticated requests reach the function, so we
+# disable platform JWT verification and gate access IN-CODE instead: authed users
+# transcribe freely; anonymous "trial" requests are allowed only for tiny clips.
+[functions.ai-transcribe]
+verify_jwt = false

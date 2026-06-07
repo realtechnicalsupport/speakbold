@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mic, X, Lock, ArrowRight, RotateCcw, Gauge, Hash, AudioWaveform, AlertTriangle } from "lucide-react";
+import { Mic, X, Lock, ArrowRight, RotateCcw, Gauge, Hash, AudioWaveform, AlertTriangle, Loader2 } from "lucide-react";
 import { getRandomTopic, TARGET_WPM, type ImpromptuTopic } from "@/data/impromptuTopics";
 import { isMobileDevice } from "@/lib/isMobileDevice";
+import { track } from "@/lib/analytics";
+import { transcribeAudio } from "@/services/geminiService";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Anonymous, zero-backend "feel the magic" drill for the landing page.
@@ -53,7 +55,7 @@ const assessPace = (wpm: number): Pace => {
   return { label: "Too fast", tone: "warn" };
 };
 
-type Phase = "intro" | "recording" | "results" | "denied" | "unsupported";
+type Phase = "intro" | "recording" | "transcribing" | "results" | "denied" | "error" | "unsupported";
 
 interface Metrics {
   words: number;
@@ -62,6 +64,34 @@ interface Metrics {
   fillerList: string[];
   pace: Pace;
 }
+
+// Same metric computation for both paths (live Web Speech on desktop, recorded
+// blob → server transcript on mobile) so the trial result is identical.
+const computeMetrics = (text: string, elapsedSeconds: number): Metrics => {
+  const clean = text.trim();
+  const words = clean ? clean.split(/\s+/).filter(Boolean).length : 0;
+  const elapsed = Math.max(1, Math.min(TRIAL_SECONDS, elapsedSeconds));
+  const wpm = words > 0 ? Math.round((words / elapsed) * 60) : 0;
+  const fillers = countFillers(clean);
+  return { words, wpm, fillers, fillerList: detectedFillers(clean), pace: assessPace(wpm) };
+};
+
+// Pick a MediaRecorder mime the browser actually supports. iOS Safari records
+// mp4/aac (not webm); Chrome/Android prefer webm/opus. The server transcriber
+// reads the mime we send, so this just needs to be honest about the container.
+const pickRecorderMime = (): string => {
+  if (typeof MediaRecorder === "undefined") return "";
+  const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/aac", "audio/ogg"];
+  for (const m of candidates) {
+    try { if (MediaRecorder.isTypeSupported(m)) return m; } catch { /* keep trying */ }
+  }
+  return "";
+};
+
+const hasMediaRecorder = (): boolean =>
+  typeof window !== "undefined" &&
+  typeof MediaRecorder !== "undefined" &&
+  !!navigator.mediaDevices?.getUserMedia;
 
 interface Props {
   open: boolean;
@@ -82,13 +112,22 @@ export const LiveTrialDrill = ({ open, onClose }: Props) => {
   const startedAtRef = useRef(0);
   const stoppingRef = useRef(false);
 
-  // The zero-backend trial relies on live Web Speech, which phones AND tablets
-  // run on a mobile engine that ignores `continuous = true`: it auto-stops on
-  // every pause and the restart loop reopens the mic (the "Google Assistant"
-  // pop-in). Rather than ship that stuttering experience, treat touch devices
-  // as "not supported for the live trial" and route them to the full server-side
-  // recorder via signup — same gate the Impromptu/Debate surfaces already use.
-  const supported = getSpeechRecognition() != null && !isMobileDevice();
+  // Mobile (record-then-transcribe) path refs.
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const recordMimeRef = useRef<string>("");
+
+  // Two ways to "try" on the homepage:
+  //  • DESKTOP — live Web Speech, zero backend, instant metrics as you talk.
+  //  • MOBILE  — phones/tablets run a Web Speech engine that ignores
+  //    `continuous` (auto-stops on every pause, re-opens the mic), so instead we
+  //    record the clip and transcribe it server-side (anonymous "trial" call),
+  //    then compute the SAME metrics. This unblocks the all-important "judge
+  //    tries it on their phone" moment instead of dead-ending at a signup wall.
+  const liveSupported = getSpeechRecognition() != null && !isMobileDevice();
+  const recordSupported = !liveSupported && hasMediaRecorder();
+  const supported = liveSupported || recordSupported;
 
   // ── Teardown helpers ────────────────────────────────────────────────────────
   const stopRecognition = useCallback(() => {
@@ -98,14 +137,32 @@ export const LiveTrialDrill = ({ open, onClose }: Props) => {
     recognitionRef.current = null;
   }, []);
 
+  const stopMedia = useCallback(() => {
+    if (timerRef.current) window.clearInterval(timerRef.current);
+    try {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        // Detach onstop so a teardown-driven stop doesn't kick off transcription.
+        mediaRecorderRef.current.onstop = null;
+        mediaRecorderRef.current.stop();
+      }
+    } catch { /* noop */ }
+    mediaRecorderRef.current = null;
+    mediaStreamRef.current?.getTracks().forEach(t => { try { t.stop(); } catch { /* noop */ } });
+    mediaStreamRef.current = null;
+  }, []);
+
+  // Full teardown for both paths — used on close / reset / unmount.
+  const teardownAll = useCallback(() => {
+    stopRecognition();
+    stopMedia();
+  }, [stopRecognition, stopMedia]);
+
   const computeAndShow = useCallback(() => {
-    const text = finalRef.current.trim();
-    const elapsed = Math.max(1, Math.min(TRIAL_SECONDS, (Date.now() - startedAtRef.current) / 1000));
-    const words = text ? text.split(/\s+/).filter(Boolean).length : 0;
-    const wpm = words > 0 ? Math.round((words / elapsed) * 60) : 0;
-    const fillers = countFillers(text);
-    setMetrics({ words, wpm, fillers, fillerList: detectedFillers(text), pace: assessPace(wpm) });
+    const elapsed = (Date.now() - startedAtRef.current) / 1000;
+    const m = computeMetrics(finalRef.current, elapsed);
+    setMetrics(m);
     setPhase("results");
+    track("trial_completed", { words: m.words, wpm: m.wpm, fillers: m.fillers, path: "live" });
   }, []);
 
   const finish = useCallback(() => {
@@ -167,6 +224,7 @@ export const LiveTrialDrill = ({ open, onClose }: Props) => {
 
     startedAtRef.current = Date.now();
     setPhase("recording");
+    track("trial_started", { topic: topic.text });
 
     timerRef.current = window.setInterval(() => {
       setSecondsLeft((s) => {
@@ -181,16 +239,97 @@ export const LiveTrialDrill = ({ open, onClose }: Props) => {
     }, 1000);
   }, [finish, stopRecognition]);
 
+  // ── Mobile path: record clip → transcribe server-side → same metrics ─────────
+  const transcribeAndShow = useCallback(async (blob: Blob, elapsedSeconds: number) => {
+    setPhase("transcribing");
+    try {
+      const transcript = await transcribeAudio(blob, 0, { trial: true });
+      const m = computeMetrics(transcript, elapsedSeconds);
+      setMetrics(m);
+      setPhase("results");
+      track("trial_completed", { words: m.words, wpm: m.wpm, fillers: m.fillers, path: "record" });
+    } catch (err) {
+      console.warn("[LiveTrialDrill] trial transcription failed:", err);
+      track("trial_error", { stage: "transcribe" });
+      setPhase("error"); // fail-safe: offer retry + signup, never a broken state
+    }
+  }, []);
+
+  const startRecordingMobile = useCallback(async () => {
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch {
+      setPhase("denied");
+      return;
+    }
+    mediaStreamRef.current = stream;
+    const mime = pickRecorderMime();
+    recordMimeRef.current = mime;
+    chunksRef.current = [];
+
+    let recorder: MediaRecorder;
+    try {
+      recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+    } catch {
+      try { recorder = new MediaRecorder(stream); } catch { setPhase("error"); return; }
+    }
+    mediaRecorderRef.current = recorder;
+
+    recorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunksRef.current.push(e.data); };
+    recorder.onstop = () => {
+      mediaStreamRef.current?.getTracks().forEach(t => { try { t.stop(); } catch { /* noop */ } });
+      mediaStreamRef.current = null;
+      const elapsed = (Date.now() - startedAtRef.current) / 1000;
+      const type = recordMimeRef.current || chunksRef.current[0]?.type || "audio/webm";
+      const blob = new Blob(chunksRef.current, { type });
+      if (blob.size < 1200) { setPhase("error"); return; } // effectively empty
+      void transcribeAndShow(blob, elapsed);
+    };
+
+    setTranscript("");
+    setInterim("");
+    setSecondsLeft(TRIAL_SECONDS);
+    startedAtRef.current = Date.now();
+    try { recorder.start(); } catch { setPhase("error"); return; }
+    setPhase("recording");
+    track("trial_started", { topic: topic.text, path: "record" });
+
+    timerRef.current = window.setInterval(() => {
+      setSecondsLeft((s) => {
+        if (s <= 1) {
+          window.clearInterval(timerRef.current);
+          try { if (recorder.state !== "inactive") recorder.stop(); } catch { /* onstop handles */ }
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+  }, [topic.text, transcribeAndShow]);
+
+  const finishMobile = useCallback(() => {
+    if (timerRef.current) window.clearInterval(timerRef.current);
+    try {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        mediaRecorderRef.current.stop(); // onstop → transcribeAndShow
+      }
+    } catch { setPhase("error"); }
+  }, []);
+
+  // Branch the intro/record button + the "done" button by device path.
+  const handleStart = () => { if (recordSupported) void startRecordingMobile(); else startRecording(); };
+  const handleFinish = () => { if (recordSupported) finishMobile(); else finish(); };
+
   // ── Reset / lifecycle ───────────────────────────────────────────────────────
   const resetToIntro = useCallback((newTopic = false) => {
-    stopRecognition();
+    teardownAll();
     setMetrics(null);
     setTranscript("");
     setInterim("");
     setSecondsLeft(TRIAL_SECONDS);
     if (newTopic) setTopic(getRandomTopic("Easy"));
     setPhase(supported ? "intro" : "unsupported");
-  }, [stopRecognition, supported]);
+  }, [teardownAll, supported]);
 
   // When the modal opens, start clean. When it closes, tear everything down.
   useEffect(() => {
@@ -199,10 +338,10 @@ export const LiveTrialDrill = ({ open, onClose }: Props) => {
       setMetrics(null);
       setTopic(getRandomTopic("Easy"));
     } else {
-      stopRecognition();
+      teardownAll();
     }
-    return () => stopRecognition();
-  }, [open, supported, stopRecognition]);
+    return () => teardownAll();
+  }, [open, supported, teardownAll]);
 
   // Esc to close.
   useEffect(() => {
@@ -214,7 +353,7 @@ export const LiveTrialDrill = ({ open, onClose }: Props) => {
   }, [open]);
 
   const handleClose = () => {
-    stopRecognition();
+    teardownAll();
     onClose();
   };
 
@@ -264,12 +403,13 @@ export const LiveTrialDrill = ({ open, onClose }: Props) => {
                 </h2>
               </div>
               <p className="text-sm font-medium opacity-50 leading-relaxed">
-                Hit record and speak for 30 seconds. We'll measure your pace, words, and filler
-                words live — right here in your browser. Nothing is uploaded.
+                {recordSupported
+                  ? "Hit record and speak for 30 seconds. We'll capture a short clip and analyze your pace, words, and filler words instantly — audio is used only to score this drill."
+                  : "Hit record and speak for 30 seconds. We'll measure your pace, words, and filler words live — right here in your browser. Nothing is uploaded."}
               </p>
               <div className="flex flex-col sm:flex-row gap-3">
                 <button
-                  onClick={startRecording}
+                  onClick={handleStart}
                   className="group flex-1 flex items-center justify-center gap-3 px-6 py-4 rounded-full bg-primary text-white shadow-glow hover:scale-[1.02] active:scale-95 transition-transform"
                 >
                   <Mic className="h-4 w-4" />
@@ -322,9 +462,11 @@ export const LiveTrialDrill = ({ open, onClose }: Props) => {
                 </div>
               </div>
 
-              {/* Live transcript */}
+              {/* Live transcript (desktop) — or a record hint (mobile, no live STT) */}
               <div className="min-h-[72px] max-h-32 overflow-y-auto rounded-2xl bg-muted/20 border border-border/60 p-4 text-sm leading-relaxed">
-                {transcript || interim ? (
+                {recordSupported ? (
+                  <p className="opacity-50 italic">Recording your answer — we'll analyze it the moment you finish.</p>
+                ) : transcript || interim ? (
                   <p>
                     <span className="opacity-90">{transcript}</span>
                     <span className="opacity-40">{interim}</span>
@@ -335,11 +477,48 @@ export const LiveTrialDrill = ({ open, onClose }: Props) => {
               </div>
 
               <button
-                onClick={finish}
+                onClick={handleFinish}
                 className="w-full px-6 py-3.5 rounded-full border border-primary/40 text-primary text-xs font-black uppercase tracking-widest hover:bg-primary hover:text-white transition-all"
               >
                 I'm done — show my results
               </button>
+            </div>
+          )}
+
+          {/* ── TRANSCRIBING (mobile path) ─────────────────────────────────── */}
+          {phase === "transcribing" && (
+            <div className="space-y-6 text-center py-8">
+              <Loader2 className="h-10 w-10 mx-auto text-primary animate-spin" />
+              <div className="space-y-1.5">
+                <h2 className="speak-serif text-2xl italic">Analyzing your delivery…</h2>
+                <p className="text-sm opacity-50">Scoring your pace, words, and filler words.</p>
+              </div>
+            </div>
+          )}
+
+          {/* ── ERROR (mobile path fail-safe) ──────────────────────────────── */}
+          {phase === "error" && (
+            <div className="space-y-5 text-center py-4">
+              <AlertTriangle className="h-10 w-10 mx-auto text-amber-500 opacity-70" />
+              <h2 className="speak-serif text-2xl italic">That didn't go through.</h2>
+              <p className="text-sm opacity-50 leading-relaxed">
+                We couldn't analyze that clip. Give it another go, or create a free account for the full AI coach.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <button
+                  onClick={() => resetToIntro(false)}
+                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full border border-border/60 text-xs font-black uppercase tracking-widest opacity-70 hover:opacity-100 transition-all"
+                >
+                  <RotateCcw className="h-4 w-4" /> Try again
+                </button>
+                <Link
+                  to="/login?mode=signup"
+                  onClick={() => track("trial_signup_click", { from: "error" })}
+                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-primary text-white text-xs font-black uppercase tracking-widest shadow-glow"
+                >
+                  Create free account <ArrowRight className="h-4 w-4" />
+                </Link>
+              </div>
             </div>
           )}
 
@@ -422,6 +601,7 @@ export const LiveTrialDrill = ({ open, onClose }: Props) => {
                   <div className="flex flex-col sm:flex-row gap-3">
                     <Link
                       to="/login?mode=signup"
+                      onClick={() => track("trial_signup_click", { from: "results", wpm: metrics.wpm, fillers: metrics.fillers })}
                       className="group flex-1 flex items-center justify-center gap-3 px-6 py-4 rounded-full bg-primary text-white shadow-glow hover:scale-[1.02] active:scale-95 transition-transform"
                     >
                       <span className="text-sm font-black uppercase tracking-wide">Unlock my AI score — free</span>

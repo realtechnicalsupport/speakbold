@@ -52,7 +52,7 @@ export const TOUR: TourStep[] = [
     route: "/pathway",
     target: "#pathway-hero",
     title: "The Pathway",
-    body: "Prefer a guided course? Work through structured lessons, tier by tier, from Beginner to Orator.",
+    body: "Prefer a guided course? Take a quick placement test and we'll start you at the right tier, then climb structured lessons from Beginner to Orator.",
   },
   {
     id: "arena",

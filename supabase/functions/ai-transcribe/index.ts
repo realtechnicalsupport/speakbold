@@ -33,21 +33,34 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
   try {
-    // ── Auth ────────────────────────────────────────────────────────────────────
-    const jwt = (req.headers.get("Authorization") ?? "").replace("Bearer ", "");
-    if (!jwt) return json({ error: "Unauthorized" }, 401);
-
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const serviceKey  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    if (!supabaseUrl || !serviceKey) throw new Error("Supabase env not configured");
-
-    const admin = createClient(supabaseUrl, serviceKey);
-    const { data: userData, error: authErr } = await admin.auth.getUser(jwt);
-    if (authErr || !userData.user) return json({ error: "Invalid token" }, 401);
-
     // ── Request ─────────────────────────────────────────────────────────────────
-    const { audioBase64, mimeType = "audio/webm", attempt = 0 } = await req.json();
+    const { audioBase64, mimeType = "audio/webm", attempt = 0, trial = false } = await req.json();
     if (!audioBase64) return json({ error: "audioBase64 is required" }, 400);
+
+    // ── Auth ────────────────────────────────────────────────────────────────────
+    // Authed users transcribe freely. The anonymous landing-page trial (no
+    // verified user) is allowed too — so a cold visitor, including on mobile
+    // where live Web Speech is unreliable, can feel the magic before signing up
+    // — but ONLY for a tiny clip. The size cap keeps this open path from being
+    // abused to transcribe large/long audio for free. (verify_jwt is disabled
+    // for this function in config.toml so anonymous requests reach here.)
+    const TRIAL_MAX_BASE64 = 1_500_000; // ~1.1MB of audio; a 30s drill is well under
+    if (trial) {
+      if (typeof audioBase64 !== "string" || audioBase64.length > TRIAL_MAX_BASE64) {
+        return json({ error: "Trial clip too large" }, 413);
+      }
+    } else {
+      const jwt = (req.headers.get("Authorization") ?? "").replace("Bearer ", "");
+      if (!jwt) return json({ error: "Unauthorized" }, 401);
+
+      const supabaseUrl = Deno.env.get("SUPABASE_URL");
+      const serviceKey  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+      if (!supabaseUrl || !serviceKey) throw new Error("Supabase env not configured");
+
+      const admin = createClient(supabaseUrl, serviceKey);
+      const { data: userData, error: authErr } = await admin.auth.getUser(jwt);
+      if (authErr || !userData.user) return json({ error: "Invalid token" }, 401);
+    }
 
     const cleanMime = mimeType.split(";")[0] || "audio/webm";
     const bytes = base64ToBytes(audioBase64);

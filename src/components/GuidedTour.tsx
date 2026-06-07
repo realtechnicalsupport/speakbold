@@ -13,7 +13,7 @@ const BW = 300;    // approx bubble width (desktop)
 const BH = 188;    // fallback bubble height before the real one is measured
 
 export const GuidedTour = () => {
-  const { user, onboardingDone, tutorialDone, refreshUserStatus } = useAuth();
+  const { user, refreshUserStatus } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const timerActive = useTimerActive();
@@ -32,14 +32,27 @@ export const GuidedTour = () => {
   const step = TOUR[index];
   const uid = user?.id;
 
-  // ── Visibility: after onboarding, before tutorial_done ────────────────────
+  // ── Opt-in visibility ─────────────────────────────────────────────────────
+  // The tour no longer auto-fires after onboarding. Council verdict
+  // (2026-06-07): three stacked onboarding systems made first-run ~15 screens
+  // before the aha. The tour now starts ONLY on explicit request — dispatch a
+  // `speakbold:start-tour` event (e.g. from a "Show me around" button) or call
+  // window.startTutorial() (the dev command advertised in App.tsx).
   useEffect(() => {
-    if (!uid || !onboardingDone || tutorialDone) { setActive(false); return; }
-    const saved = Number(localStorage.getItem(LS_INDEX(uid)) || 0);
-    setIndex(Number.isFinite(saved) && saved >= 0 && saved < TOUR.length ? saved : 0);
-    const t = setTimeout(() => setActive(true), 900);
-    return () => clearTimeout(t);
-  }, [uid, onboardingDone, tutorialDone]);
+    if (!uid) { setActive(false); return; }
+    const w = window as Window & { startTutorial?: () => void };
+    const start = () => {
+      const saved = Number(localStorage.getItem(LS_INDEX(uid)) || 0);
+      setIndex(Number.isFinite(saved) && saved >= 0 && saved < TOUR.length ? saved : 0);
+      setActive(true);
+    };
+    w.addEventListener("speakbold:start-tour", start);
+    w.startTutorial = start;
+    return () => {
+      w.removeEventListener("speakbold:start-tour", start);
+      if (w.startTutorial === start) delete w.startTutorial;
+    };
+  }, [uid]);
 
   const persist = useCallback((i: number) => {
     if (uid) try { localStorage.setItem(LS_INDEX(uid), String(i)); } catch { /* private mode */ }

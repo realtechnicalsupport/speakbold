@@ -88,6 +88,7 @@ const PROVIDER_TIMEOUT_MS: Record<"patient" | "fast", number> = {
 };
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "";
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "";
 
 /** Result of a bounded fetch: either a real response, a fast network failure
  *  (CORS-blocked / DNS / connection refused / function not deployed), or a
@@ -197,15 +198,26 @@ export async function callAI(
 //
 // _attempt kept in the signature for backwards-compat; forwarded to the
 // edge function so a caller could in theory request a starting index.
-export async function transcribeAudio(blob: Blob, _attempt = 0): Promise<string> {
-  console.log(`[Transcribe] blob=${blob.size}B mime=${blob.type}`);
+export async function transcribeAudio(
+  blob: Blob,
+  _attempt = 0,
+  opts: { trial?: boolean } = {},
+): Promise<string> {
+  console.log(`[Transcribe] blob=${blob.size}B mime=${blob.type}${opts.trial ? " (trial)" : ""}`);
   if (!SUPABASE_URL) {
     throw new Error("[Transcribe] VITE_SUPABASE_URL not configured — cannot reach ai-transcribe edge function");
   }
 
   const { data: { session } } = await supabase.auth.getSession();
   const jwt = session?.access_token;
-  if (!jwt) throw new Error("[Transcribe] Not signed in — sign in to use transcription");
+  // Authed users always transcribe with their JWT. The anonymous landing-page
+  // trial (no session) falls back to the public anon key + a `trial` flag so a
+  // cold visitor — including on mobile, where live Web Speech is unreliable —
+  // can feel the magic before signing up. The edge function gates trial
+  // requests with a strict audio-size cap to limit abuse of the open path.
+  const isTrial = !jwt && !!opts.trial;
+  const bearer = jwt || (isTrial ? SUPABASE_ANON_KEY : "");
+  if (!bearer) throw new Error("[Transcribe] Not signed in — sign in to use transcription");
 
   // Base64 the audio so we can POST it as JSON. Whisper edge function expects
   // { audioBase64, mimeType, attempt }. We send the raw mime so the server can
@@ -229,9 +241,10 @@ export async function transcribeAudio(blob: Blob, _attempt = 0): Promise<string>
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${jwt}`,
+      "apikey": SUPABASE_ANON_KEY,
+      "Authorization": `Bearer ${bearer}`,
     },
-    body: JSON.stringify({ audioBase64: base64, mimeType, attempt: _attempt }),
+    body: JSON.stringify({ audioBase64: base64, mimeType, attempt: _attempt, trial: isTrial }),
   }, 30000);
 
   if (outcome.kind === "timeout") throw new Error("[Transcribe] Edge function timed out (30s)");
@@ -335,7 +348,7 @@ Return ONLY a valid JSON array with this exact structure, no markdown or extra t
   }
 ]
 
-Topics should be thought-provoking and suitable for 60-90 second impromptu speeches. KEEP THE TOPIC SHORT AND PUNCHY (MAX 7 WORDS).`;
+Topics should be thought-provoking and suitable for 60-90 second impromptu speeches. Each must be a complete, instantly-understandable question or phrase in plain English — challenging in idea, never cryptic, vague, or riddle-like in wording. Keep it concise (max 12 words).`;
   const response = await callAI(prompt, 0, 0.8);
   const jsonMatch = response.match(/\[[\s\S]*\]/);
   if (!jsonMatch) throw new Error("Invalid response format from AI");
@@ -369,26 +382,41 @@ export async function generateArenaPrompt(gamemode: string): Promise<string> {
   const randomStyle = styles[Math.floor(Math.random() * styles.length)];
   const seed = Math.random().toString(36).substring(7);
 
-  const systemPrompt = `You are a creative prompt engineer for an elite public speaking app.
-  Gamemode: ${gamemode}
-  Inspiration Theme: ${randomTheme}
-  Tone/Style: ${randomStyle}
-  Random Seed: ${seed}
-  
-  Requirements:
-  - If blitz: A fast-paced choice or "hot take".
-  - If debate: A high-stakes "This House believes..." motion.
-  - If pitch: A product/service that solves a bizarre or hyper-specific problem.
-  - If standard: A profound, paradoxical, or highly unusual question.
+  const systemPrompt = `You are a prompt writer for a competitive public-speaking app. Write ONE speaking prompt.
 
-  CRITICAL: BE UNCONVENTIONAL BUT ACCESSIBLE. 
-  Avoid clichés (no climate change, no AI ethics, no leadership, no failure, no school uniforms). 
-  Avoid boring or hyper-academic topics. Make it something a person could talk about at a dinner party.
-  Make it relatable to a general audience. Use simple but thought-provoking language.
-  
-  Return ONLY the prompt text. No quotes. MAXIMUM 10 WORDS.`;
-  
-  return callAI(systemPrompt, 0, 1.2); // High temperature for maximum variety
+Gamemode: ${gamemode}
+Topic inspiration: ${randomTheme}
+Angle: ${randomStyle}
+Seed: ${seed}
+
+Format by gamemode:
+- blitz:    A punchy "would you rather" or hot-take the speaker can instantly pick a side on.
+- debate:   A "This House believes..." motion on a real, debatable issue.
+- pitch:    Start with "Pitch a product or service that..." solving a specific, relatable problem.
+- standard: A clear, thought-provoking question with real stakes.
+
+DIFFICULTY: Keep it intellectually challenging — it should be hard to argue or answer *well* and reward a sharp thinker. The challenge must come from the IDEA, never from confusing wording.
+
+CLARITY (most important):
+- Write ONE complete, grammatically correct sentence in plain English.
+- A listener must understand exactly what they're being asked within 2 seconds.
+- Be specific and concrete. No riddles, no cryptic metaphors, no abstract word-salad.
+- Avoid clichés (no climate change, AI ethics, leadership, failure, social media addiction, school uniforms).
+- Use the topic inspiration and angle for flavour only — they must never make the sentence confusing.
+
+GOOD examples (clear yet challenging):
+- "This House believes ambition does more harm than good."
+- "Should people be allowed to know the exact date of their death?"
+- "Is it better to be a big fish in a small pond, or a small fish in a big one?"
+- "Pitch a product or service that helps people end conversations politely."
+
+BAD examples (vague/cryptic — never write anything like these):
+- "If your doppelganger lives a better life, who wins?"
+- "If Zeus swapped souls with a barista, who orders the lightning?"
+
+Return ONLY the prompt text. No quotes. Maximum 20 words.`;
+
+  return callAI(systemPrompt, 0, 0.9); // varied but coherent — temp 1.2 produced cryptic word-salad
 }
 
 export async function generateAIArgument(prompt: string, durationSeconds: number, gamemode: string, persona?: any): Promise<string> {

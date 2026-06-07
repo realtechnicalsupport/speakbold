@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path // .tool_response.filePath // empty' | { read -r f; [ -z \"$f\" ] && exit 0; case \"$f\" in *.ts|*.tsx|*.js|*.jsx|*.css|*.html|*.svg) : ;; *) exit 0 ;; esac; root=$(git -C \"$(dirname \"$f\")\" rev-parse --show-toplevel 2>/dev/null) || exit 0; cd \"$root\" && git add \"$f\" && git diff --cached --quiet && exit 0; git commit -m \"auto: update $(basename \"$f\")\" && git push; } 2>/dev/null || true",
+            "timeout": 30,
+            "statusMessage": "Pushing to git..."
+          }
+        ]
+      }
+    ]
+  }
+}

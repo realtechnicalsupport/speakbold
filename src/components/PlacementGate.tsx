@@ -15,7 +15,11 @@ export const PlacementGate = ({
   onSkip: () => void;
 }) => {
   return (
-    <section className="px-4 md:container pt-28 md:pt-44 pb-24 relative z-10">
+    // `id="pathway-hero"` mirrors the placed-user hero so the guided tour can
+    // anchor its "Pathway" step here too — a brand-new user is on this gate
+    // (not the curriculum) when the tour reaches /pathway, and without a target
+    // the coachmark would float lost over the gate.
+    <section id="pathway-hero" className="px-4 md:container pt-28 md:pt-44 pb-24 relative z-10">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
