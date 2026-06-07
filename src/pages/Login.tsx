@@ -147,19 +147,19 @@ const Login = () => {
       </div>
 
       {/* Right panel — form */}
-      <div className="flex-1 flex flex-col items-center justify-center p-8 md:p-20 relative z-10">
-        <motion.div 
+      <div className="flex-1 flex flex-col items-center justify-center px-6 py-8 md:p-20 relative z-10">
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-md space-y-12"
+          className="w-full max-w-md space-y-6 md:space-y-12"
         >
           {/* Header */}
-          <div className="space-y-6">
+          <div className="space-y-3 md:space-y-6">
             <div className="flex items-center gap-4 text-primary text-xs font-bold tracking-[0.4em] uppercase">
               <span className="h-px w-8 bg-primary" />
               {mode === "login" ? "WELCOME BACK" : mode === "signup" ? "FREE ACCOUNT" : "RESET PASSWORD"}
             </div>
-            <h2 className="speak-serif text-4xl md:text-5xl leading-tight">
+            <h2 className="speak-serif text-3xl md:text-5xl leading-tight">
               {mode === "login"
                 ? "Welcome back"
                 : mode === "signup"
@@ -169,16 +169,16 @@ const Login = () => {
           </div>
 
           {/* Form container */}
-          <div className="bg-muted/5 border border-border/60 rounded-[3rem] p-10 shadow-soft relative overflow-hidden group">
+          <div className="bg-muted/5 border border-border/60 rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 shadow-soft relative overflow-hidden group">
              <div className="absolute top-0 right-0 p-8 opacity-5">
                 <ShieldCheck className="h-24 w-24" />
              </div>
-             
-            <form onSubmit={handleSubmit} className="space-y-8 relative z-10">
+
+            <form onSubmit={handleSubmit} className="space-y-5 md:space-y-8 relative z-10">
               {/* Frictionless path first — one tap, no password, no email
                   confirmation round-trip. The email form is the fallback. */}
               {mode !== "forgot" && (
-                <div className="space-y-6">
+                <div className="space-y-4 md:space-y-6">
                   <button
                     type="button"
                     onClick={handleGoogle}
