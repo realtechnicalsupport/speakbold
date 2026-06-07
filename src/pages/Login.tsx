@@ -17,10 +17,10 @@ type AuthMode = "login" | "signup" | "forgot";
 // the same way the rest of the app does, instead of a one-off wordmark.
 const BrandMark = ({ className = "" }: { className?: string }) => (
   <Link to="/" className={`flex items-center gap-2.5 group ${className}`}>
-    <div className="h-9 w-9 lg:h-10 lg:w-10 rounded-full bg-primary flex items-center justify-center shadow-glow transition-transform group-hover:scale-110">
+    <div className="h-9 w-9 xl:h-10 xl:w-10 rounded-full bg-primary flex items-center justify-center shadow-glow transition-transform group-hover:scale-110">
       <Mic className="h-4 w-4 text-white" />
     </div>
-    <span className="speak-serif text-2xl lg:text-3xl font-bold tracking-tighter">
+    <span className="speak-serif text-2xl xl:text-3xl font-bold tracking-tighter">
       Speak<span className="text-primary italic">Bold</span>
     </span>
   </Link>
@@ -113,13 +113,17 @@ const Login = () => {
   };
 
   return (
-    <main className="min-h-dvh bg-background flex flex-col lg:flex-row relative overflow-hidden bg-waves">
+    <main className="min-h-dvh bg-background flex flex-col xl:flex-row relative overflow-hidden bg-waves">
       {/* Passive Background Glows */}
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/5 rounded-full blur-[120px] animate-float opacity-50 pointer-events-none" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[30%] h-[30%] bg-primary/3 rounded-full blur-[100px] animate-float opacity-30 pointer-events-none" style={{ animationDelay: '-5s' }} />
 
-      {/* Left panel — decorative */}
-      <div className="hidden lg:flex lg:w-5/12 relative flex-col justify-between p-20 border-r border-border/60">
+      {/* Left panel — decorative. Only shown at xl+ (true desktop/laptop, which
+          has the vertical room for the airy two-column layout). Tablets — even
+          in landscape at 1024px, where the viewport is only ~768px TALL — stay
+          on the single-column compact layout below so the form never overflows
+          the height and forces a scroll to reach the submit button. */}
+      <div className="hidden xl:flex xl:w-5/12 relative flex-col justify-between p-12 2xl:p-20 border-r border-border/60">
         <BrandMark />
 
         <div className="space-y-12">
@@ -158,23 +162,23 @@ const Login = () => {
       </div>
 
       {/* Right panel — form */}
-      <div className="flex-1 flex flex-col items-center justify-center px-6 py-6 md:p-20 relative z-10">
+      <div className="flex-1 flex flex-col items-center justify-center px-6 py-6 xl:px-16 xl:py-12 relative z-10">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-md space-y-5 md:space-y-12"
+          className="w-full max-w-md space-y-5 xl:space-y-8"
         >
           {/* Compact brand lockup for the single-column mobile/tablet layout,
               where the decorative left panel (and its logo) is hidden. */}
-          <BrandMark className="lg:hidden justify-center" />
+          <BrandMark className="xl:hidden justify-center" />
 
           {/* Header */}
-          <div className="space-y-3 md:space-y-6">
+          <div className="space-y-3 xl:space-y-5">
             <div className="flex items-center gap-4 text-primary text-xs font-bold tracking-[0.4em] uppercase">
               <span className="h-px w-8 bg-primary" />
               {mode === "login" ? "WELCOME BACK" : mode === "signup" ? "FREE ACCOUNT" : "RESET PASSWORD"}
             </div>
-            <h2 className="speak-serif text-3xl md:text-5xl leading-tight">
+            <h2 className="speak-serif text-3xl xl:text-4xl leading-tight">
               {mode === "login"
                 ? "Welcome back"
                 : mode === "signup"
@@ -184,21 +188,21 @@ const Login = () => {
           </div>
 
           {/* Form container */}
-          <div className="bg-muted/5 border border-border/60 rounded-[2rem] md:rounded-[3rem] p-5 md:p-10 shadow-soft relative overflow-hidden group">
+          <div className="bg-muted/5 border border-border/60 rounded-[2rem] xl:rounded-[2.5rem] p-5 xl:p-8 shadow-soft relative overflow-hidden group">
              <div className="absolute top-0 right-0 p-8 opacity-5">
                 <ShieldCheck className="h-24 w-24" />
              </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4 md:space-y-8 relative z-10">
+            <form onSubmit={handleSubmit} className="space-y-4 xl:space-y-6 relative z-10">
               {/* Frictionless path first — one tap, no password, no email
                   confirmation round-trip. The email form is the fallback. */}
               {mode !== "forgot" && (
-                <div className="space-y-4 md:space-y-6">
+                <div className="space-y-4 xl:space-y-5">
                   <button
                     type="button"
                     onClick={handleGoogle}
                     disabled={loading}
-                    className="w-full h-12 md:h-14 rounded-2xl border border-border bg-background/60 flex items-center justify-center gap-3 hover:bg-muted/20 hover:border-primary/40 transition-all font-semibold"
+                    className="w-full h-12 xl:h-14 rounded-2xl border border-border bg-background/60 flex items-center justify-center gap-3 hover:bg-muted/20 hover:border-primary/40 transition-all font-semibold"
                   >
                     <svg width="20" height="20" viewBox="0 0 18 18" aria-hidden="true">
                       <path d="M17.64 9.205c0-.639-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4" />
@@ -235,7 +239,7 @@ const Login = () => {
                       placeholder="Your name"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      className="bg-background/50 border-border/60 h-12 md:h-14 rounded-2xl px-6 font-medium focus:border-primary/50 transition-colors"
+                      className="bg-background/50 border-border/60 h-12 xl:h-14 rounded-2xl px-6 font-medium focus:border-primary/50 transition-colors"
                     />
                   </motion.div>
                 )}
@@ -253,7 +257,7 @@ const Login = () => {
                     placeholder="you@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="bg-background/50 border-border/60 h-12 md:h-14 rounded-2xl pl-12 pr-6 font-medium focus:border-primary/50 transition-colors"
+                    className="bg-background/50 border-border/60 h-12 xl:h-14 rounded-2xl pl-12 pr-6 font-medium focus:border-primary/50 transition-colors"
                   />
                 </div>
               </div>
@@ -283,7 +287,7 @@ const Login = () => {
                       placeholder="Minimum 8 characters"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="bg-background/50 border-border/60 h-12 md:h-14 rounded-2xl pl-12 pr-14 font-medium focus:border-primary/50 transition-colors"
+                      className="bg-background/50 border-border/60 h-12 xl:h-14 rounded-2xl pl-12 pr-14 font-medium focus:border-primary/50 transition-colors"
                     />
                     <button
                       type="button"
@@ -299,7 +303,7 @@ const Login = () => {
               <button
                 type="submit"
                 disabled={loading}
-                className="btn-tactile btn-tactile-primary w-full py-4 md:py-5 rounded-full flex items-center justify-center gap-4 group disabled:opacity-70"
+                className="btn-tactile btn-tactile-primary w-full py-4 xl:py-5 rounded-full flex items-center justify-center gap-4 group disabled:opacity-70"
               >
                 {loading ? (
                   <span className="text-xs font-black uppercase tracking-[0.3em] animate-pulse">PROCESSING...</span>
