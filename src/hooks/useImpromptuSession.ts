@@ -4,7 +4,7 @@ import { useRecordings, useSyncedStreak } from "@/hooks/useRecordings";
 import { useLocalStorageState } from "@/hooks/useLocalStorageState";
 import { setTimerActive } from "@/lib/timerState";
 import { setRecordingActive } from "@/lib/recordingState";
-import { isMobileDevice } from "@/lib/isMobileDevice";
+import { speechRecognitionSupported } from "@/lib/speechRecognition";
 import { coachImpromptu, transcribeAudio, type ImpromptuCoachReport } from "@/services/geminiService";
 import { logSkillEvent } from "@/lib/skillEvents";
 import { impromptuToDims } from "@/lib/skillScoring";
@@ -181,7 +181,7 @@ export function useImpromptuSession() {
   const wpm = phase === "speaking" && elapsedSecs > 3
     ? Math.round((totalWords / elapsedSecs) * 60)
     : 0;
-  const speechSupported = !!getSpeechRecognition();
+  const speechSupported = speechRecognitionSupported();
 
   // ── Transition to REVIEW ────────────────────────────────────────────────────
   const transitionToReview = useCallback(async () => {
@@ -267,10 +267,10 @@ export function useImpromptuSession() {
           setSpeakSecondsLeft(durationRef.current);
           speakSecondsLeftRef.current = durationRef.current;
           setPhase("speaking");
-          // Mobile devices need the recorder to run regardless of the toggle:
-          // we can't do live Web Speech reliably there, so the recorded blob
-          // is the only path to a transcript via server-side fallback.
-          if (recordEnabledRef.current || isMobileDevice()) {
+          // Where live Web Speech won't work (phones/tablets, Brave), the
+          // recorder must run regardless of the toggle — the recorded blob is
+          // the only path to a transcript via the server-side fallback.
+          if (recordEnabledRef.current || !speechRecognitionSupported()) {
             recorderStartRef.current?.();
             wasRecordingRef.current = true;
           }
@@ -324,13 +324,13 @@ export function useImpromptuSession() {
   // ── Speech recognition ──────────────────────────────────────────────────────
   useEffect(() => {
     if (phase !== "speaking" || isPaused) return;
-    // Skip live Web Speech on phones/tablets. The mobile engine ignores
-    // `continuous = true` and auto-stops every few seconds; the restart loop
-    // re-opens getUserMedia, causing the mic indicator to blink on/off and
-    // conflicting with the MediaRecorder's own stream. We transcribe the
-    // recorded audio server-side after the turn ends instead (handled in
+    // Skip live Web Speech wherever it won't actually work — phones/tablets
+    // (the engine ignores `continuous`, auto-stops, and the restart loop fights
+    // the MediaRecorder mic) AND Brave (ships the constructor but blocks the
+    // backend, so it silently yields nothing). In all those cases we transcribe
+    // the recorded audio server-side after the turn ends instead (handled in
     // onRecordingComplete via the awaitingRecordingTranscriptRef path).
-    if (isMobileDevice()) {
+    if (!speechRecognitionSupported()) {
       awaitingRecordingTranscriptRef.current = true;
       return;
     }
@@ -490,7 +490,7 @@ export function useImpromptuSession() {
     setSpeakSecondsLeft(durationRef.current);
     speakSecondsLeftRef.current = durationRef.current;
     setPhase("speaking");
-    if (recordEnabledRef.current || isMobileDevice()) {
+    if (recordEnabledRef.current || !speechRecognitionSupported()) {
       recorderStartRef.current?.();
       wasRecordingRef.current = true;
     }
@@ -537,7 +537,7 @@ export function useImpromptuSession() {
     setDurationState(drillDur);
 
     setPhase("speaking");
-    if (recordEnabledRef.current || isMobileDevice()) {
+    if (recordEnabledRef.current || !speechRecognitionSupported()) {
       recorderStartRef.current?.();
       wasRecordingRef.current = true;
     }

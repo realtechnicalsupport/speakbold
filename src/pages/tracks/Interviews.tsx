@@ -278,13 +278,28 @@ const Interviews = () => {
     setStep(1);
   }, [duration]);
 
+  // End the answer before the clock runs out. Mirrors a natural timer expiry:
+  // stop running (NOT pause) so the recorder-stop effect flushes the clip →
+  // onRecorded uploads it → the feedback modal opens, mark the question done,
+  // and zero the clock so the UI reads "complete" instead of "resumable".
+  const endEarly = useCallback(() => {
+    setRunning(false);
+    setPausedAt(null);
+    hasStartedRef.current = false;
+    setCompletedQuestions(prev => new Set([...prev, current.id]));
+    if (recordEnabled) refreshRecordings();
+    setSeconds(0);
+  }, [current, recordEnabled, refreshRecordings]);
+
   return (
     <TrackShell
       eyebrow="INTERVIEWS"
       title={<>Master the <span className="text-primary italic">High-Stakes</span> Q&A.</>}
       intro="Practice answering real interview questions out loud, using the STAR method, with the clock running."
       hideHeader={phase === "active"}
-      compact={phase === "setup"}
+      // Compact during the active drill too, so the timer + controls (incl. the
+      // new "End early" button) sit near the top instead of below the full hero.
+      compact={phase === "setup" || phase === "active"}
     >
       {/* Background Decorative Drifting Glow */}
       <div className="absolute top-[20%] right-[5%] w-[300px] h-[300px] md:w-[500px] md:h-[500px] bg-primary/5 rounded-full blur-[140px] animate-float opacity-30 pointer-events-none" />
@@ -609,6 +624,22 @@ const Interviews = () => {
                   <span className="text-sm font-black uppercase tracking-[0.2em]">Pause</span>
                 </button>
               )}
+
+              {/* End early — finish the answer before the clock runs out and go
+                  straight to feedback. Shown once the drill has started and
+                  there's still time on the clock. */}
+              {(running || pausedAt) && seconds > 0 && (
+                <button
+                  onClick={endEarly}
+                  className="button-pill w-full py-4 bg-foreground/5 border border-border text-foreground/80 flex items-center justify-center gap-3 hover:bg-foreground/10 hover:text-foreground transition-all"
+                >
+                  <Check className="h-5 w-5" />
+                  <span className="text-sm font-black uppercase tracking-[0.2em]">
+                    {recordEnabled ? "End early & get feedback" : "End early"}
+                  </span>
+                </button>
+              )}
+
               <button
                 onClick={() => { recorderStopRef.current?.(); live.reset(); setSeconds(duration); setRunning(false); setPausedAt(null); wasRunningRef.current = false; hasStartedRef.current = false; }}
                 className="flex items-center justify-center gap-2 text-xs font-black uppercase tracking-[0.4em] opacity-30 hover:opacity-100 transition-opacity"

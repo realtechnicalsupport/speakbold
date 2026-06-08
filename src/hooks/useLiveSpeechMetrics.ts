@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { isMobileDevice } from "@/lib/isMobileDevice";
+import { speechRecognitionSupported } from "@/lib/speechRecognition";
 
 /**
  * Reusable live-speech engine — the same browser Web Speech path that powers the
@@ -71,7 +71,7 @@ export function useLiveSpeechMetrics(active: boolean, elapsedSeconds: number): L
   const [fillerCount, setFillerCount] = useState(0);
   const transcriptRef = useRef("");
 
-  const speechSupported = !isMobileDevice() && !!getSpeechRecognition();
+  const speechSupported = speechRecognitionSupported();
 
   const reset = useCallback(() => {
     transcriptRef.current = "";

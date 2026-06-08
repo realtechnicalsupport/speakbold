@@ -368,7 +368,10 @@ const PublicSpeaking = () => {
       }
       intro="Short, focused drills on hooks, structure, pauses, and pace. Each one is timed — record yourself, review, and improve."
       hideHeader={phase === "active"}
-      compact={phase === "setup"}
+      // Keep the header compact during the active drill too — otherwise the full
+      // 9rem hero title + intro sit above the timer and the user has to scroll
+      // past them to reach the clock and start/pause/reset controls.
+      compact={phase === "setup" || phase === "active"}
     >
       {/* Background Decorative Drifting Glow */}
       <div className="absolute top-[20%] right-[10%] w-[250px] h-[250px] md:w-[400px] md:h-[400px] bg-primary/5 rounded-full blur-[120px] animate-float opacity-30 pointer-events-none" />

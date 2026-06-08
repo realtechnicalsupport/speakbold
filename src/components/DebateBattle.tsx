@@ -8,7 +8,7 @@ import { toast } from "@/hooks/use-toast";
 import { judgeDebate, generateAIArgument, speakWithDeepgramTTS, onAIStatus, transcribeAudio } from "@/services/geminiService";
 import { setRecordingActive, getActiveStream } from "@/lib/recordingState";
 import { setTimerActive } from "@/lib/timerState";
-import { isMobileDevice } from "@/lib/isMobileDevice";
+import { speechRecognitionSupported } from "@/lib/speechRecognition";
 import { MicrophoneBorder } from "@/components/MicrophoneBorder";
 import { RecorderPanel } from "@/components/RecorderPanel";
 import { SpamButton } from "@/components/SpamButton";
@@ -244,7 +244,10 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
   // mobile so the live-transcript UI shows the "Recording" fallback, and the
   // user's words get transcribed server-side from the recorded blob after
   // each turn (see onRecorded handler).
-  const speechSupported = !!getSpeechRecognition() && !isMobileDevice();
+  // Honest capability check: constructor present AND not a phone/tablet AND not
+  // Brave (which ships the constructor but blocks the backend, so it lies). When
+  // false, every turn's transcript comes from server-side blob transcription.
+  const speechSupported = speechRecognitionSupported();
 
   // ── AI streaming state ────────────────────────────────────────────────────
   const [aiStream, setAiStream] = useState("");
@@ -1752,41 +1755,39 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
             onRecorded={async (rec) => {
               setLastRecording(rec);
 
-              // Server-side transcript fallback. Gated on the actual CAPABILITY/
-              // outcome, NOT the device: transcribe the recorded blob whenever
-              // the live Web Speech path didn't give us usable words. This covers
-              //  • browsers with no Web Speech API at all — Firefox, Brave, most
-              //    in-app/embedded webviews — plus every phone & tablet, and
-              //  • browsers where it's "supported" but produced nothing (mic
-              //    contention with the recorder, recognition errors, flaky net).
-              // Previously this was gated on isMobileDevice(), so a no-Web-Speech
-              // DESKTOP browser transcribed via NEITHER path and the match voided
-              // with an empty transcript ("transcription doesn't work at all").
-              // captureUserTurnTranscript() ran synchronously at turn-end, so the
-              // Web Speech result (if any) is already in transcriptsRef here.
+              // AUTHORITATIVE TRANSCRIPT = a complete server-side transcription
+              // of the WHOLE recording, start to finish. We always run it, on
+              // every browser. Live Web Speech captions are a preview ONLY: they
+              // routinely drop words (the engine auto-stops/restarts mid-turn),
+              // so they're never "start to finish" and must not be what gets
+              // scored or shown at the round's end. The full-blob transcript
+              // overwrites the live text once it lands. If the server call fails
+              // we keep whatever the live path captured as a graceful fallback —
+              // an incomplete transcript beats none. captureUserTurnTranscript()
+              // already stored that live text synchronously at turn-end.
               const recordedPhase = recordingPhaseRef.current;
               recordingPhaseRef.current = null;
               const key =
                 recordedPhase === "opening-user" ? "userOpening" :
                 recordedPhase === "rebuttal-user" ? "userRebuttal" : null;
               if (key) {
-                const fromSpeech = (transcriptsRef.current[key] || "").trim();
-                if (!speechSupported || fromSpeech.length < 15) {
+                {
                   const p = (async () => {
                     try {
                       const text = (await transcribeAudio(rec.blob)).trim();
                       if (text) {
                         setTranscripts(prev => ({ ...prev, [key]: text }));
-                        // PvP: the live turn-end we already sent carried empty/
-                        // rough text. Now that the server transcript is ready,
-                        // re-broadcast so the host re-stores the real words before
-                        // judging (its runJudging waits a settle window for this).
+                        // PvP: the instant turn-end we broadcast at turn change
+                        // carried the live (possibly partial) text for lockstep.
+                        // Now the complete transcript is ready — re-broadcast it
+                        // so the host scores the full text (runJudging waits a
+                        // settle window for exactly this correction).
                         if (isPeer && peer) {
                           peer.sendDebateTurnEnd(peer.duelId, key === "userOpening" ? "opening" : "rebuttal", text);
                         }
                       }
                     } catch (err) {
-                      console.warn("[Debate] Server transcription fallback failed:", err);
+                      console.warn("[Debate] Final server transcription failed; keeping live-caption text:", err);
                     }
                   })();
                   pendingTranscriptionsRef.current.push(p);

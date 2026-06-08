@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mic, X, Lock, ArrowRight, RotateCcw, Gauge, Hash, AudioWaveform, AlertTriangle, Loader2 } from "lucide-react";
 import { getRandomTopic, TARGET_WPM, type ImpromptuTopic } from "@/data/impromptuTopics";
-import { isMobileDevice } from "@/lib/isMobileDevice";
+import { speechRecognitionSupported } from "@/lib/speechRecognition";
 import { track } from "@/lib/analytics";
 import { transcribeAudio } from "@/services/geminiService";
 
@@ -125,7 +125,7 @@ export const LiveTrialDrill = ({ open, onClose }: Props) => {
   //    record the clip and transcribe it server-side (anonymous "trial" call),
   //    then compute the SAME metrics. This unblocks the all-important "judge
   //    tries it on their phone" moment instead of dead-ending at a signup wall.
-  const liveSupported = getSpeechRecognition() != null && !isMobileDevice();
+  const liveSupported = speechRecognitionSupported();
   const recordSupported = !liveSupported && hasMediaRecorder();
   const supported = liveSupported || recordSupported;
 
