@@ -55,7 +55,7 @@ const BodyLanguagePanel = ({ onBack }: { onBack: () => void }) => (
   >
     <button
       onClick={onBack}
-      className="inline-flex items-center gap-3 text-xs font-black uppercase tracking-[0.3em] text-primary opacity-40 hover:opacity-100 transition-all"
+      className="inline-flex items-center gap-2 h-11 px-5 rounded-full border border-border/60 bg-muted/10 text-xs font-black uppercase tracking-[0.25em] text-foreground/70 hover:text-primary hover:border-primary/40 hover:bg-primary/5 transition-all"
     >
       <ArrowLeft className="h-4 w-4" />
       BACK TO THE LAB

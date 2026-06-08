@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Sparkles, RefreshCw, Loader2, Mic, ArrowRight, Compass,
-  TrendingUp, TrendingDown, Minus, Video, Zap, PartyPopper, Plus,
+  TrendingUp, TrendingDown, Minus, Video, Zap, PartyPopper,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useSkillProfile } from "@/hooks/useSkillProfile";
@@ -245,56 +245,62 @@ export const CoachHub = () => {
               )}
             </div>
 
-            {/* ── RIGHT: Today's session ── */}
+            {/* ── RIGHT: One targeted drill ──
+                Deliberately a SINGLE drill, not the full plan. The four track
+                practices (Body Language + the 3-track row) are the main ways to
+                practise; the coach offers one focused, weakness-targeted rep so
+                it complements rather than competes with them. */}
             <div id="tour-today-session" className="space-y-4">
               <div className="flex items-center justify-between">
-                <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Today's session</p>
-                {plan && <span className="text-[10px] font-bold uppercase tracking-widest opacity-30">{plan.drills.length} drills</span>}
+                <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Your targeted drill</p>
+                {plan && plan.drills[0] && (
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-primary/60">
+                    {plan.drills[0].targetLabel}
+                  </span>
+                )}
               </div>
 
-              {plan ? (
+              {plan && plan.drills[0] ? (
                 <div className="space-y-3">
-                  {plan.drills.map((drill, i) => (
-                    <motion.div
-                      key={i}
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: i * 0.06 }}
-                    >
-                      <button
-                        onClick={() => openDrill(drill)}
-                        className="group w-full text-left flex items-start gap-4 p-4 md:p-5 rounded-2xl border border-border/60 bg-background/40 hover:border-primary/40 hover:bg-primary/[0.03] transition-all"
+                  {(() => {
+                    const drill = plan.drills[0];
+                    return (
+                      <motion.div
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
                       >
-                        <div className="h-10 w-10 shrink-0 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                          {drill.targetDimension === "delivery" ? <Video className="h-4 w-4 text-primary" /> : <Mic className="h-4 w-4 text-primary" />}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap mb-1">
-                            <h3 className="text-sm font-bold tracking-tight">{drill.title}</h3>
-                            <span className="text-[9px] font-black uppercase tracking-[0.15em] px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-                              {drill.targetLabel}
-                            </span>
-                            <span className="text-[10px] font-medium opacity-40 tabular-nums">{drill.durationSeconds}s</span>
+                        <button
+                          onClick={() => openDrill(drill)}
+                          className="group w-full text-left flex items-start gap-4 p-5 md:p-6 rounded-2xl border border-primary/30 bg-primary/[0.04] hover:border-primary/50 hover:bg-primary/[0.07] transition-all"
+                        >
+                          <div className="h-10 w-10 shrink-0 rounded-xl bg-primary/15 flex items-center justify-center group-hover:bg-primary/25 transition-colors">
+                            {drill.targetDimension === "delivery" ? <Video className="h-4 w-4 text-primary" /> : <Mic className="h-4 w-4 text-primary" />}
                           </div>
-                          <p className="text-xs opacity-60 leading-relaxed line-clamp-2">{drill.prompt}</p>
-                          {drill.rationale && (
-                            <p className="text-[11px] text-primary/60 mt-1 italic">{drill.rationale}</p>
-                          )}
-                        </div>
-                        <ArrowRight className="h-4 w-4 opacity-20 group-hover:opacity-100 group-hover:translate-x-1 transition-all shrink-0 mt-1" />
-                      </button>
-                    </motion.div>
-                  ))}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap mb-1">
+                              <h3 className="text-sm md:text-base font-bold tracking-tight">{drill.title}</h3>
+                              <span className="text-[10px] font-medium opacity-40 tabular-nums">{drill.durationSeconds}s</span>
+                            </div>
+                            <p className="text-xs md:text-sm opacity-60 leading-relaxed line-clamp-2">{drill.prompt}</p>
+                            {drill.rationale && (
+                              <p className="text-[11px] text-primary/60 mt-1 italic">{drill.rationale}</p>
+                            )}
+                          </div>
+                          <ArrowRight className="h-4 w-4 opacity-20 group-hover:opacity-100 group-hover:translate-x-1 transition-all shrink-0 mt-1" />
+                        </button>
+                      </motion.div>
+                    );
+                  })()}
 
-                  {/* On-demand: AI generates a fresh drill for the weakest skill. */}
+                  {/* On-demand: AI swaps in a fresh drill for the weakest skill. */}
                   <button
                     onClick={newDrill}
                     disabled={generatingDrill}
                     className="group w-full flex items-center justify-center gap-2 p-3.5 rounded-2xl border border-dashed border-primary/30 text-primary hover:bg-primary/[0.04] hover:border-primary/50 transition-all disabled:opacity-50"
                   >
-                    {generatingDrill ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                    {generatingDrill ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                     <span className="text-xs font-black uppercase tracking-widest">
-                      {generatingDrill ? "Generating…" : "New targeted drill"}
+                      {generatingDrill ? "Generating…" : "Swap drill"}
                     </span>
                   </button>
                 </div>

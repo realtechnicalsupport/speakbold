@@ -7,11 +7,11 @@ import { useInView as useFramerInView } from "framer-motion";
 const GOALS = [
   {
     icon: Briefcase,
-    title: "Interview Mastery",
-    label: "PROFESSIONAL DEPLOYMENT",
+    title: "Interview Practice",
+    label: "FOR YOUR CAREER",
     desc: "STAR stories, salary negotiation, and an answer to 'tell me about yourself' that doesn't ramble.",
     href: "/tracks/interviews",
-    cta: "ACCESS TRACK",
+    cta: "START",
     color: "from-blue-500/10 to-primary/5",
   },
   {
@@ -20,25 +20,25 @@ const GOALS = [
     label: "STAGE PRESENCE",
     desc: "A warm hook, a story with a turning point, and a toast that lands without notes.",
     href: "/tracks/public-speaking",
-    cta: "ACCESS TRACK",
+    cta: "START",
     color: "from-amber-500/10 to-primary/5",
   },
   {
     icon: MessageSquareOff,
-    title: "Vocal Authority",
-    label: "FLUENCY PROTOCOL",
+    title: "Voice & Body Language",
+    label: "HOW YOU COME ACROSS",
     desc: "Pause drills, filler-word awareness, and the breath pattern that steadies a shaky voice.",
     href: "/tracks/body-language",
-    cta: "ACCESS TRACK",
+    cta: "START",
     color: "from-emerald-500/10 to-primary/5",
   },
   {
     icon: Users,
-    title: "Impromptu Logic",
-    label: "RAPID RESPONSE",
+    title: "Thinking On Your Feet",
+    label: "QUICK THINKING",
     desc: "Frameworks like PREP and What-So What-Now What so you're never caught flat-footed.",
     href: "/tracks/impromptu",
-    cta: "ACCESS TRACK",
+    cta: "START",
     color: "from-purple-500/10 to-primary/5",
   },
 ];
@@ -77,7 +77,7 @@ export const PickYourGoal = () => {
       >
         <motion.div variants={itemVariants} className="flex items-center justify-center gap-4 text-xs font-bold uppercase tracking-[0.5em] mb-12 opacity-40">
           <span className="h-px w-12 bg-foreground/20" />
-          SELECT SPECIALIZATION
+          PICK YOUR GOAL
           <span className="h-px w-12 bg-foreground/20" />
         </motion.div>
         <motion.h2 variants={itemVariants} className="speak-serif text-3xl md:text-9xl leading-[0.85] text-foreground mb-12 tracking-tighter">
@@ -85,7 +85,7 @@ export const PickYourGoal = () => {
           you need to own.
         </motion.h2>
         <motion.p variants={itemVariants} className="text-lg md:text-2xl font-medium tracking-tight max-w-2xl mx-auto opacity-60 leading-relaxed">
-          The room listens to who you are, not just what you say. Choose your training vector and begin your ascent.
+          The room listens to who you are, not just what you say. Pick where you want to grow, and start today.
         </motion.p>
       </motion.div>
 
@@ -142,7 +142,7 @@ export const PickYourGoal = () => {
       </motion.div>
 
       <div className="mt-40 text-center py-20 text-xs font-bold uppercase tracking-[0.5em] opacity-10">
-        CORE TRAINING VECTORS • SYSTEM VERSION 2.4
+        FOUR WAYS TO GROW
       </div>
     </section>
   );

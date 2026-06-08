@@ -12,8 +12,7 @@ import {
   Trophy,
   Clock,
   Zap,
-  Sparkles,
-  RefreshCw,
+  Shuffle,
   ArrowRight,
   ArrowLeft,
 } from "lucide-react";
@@ -23,8 +22,6 @@ import { useRecordings, useSyncedStreak } from "@/hooks/useRecordings";
 import { RecordingFeedbackModal } from "@/components/RecordingFeedback";
 import { LiveSpeechHUD } from "@/components/LiveSpeechHUD";
 import { useLiveSpeechMetrics } from "@/hooks/useLiveSpeechMetrics";
-import { toast } from "@/hooks/use-toast";
-import { generateSpeakingDrills } from "@/services/geminiService";
 import { setTimerActive, setTimerSeconds } from "@/lib/timerState";
 import { setRecordingActive } from "@/lib/recordingState";
 import { motion, AnimatePresence } from "framer-motion";
@@ -32,10 +29,10 @@ import { motion, AnimatePresence } from "framer-motion";
 type Context = "small" | "large" | "stage" | "virtual";
 
 const CONTEXTS: { id: Context; label: string; desc: string }[] = [
-  { id: "small", label: "INTIMATE", desc: "Small meeting" },
-  { id: "large", label: "STRATEGIC", desc: "Boardroom / Conference" },
-  { id: "stage", label: "COMMAND", desc: "Large audience event" },
-  { id: "virtual", label: "DIGITAL", desc: "Virtual / Screen" },
+  { id: "small", label: "SMALL GROUP", desc: "Meeting or team" },
+  { id: "large", label: "BOARDROOM", desc: "Conference room" },
+  { id: "stage", label: "BIG STAGE", desc: "Large audience" },
+  { id: "virtual", label: "VIRTUAL", desc: "Video call / screen" },
 ];
 
 interface Drill {
@@ -174,7 +171,7 @@ const DEFAULT_DRILLS: Drill[] = [
   },
   {
     id: "energy",
-    title: "Energy Calibration",
+    title: "Energy Levels",
     duration: 60,
     objective: "Learn to adjust your energy level to match your context and audience size.",
     instructions: [
@@ -199,11 +196,10 @@ const DEFAULT_DRILLS: Drill[] = [
   },
 ];
 
-const AI_FOCUSES = ["Vocal Variety", "Body Language", "Structure", "Storytelling"];
 const STEP_LABELS = ["Drill", "Setup", "Ready"] as const;
 
 const PublicSpeaking = () => {
-  const [drills, setDrills] = useState<Drill[]>(DEFAULT_DRILLS);
+  const drills = DEFAULT_DRILLS;
   const [activeDrill, setActiveDrill] = useState(0);
   const [context, setContext] = useState<Context>("large");
   const [completedDrills, setCompletedDrills] = useState<Set<string>>(() => {
@@ -218,10 +214,6 @@ const PublicSpeaking = () => {
   // timer all at once.
   const [phase, setPhase] = useState<"setup" | "active">("setup");
   const [step, setStep] = useState<1 | 2 | 3>(1);
-
-  // AI generation state
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [aiFocus, setAiFocus] = useState("Vocal Variety");
 
   // Timer state
   const [duration, setDuration] = useState(DEFAULT_DRILLS[0].duration);
@@ -251,45 +243,10 @@ const PublicSpeaking = () => {
 
   const current = drills[activeDrill >= 0 ? activeDrill : 0];
 
-  // AI Drill Generation
-  const generateAIDrills = async () => {
-    setIsGenerating(true);
-    try {
-      const newDrills = await generateSpeakingDrills(aiFocus, 2);
-      const formattedDrills: Drill[] = newDrills.map((d, idx) => ({
-        id: `ai-drill-${Date.now()}-${idx}`,
-        title: d.title,
-        duration: d.duration,
-        objective: d.objective,
-        instructions: d.steps,
-        prompt: d.prompt,
-        selfReviewQuestions: d.selfReviewQuestions,
-        contexts: {
-          small: "Adapt this drill for an intimate setting with direct eye contact.",
-          large: "Project your voice and use larger gestures for a conference room.",
-          stage: "Full commitment - your energy must reach the back row.",
-          virtual: "Stay close to camera, slightly elevated energy.",
-        },
-        isAI: true,
-      }));
-
-      setDrills(prev => [...prev, ...formattedDrills]);
-      // Jump selection to the first freshly generated drill.
-      setActiveDrill(drills.length);
-      toast({
-        title: "Protocol Synthesized",
-        description: `Added ${formattedDrills.length} new AI-generated drills.`,
-      });
-    } catch (error) {
-      toast({
-        title: "Synthesis failed",
-        description: "Could not generate drills. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsGenerating(false);
-    }
-  };
+  // Rotate to the next built-in drill — no AI, just cycle the curated set.
+  const cycleDrill = useCallback(() => {
+    setActiveDrill((i) => (i + 1) % drills.length);
+  }, [drills.length]);
 
   // Save completed drills
   useEffect(() => {
@@ -402,13 +359,13 @@ const PublicSpeaking = () => {
 
   return (
     <TrackShell
-      eyebrow="MODULE 01 — PERFORMANCE"
+      eyebrow="PUBLIC SPEAKING"
       title={
         <>
           Train the skills that make talks <span className="text-primary italic">land.</span>
         </>
       }
-      intro="Focused drills on hooks, structure, pause, and pace. Each session is a timed operational drill. Record, audit, and evolve your presence."
+      intro="Short, focused drills on hooks, structure, pauses, and pace. Each one is timed — record yourself, review, and improve."
       hideHeader={phase === "active"}
       compact={phase === "setup"}
     >
@@ -493,11 +450,6 @@ const PublicSpeaking = () => {
                               <Clock className="h-3 w-3" />
                               {drill.duration}s
                             </span>
-                            {drill.isAI && (
-                              <span className="text-[9px] font-black uppercase tracking-widest text-primary bg-primary/10 px-2 py-0.5 rounded-full flex items-center gap-1">
-                                <Sparkles className="h-2 w-2" /> AI
-                              </span>
-                            )}
                           </div>
                         </div>
                         <div className={cn(
@@ -511,34 +463,14 @@ const PublicSpeaking = () => {
                   })}
                 </div>
 
-                {/* Compact AI generator */}
-                <div className="rounded-2xl border border-primary/20 bg-primary/[0.03] p-4 md:p-5 space-y-4">
-                  <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.3em] text-primary">
-                    <Sparkles className="h-3.5 w-3.5" />
-                    Generate a custom drill
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {AI_FOCUSES.map(f => (
-                      <button
-                        key={f}
-                        onClick={() => setAiFocus(f)}
-                        className={cn(
-                          "px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border transition-all",
-                          aiFocus === f ? "bg-primary text-white border-primary" : "border-border/60 opacity-50 hover:opacity-100"
-                        )}
-                      >
-                        {f}
-                      </button>
-                    ))}
-                  </div>
-                  <button
-                    onClick={generateAIDrills}
-                    disabled={isGenerating}
-                    className="w-full py-3 rounded-xl border border-primary/30 text-primary text-xs font-black uppercase tracking-[0.2em] flex items-center justify-center gap-2 hover:bg-primary/5 transition-all disabled:opacity-50"
-                  >
-                    {isGenerating ? <><RefreshCw className="h-4 w-4 animate-spin" /> Synthesizing…</> : <>Generate <ArrowRight className="h-4 w-4" /></>}
-                  </button>
-                </div>
+                {/* Cycle to a different prompt — no AI, just rotate the curated drills. */}
+                <button
+                  onClick={cycleDrill}
+                  className="w-full py-3.5 rounded-2xl border border-dashed border-primary/30 text-primary text-xs font-black uppercase tracking-[0.2em] flex items-center justify-center gap-2 hover:bg-primary/5 hover:border-primary/50 transition-all"
+                >
+                  <Shuffle className="h-4 w-4" />
+                  Next prompt
+                </button>
               </motion.div>
             )}
 
@@ -678,7 +610,7 @@ const PublicSpeaking = () => {
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
                 <div className="relative flex items-center justify-center gap-3">
                   <Play className="h-4 w-4 fill-current" />
-                  <span className="text-sm font-black uppercase tracking-[0.3em]">Start Protocol</span>
+                  <span className="text-sm font-black uppercase tracking-[0.3em]">Start</span>
                 </div>
               </motion.button>
             )}
@@ -696,7 +628,7 @@ const PublicSpeaking = () => {
         <div className="max-w-2xl mx-auto min-w-0 relative z-10 space-y-6 md:space-y-8">
           <button
             onClick={backToSetup}
-            className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.2em] text-primary opacity-40 hover:opacity-100 transition-opacity"
+            className="inline-flex items-center gap-2 h-11 px-5 rounded-full border border-border/60 bg-muted/10 text-xs font-black uppercase tracking-[0.2em] text-foreground/70 hover:text-primary hover:border-primary/40 hover:bg-primary/5 transition-all"
           >
             <ArrowLeft className="h-4 w-4" />
             Back to setup
@@ -715,7 +647,7 @@ const PublicSpeaking = () => {
             </div>
 
             <div className="text-center space-y-3">
-              <p className="text-xs font-black uppercase tracking-[0.5em] opacity-40">OPERATIONAL TIMER</p>
+              <p className="text-xs font-black uppercase tracking-[0.5em] opacity-40">TIME LEFT</p>
               <div className="speak-serif text-6xl md:text-8xl font-bold tracking-tighter italic tabular-nums">
                 {mins}<span className="animate-pulse">:</span>{String(secs).padStart(2, "0")}
               </div>

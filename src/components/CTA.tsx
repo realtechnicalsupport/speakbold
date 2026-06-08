@@ -43,7 +43,7 @@ export const CTA = () => {
           animate={isInView ? "visible" : "hidden"}
         >
           <motion.div variants={itemVariants} className="text-xs font-bold uppercase tracking-[0.4em] mb-12 opacity-40">
-            THE FINAL PROTOCOL
+            ONE LAST THING
           </motion.div>
           
           <motion.div variants={itemVariants} className="mb-20 select-none">

@@ -55,7 +55,7 @@ const EventCard = ({ event, onArchive, onDelete, index = 0 }: any) => {
                 </p>
                 {event.archived && (
                   <span className="text-[11px] font-black bg-muted/30 px-3 py-1 rounded-full opacity-40 uppercase tracking-widest">
-                    ARCHIVED RECORD
+                    ARCHIVED
                   </span>
                 )}
               </div>
@@ -86,7 +86,7 @@ const EventCard = ({ event, onArchive, onDelete, index = 0 }: any) => {
                     daysLeft <= 7 ? "text-primary opacity-100" : "text-foreground opacity-100"
                   )}>
                     <Clock className="h-4 w-4" />
-                    {daysLeft === 0 ? "DEPLOYMENT TODAY" : `${daysLeft} DAYS TO DEPLOY`}
+                    {daysLeft === 0 ? "TODAY" : `${daysLeft} DAYS LEFT`}
                   </span>
                 )}
               </div>
@@ -152,7 +152,7 @@ const Events = () => {
     await deleteEvent(id);
     toast({
       title: "Event deleted",
-      description: "Record permanently purged from the system.",
+      description: "The event has been permanently removed.",
     });
   };
 
@@ -175,18 +175,18 @@ const Events = () => {
             <div className="space-y-8">
               <div className="flex items-center gap-4 text-xs font-black uppercase tracking-[0.6em] text-primary">
                 <ShieldCheck className="h-4 w-4" />
-                STRATEGIC PLANNING
+                PLAN AHEAD
               </div>
               <h1 className="speak-serif text-5xl md:text-9xl leading-[0.8] tracking-tighter">
                 Your <span className="text-primary italic">Events</span>.
               </h1>
               <p className="text-lg md:text-2xl font-medium tracking-tight opacity-40 max-w-xl leading-relaxed">
-                Schedule and train for high-stakes moments. Every deployment is a test of your operational readiness.
+                Add the talks and interviews coming up, and train for each one with a plan built around it.
               </p>
             </div>
             
             <Link to="/events/new" className="button-pill px-12 py-6 bg-primary text-white shadow-glow group">
-              <span className="text-xs font-black uppercase tracking-[0.2em]">INITIALIZE NEW EVENT</span>
+              <span className="text-xs font-black uppercase tracking-[0.2em]">ADD NEW EVENT</span>
               <CalendarPlus className="h-5 w-5 group-hover:scale-110 group-hover:rotate-6 transition-all duration-500 ml-2" />
             </Link>
           </motion.div>
@@ -202,7 +202,7 @@ const Events = () => {
                     : "bg-muted/5 border border-border/60 text-foreground/30 hover:border-primary/40 hover:text-foreground"
                 )}
               >
-                Upcoming Protocol ({upcomingEvents.length})
+                Upcoming ({upcomingEvents.length})
               </button>
               <button
                 onClick={() => setActiveTab("past")}
@@ -213,7 +213,7 @@ const Events = () => {
                     : "bg-muted/5 border border-border/60 text-foreground/30 hover:border-primary/40 hover:text-foreground"
                 )}
               >
-                Historical Logs ({pastEvents.length})
+                Past Events ({pastEvents.length})
               </button>
             </div>
 
@@ -233,7 +233,7 @@ const Events = () => {
                       className="h-full w-1/2 bg-primary shadow-glow" 
                     />
                   </div>
-                  <p className="text-xs font-black uppercase tracking-[0.5em] opacity-40 animate-pulse">SYNCHRONIZING EVENT ARCHIVE...</p>
+                  <p className="text-xs font-black uppercase tracking-[0.5em] opacity-40 animate-pulse">LOADING YOUR EVENTS…</p>
                 </motion.div>
               ) : activeTab === "upcoming" ? (
                 <motion.div 
@@ -247,11 +247,11 @@ const Events = () => {
                     <div className="py-60 text-center space-y-12 border-2 border-dashed border-border/60 rounded-[4rem] relative overflow-hidden">
                       <Calendar className="h-24 w-24 opacity-5 mx-auto" />
                       <div className="space-y-4">
-                        <p className="speak-serif text-3xl italic opacity-20">No active deployments detected.</p>
-                        <p className="text-xs font-black uppercase tracking-[0.5em] opacity-40">AWAITING SYSTEM INITIALIZATION</p>
+                        <p className="speak-serif text-3xl italic opacity-20">No events scheduled yet.</p>
+                        <p className="text-xs font-black uppercase tracking-[0.5em] opacity-40">ADD ONE TO GET STARTED</p>
                       </div>
                       <Link to="/events/new" className="button-pill px-16 py-6 inline-flex">
-                        <span className="text-xs font-black uppercase tracking-[0.2em]">SCHEDULE EVENT</span>
+                        <span className="text-xs font-black uppercase tracking-[0.2em]">ADD EVENT</span>
                       </Link>
                     </div>
                   ) : (
@@ -300,7 +300,7 @@ const Events = () => {
       <div className="py-32 flex flex-col items-center gap-8 border-t border-border/60">
           <div className="flex items-center gap-6 text-xs font-black uppercase tracking-[0.8em] opacity-10">
             <Microscope className="h-4 w-4" />
-            PROTOCOL SCHEDULER v2.4 OPERATIONAL
+            PLAN · PRACTICE · PERFORM
           </div>
       </div>
 

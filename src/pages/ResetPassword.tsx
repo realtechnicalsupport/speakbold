@@ -48,20 +48,20 @@ const ResetPassword = () => {
             transition={{ duration: 0.8 }}
           >
             <div className="text-xs font-bold uppercase tracking-[0.4em] mb-8 opacity-40">
-              SECURITY PROTOCOL
+              ACCOUNT SECURITY
             </div>
             <h1 className="speak-serif text-5xl md:text-7xl leading-[0.95] text-foreground tracking-tighter mb-8">
               Update your <br />
-              <span className="text-primary italic">credentials</span>.
+              <span className="text-primary italic">password</span>.
             </h1>
             <p className="text-lg font-medium tracking-tight opacity-40 max-w-sm leading-relaxed">
-              Reset your passphrase to regain access to your training data and history.
+              Set a new password to get back into your account and history.
             </p>
           </motion.div>
         </div>
 
         <div className="text-xs font-bold uppercase tracking-[0.5em] opacity-20">
-          OPERATIONAL SECURITY v2.4
+          SPEAKBOLD
         </div>
       </div>
 
@@ -79,7 +79,7 @@ const ResetPassword = () => {
               PASSWORD RECOVERY
             </div>
             <h2 className="speak-serif text-4xl md:text-5xl leading-tight">
-              Initialize new password
+              Set a new password
             </h2>
           </div>
 

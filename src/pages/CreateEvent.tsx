@@ -60,15 +60,15 @@ const CreateEvent = () => {
 
       if (result) {
         toast({
-          title: "Protocol Initialized",
-          description: "New objective committed to the system.",
+          title: "Event created",
+          description: "Building your practice plan…",
         });
         navigate(`/events/${result.id}?generatePlan=true`);
       }
     } catch (error) {
       toast({
-        title: "Error",
-        description: "Failed to initialize protocol. Try again.",
+        title: "Something went wrong",
+        description: "Couldn't create the event. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -89,20 +89,20 @@ const CreateEvent = () => {
           <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
             <Link to="/events" className="inline-flex items-center gap-4 text-xs font-black uppercase tracking-[0.4em] text-primary opacity-40 hover:opacity-100 transition-all mb-12">
               <ArrowLeft className="h-4 w-4" />
-              ABORT TO EVENT LIST
+              BACK TO EVENTS
             </Link>
           </motion.div>
 
           <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1 }} className="space-y-10">
             <div className="flex items-center gap-4 text-xs font-black uppercase tracking-[0.6em] text-primary">
               <ShieldCheck className="h-4 w-4" />
-              DEPLOYMENT CONFIGURATION
+              NEW EVENT
             </div>
             <h1 className="speak-serif text-6xl md:text-9xl leading-[0.8] text-foreground tracking-tighter">
-              New <span className="text-primary italic">Objective</span>.
+              New <span className="text-primary italic">Event</span>.
             </h1>
             <p className="text-lg md:text-2xl font-medium tracking-tight opacity-40 max-w-3xl leading-relaxed">
-              Define the parameters of your upcoming engagement to synthesize a specialized training protocol. High-stakes communication starts with clear parameters.
+              Tell us about the talk or interview coming up, and we'll build a practice plan around it.
             </p>
           </motion.div>
 
@@ -116,7 +116,7 @@ const CreateEvent = () => {
             
             {/* Title */}
             <div className="space-y-6 relative z-10">
-              <Label htmlFor="title" className="text-xs font-black uppercase tracking-[0.4em] opacity-40">EVENT CLASSIFICATION</Label>
+              <Label htmlFor="title" className="text-xs font-black uppercase tracking-[0.4em] opacity-40">EVENT NAME</Label>
               <Input
                 id="title"
                 placeholder="e.g., Q3 Stakeholder Briefing"
@@ -129,7 +129,7 @@ const CreateEvent = () => {
 
             {/* Event Type */}
             <div className="space-y-8 relative z-10">
-              <Label className="text-xs font-black uppercase tracking-[0.4em] opacity-40">OBJECTIVE CATEGORY</Label>
+              <Label className="text-xs font-black uppercase tracking-[0.4em] opacity-40">EVENT TYPE</Label>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
                 {EVENT_TYPES.map((type) => (
                   <button
@@ -153,7 +153,7 @@ const CreateEvent = () => {
             {/* Date and Time */}
             <div className="grid md:grid-cols-2 gap-12 relative z-10">
               <div className="space-y-6">
-                <Label className="text-xs font-black uppercase tracking-[0.4em] opacity-40">DEPLOYMENT DATE</Label>
+                <Label className="text-xs font-black uppercase tracking-[0.4em] opacity-40">DATE</Label>
                 <div className="h-20 rounded-[2rem] bg-background/50 border border-border/60 px-10 flex items-center transition-all duration-700 hover:border-primary/30">
                   <CalendarModal 
                     value={eventDate} 
@@ -163,7 +163,7 @@ const CreateEvent = () => {
                 </div>
               </div>
               <div className="space-y-6">
-                <Label className="text-xs font-black uppercase tracking-[0.4em] opacity-40">WINDOW INITIALIZATION</Label>
+                <Label className="text-xs font-black uppercase tracking-[0.4em] opacity-40">TIME</Label>
                 <div className="h-20 rounded-[2rem] bg-background/50 border border-border/60 px-10 flex items-center transition-all duration-700 hover:border-primary/30">
                   <ClockModal 
                     value={eventTime} 
@@ -175,7 +175,7 @@ const CreateEvent = () => {
 
             {/* Location */}
             <div className="space-y-6 relative z-10">
-              <Label htmlFor="location" className="text-xs font-black uppercase tracking-[0.4em] opacity-40">GEOGRAPHIC PARAMETERS</Label>
+              <Label htmlFor="location" className="text-xs font-black uppercase tracking-[0.4em] opacity-40">LOCATION</Label>
               <Input
                 id="location"
                 placeholder="e.g., Level 42, Main Auditorium"
@@ -187,10 +187,10 @@ const CreateEvent = () => {
 
             {/* Description */}
             <div className="space-y-6 relative z-10">
-              <Label htmlFor="description" className="text-xs font-black uppercase tracking-[0.4em] opacity-40">MISSION INTEL</Label>
+              <Label htmlFor="description" className="text-xs font-black uppercase tracking-[0.4em] opacity-40">DETAILS</Label>
               <Textarea
                 id="description"
-                placeholder="Detail the stakes, audience, and key vectors of this engagement..."
+                placeholder="Who's the audience? What's at stake? Anything you want to focus on?"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={4}
@@ -206,16 +206,16 @@ const CreateEvent = () => {
                 className="button-pill flex-1 py-7 bg-primary text-white flex items-center justify-center gap-6 group disabled:opacity-30 shadow-glow"
               >
                 {loading ? (
-                   <span className="text-xs font-black uppercase tracking-[0.3em] animate-pulse">SYNCHRONIZING...</span>
+                   <span className="text-xs font-black uppercase tracking-[0.3em] animate-pulse">CREATING…</span>
                 ) : (
                   <>
-                    <span className="text-xs font-black uppercase tracking-[0.3em]">COMMIT OBJECTIVE</span>
+                    <span className="text-xs font-black uppercase tracking-[0.3em]">CREATE EVENT</span>
                     <ArrowRight className="h-5 w-5 group-hover:translate-x-2 transition-transform duration-700" />
                   </>
                 )}
               </button>
               <Link to="/events" className="button-pill py-7 px-16 border-border/60 hover:bg-muted/10 flex items-center justify-center transition-all duration-700 group">
-                <span className="text-xs font-black uppercase tracking-[0.3em] opacity-20 group-hover:opacity-40">ABORT MISSION</span>
+                <span className="text-xs font-black uppercase tracking-[0.3em] opacity-20 group-hover:opacity-40">CANCEL</span>
               </Link>
             </div>
           </motion.form>
@@ -225,7 +225,7 @@ const CreateEvent = () => {
       <div className="py-32 flex flex-col items-center gap-8 border-t border-border/60">
           <div className="flex items-center gap-6 text-xs font-black uppercase tracking-[0.8em] opacity-10">
             <Microscope className="h-4 w-4" />
-            MISSION CONTROL INTERFACE v2.4 OPERATIONAL
+            PLAN · PRACTICE · PERFORM
           </div>
       </div>
       <MobileNav />

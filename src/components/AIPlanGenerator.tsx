@@ -22,9 +22,9 @@ export interface PlanAnswers {
 }
 
 const SKILL_LEVELS = [
-  { value: "beginner", label: "Foundational", desc: "Developing basic fluency & comfort." },
-  { value: "intermediate", label: "Strategic", desc: "Refining structure & adaptive delivery." },
-  { value: "advanced", label: "Authoritative", desc: "Mastering presence & deep resonance." },
+  { value: "beginner", label: "Beginner", desc: "New to this, or building confidence." },
+  { value: "intermediate", label: "Intermediate", desc: "Comfortable, want to get sharper." },
+  { value: "advanced", label: "Advanced", desc: "Experienced, polishing presence." },
 ];
 
 const FOCUS_AREAS = [
@@ -94,10 +94,10 @@ export function AIPlanGenerator({ isOpen, onClose, onGenerate, daysUntilEvent, e
           <div className="space-y-4">
             <div className="text-xs font-bold uppercase tracking-[0.5em] text-primary opacity-60 flex items-center gap-3">
               <Sparkles className="h-3 w-3 animate-pulse" />
-              AI PROTOCOL ENGINE
+              PRACTICE PLAN
             </div>
             <h2 className="speak-serif text-4xl md:text-6xl text-foreground leading-[0.9] tracking-tighter">
-              Initialize <span className="text-primary italic">Strategy</span>.
+              Build your <span className="text-primary italic">plan</span>.
             </h2>
           </div>
           <button onClick={onClose} className="p-4 hover:bg-muted/50 rounded-full transition-all opacity-20 hover:opacity-100 group">
@@ -130,8 +130,8 @@ export function AIPlanGenerator({ isOpen, onClose, onGenerate, daysUntilEvent, e
                 className="space-y-12"
               >
                 <div className="space-y-4">
-                  <p className="text-xs font-bold uppercase tracking-widest opacity-40">STEP 01 — IDENTITY</p>
-                  <h3 className="speak-serif text-3xl md:text-4xl leading-tight">What is your current authority level?</h3>
+                  <p className="text-xs font-bold uppercase tracking-widest opacity-40">STEP 1 OF 3</p>
+                  <h3 className="speak-serif text-3xl md:text-4xl leading-tight">Where are you starting from?</h3>
                 </div>
                 
                 <div className="grid gap-6">
@@ -163,7 +163,7 @@ export function AIPlanGenerator({ isOpen, onClose, onGenerate, daysUntilEvent, e
                     disabled={!answers.skillLevel}
                     className="button-pill w-full py-6 flex items-center justify-center gap-6 group shadow-glow"
                   >
-                    <span className="text-sm font-black uppercase tracking-[0.2em]">NEXT PROTOCOL</span>
+                    <span className="text-sm font-black uppercase tracking-[0.2em]">NEXT</span>
                     <ChevronRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
                   </button>
                 </div>
@@ -179,8 +179,8 @@ export function AIPlanGenerator({ isOpen, onClose, onGenerate, daysUntilEvent, e
                 className="space-y-12"
               >
                 <div className="space-y-4">
-                  <p className="text-xs font-bold uppercase tracking-widest opacity-40">STEP 02 — VECTORS</p>
-                  <h3 className="speak-serif text-3xl md:text-4xl leading-tight">Select up to 3 focus vectors.</h3>
+                  <p className="text-xs font-bold uppercase tracking-widest opacity-40">STEP 2 OF 3</p>
+                  <h3 className="speak-serif text-3xl md:text-4xl leading-tight">Pick up to 3 things to focus on.</h3>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -207,7 +207,7 @@ export function AIPlanGenerator({ isOpen, onClose, onGenerate, daysUntilEvent, e
                     disabled={answers.focusAreas.length === 0}
                     className="button-pill w-full py-6 flex items-center justify-center gap-6 group shadow-glow"
                   >
-                    <span className="text-sm font-black uppercase tracking-[0.2em]">FINAL CONFIGURATION</span>
+                    <span className="text-sm font-black uppercase tracking-[0.2em]">NEXT</span>
                     <ChevronRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
                   </button>
                 </div>
@@ -223,13 +223,13 @@ export function AIPlanGenerator({ isOpen, onClose, onGenerate, daysUntilEvent, e
                 className="space-y-12"
               >
                 <div className="space-y-4">
-                  <p className="text-xs font-bold uppercase tracking-widest opacity-40">STEP 03 — CONTEXT</p>
-                  <h3 className="speak-serif text-3xl md:text-4xl leading-tight">Investment & Context.</h3>
+                  <p className="text-xs font-bold uppercase tracking-widest opacity-40">STEP 3 OF 3</p>
+                  <h3 className="speak-serif text-3xl md:text-4xl leading-tight">Time & details.</h3>
                 </div>
 
                 <div className="space-y-10">
                   <div className="space-y-4">
-                    <p className="text-xs font-bold uppercase tracking-widest opacity-40">DAILY TIME ALLOTMENT</p>
+                    <p className="text-xs font-bold uppercase tracking-widest opacity-40">TIME PER DAY</p>
                     <div className="grid grid-cols-3 gap-6">
                       {[5, 10, 15].map((mins) => (
                         <button
@@ -266,9 +266,9 @@ export function AIPlanGenerator({ isOpen, onClose, onGenerate, daysUntilEvent, e
                         <Zap className="absolute h-3 w-3 text-white opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none" fill="currentColor" />
                       </div>
                       <div className="flex-1">
-                        <span className="text-xs font-black uppercase tracking-widest text-foreground/80">ENABLE SCENARIO ENGINE</span>
+                        <span className="text-xs font-black uppercase tracking-widest text-foreground/80">DESCRIBE YOUR EVENT</span>
                         <p className="text-sm font-medium opacity-40 mt-2 leading-relaxed">
-                          Describe the specific high-stakes moment you are preparing for.
+                          Tell us exactly what you're preparing for, and we'll tailor the plan to it.
                         </p>
                       </div>
                     </label>
@@ -302,12 +302,12 @@ export function AIPlanGenerator({ isOpen, onClose, onGenerate, daysUntilEvent, e
                     {isGenerating ? (
                       <>
                         <Sparkles className="h-5 w-5 animate-spin" />
-                        <span className="text-sm font-black uppercase tracking-[0.3em] animate-pulse">SYNTHESIZING PROTOCOL...</span>
+                        <span className="text-sm font-black uppercase tracking-[0.3em] animate-pulse">BUILDING YOUR PLAN…</span>
                       </>
                     ) : (
                       <>
                         <Sparkles className="h-5 w-5" />
-                        <span className="text-sm font-black uppercase tracking-[0.2em]">INITIALIZE TRAINING PLAN</span>
+                        <span className="text-sm font-black uppercase tracking-[0.2em]">CREATE MY PLAN</span>
                       </>
                     )}
                   </button>
@@ -321,10 +321,10 @@ export function AIPlanGenerator({ isOpen, onClose, onGenerate, daysUntilEvent, e
         <div className="p-10 border-t border-border/60 bg-muted/5 flex justify-between items-center text-[11px] font-black uppercase tracking-[0.4em] opacity-40 relative z-10">
           <div className="flex items-center gap-3">
              <ShieldCheck className="h-3 w-3" />
-             <span>ENCRYPTED CORE</span>
+             <span>PRIVATE</span>
           </div>
-          <span>{daysUntilEvent} DAYS TO OBJECTIVE</span>
-          <span>SYNERGY ENGINE v2.4</span>
+          <span>{daysUntilEvent} DAYS TO YOUR EVENT</span>
+          <span>SPEAKBOLD</span>
         </div>
       </motion.div>
     </div>

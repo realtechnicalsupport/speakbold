@@ -11,7 +11,7 @@ import {
   Clock,
   Target,
   Sparkles,
-  RefreshCw,
+  Shuffle,
   Zap,
   ArrowRight,
   ArrowLeft,
@@ -22,8 +22,6 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { useRecordings, useSyncedStreak } from "@/hooks/useRecordings";
 import { useSyncedInterviewQuestions } from "@/hooks/useSyncedInterviewQuestions";
-import { toast } from "@/hooks/use-toast";
-import { generateInterviewQuestions } from "@/services/geminiService";
 import { setTimerActive, setTimerSeconds } from "@/lib/timerState";
 import { setRecordingActive } from "@/lib/recordingState";
 import { RecordingFeedbackModal } from "@/components/RecordingFeedback";
@@ -121,7 +119,6 @@ const TIERS: { id: Difficulty; dots: number; desc: string }[] = [
   { id: "Pressure", dots: 3, desc: "High-stakes" },
 ];
 
-const AI_CATEGORIES = ["Behavioural", "Situational", "Leadership"];
 const STEP_LABELS = ["Difficulty", "Question", "Ready"] as const;
 
 const Interviews = () => {
@@ -137,11 +134,7 @@ const Interviews = () => {
   const [phase, setPhase] = useState<"setup" | "active">("setup");
   const [step, setStep] = useState<1 | 2 | 3>(1);
 
-  // AI generation state
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [aiCategory, setAiCategory] = useState("Behavioural");
-
-  const { questions: syncedAIQuestions, addQuestions: saveAIQuestions } = useSyncedInterviewQuestions();
+  const { questions: syncedAIQuestions } = useSyncedInterviewQuestions();
 
   // Timer state
   const [duration, setDuration] = useState(75);
@@ -172,25 +165,12 @@ const Interviews = () => {
   const current = questions[active] || questions[0];
   const questionsInTier = questions.filter(q => q.difficulty === tier);
 
-  const generateAIQuestions = async () => {
-    setIsGenerating(true);
-    try {
-      const newQuestions = await generateInterviewQuestions(aiCategory, "standard", 2);
-      const formatted = newQuestions.map(q => ({
-        q: q.question,
-        type: "AI Generated",
-        guidance: q.followUp || "Use the STAR method.",
-        example: "Craft a compelling answer based on your history.",
-        targetSeconds: 90,
-        difficulty: "Standard" as const,
-        keyPoints: q.keyPoints,
-        is_ai: true,
-      }));
-      if (user) await saveAIQuestions(formatted);
-      toast({ title: "Questions Synthesized", description: "New AI questions added to Standard." });
-    } catch (error) {
-      toast({ title: "Synthesis failed", variant: "destructive" });
-    } finally { setIsGenerating(false); }
+  // Rotate to the next built-in question within the current tier — no AI.
+  const cycleQuestion = () => {
+    if (questionsInTier.length <= 1) return;
+    const curPos = questionsInTier.findIndex(q => questions.indexOf(q) === active);
+    const nextPos = (curPos + 1) % questionsInTier.length;
+    setActive(questions.indexOf(questionsInTier[nextPos]));
   };
 
   useEffect(() => {
@@ -299,9 +279,9 @@ const Interviews = () => {
 
   return (
     <TrackShell
-      eyebrow="MODULE 03 — INTERVIEWS"
+      eyebrow="INTERVIEWS"
       title={<>Master the <span className="text-primary italic">High-Stakes</span> Q&A.</>}
-      intro="Technical competence is assumed. Your delivery is what differentiates you. Practice the STAR method under pressure."
+      intro="Practice answering real interview questions out loud, using the STAR method, with the clock running."
       hideHeader={phase === "active"}
       compact={phase === "setup"}
     >
@@ -452,38 +432,20 @@ const Interviews = () => {
                   })}
 
                   {questionsInTier.length === 0 && (
-                    <p className="text-sm opacity-40 italic text-center py-6">No questions in this tier yet — generate some below.</p>
+                    <p className="text-sm opacity-40 italic text-center py-6">No questions in this tier yet.</p>
                   )}
                 </div>
 
-                {/* Compact AI generator (adds Standard questions) */}
-                <div className="rounded-2xl border border-primary/20 bg-primary/[0.03] p-4 md:p-5 space-y-4">
-                  <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.3em] text-primary">
-                    <Sparkles className="h-3.5 w-3.5" />
-                    Generate questions
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {AI_CATEGORIES.map(cat => (
-                      <button
-                        key={cat}
-                        onClick={() => setAiCategory(cat)}
-                        className={cn(
-                          "px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border transition-all",
-                          aiCategory === cat ? "bg-primary text-white border-primary" : "border-border/60 opacity-50 hover:opacity-100"
-                        )}
-                      >
-                        {cat}
-                      </button>
-                    ))}
-                  </div>
+                {/* Cycle to the next question in this tier — no AI, just rotate. */}
+                {questionsInTier.length > 1 && (
                   <button
-                    onClick={generateAIQuestions}
-                    disabled={isGenerating}
-                    className="w-full py-3 rounded-xl border border-primary/30 text-primary text-xs font-black uppercase tracking-[0.2em] flex items-center justify-center gap-2 hover:bg-primary/5 transition-all disabled:opacity-50"
+                    onClick={cycleQuestion}
+                    className="w-full py-3.5 rounded-2xl border border-dashed border-primary/30 text-primary text-xs font-black uppercase tracking-[0.2em] flex items-center justify-center gap-2 hover:bg-primary/5 hover:border-primary/50 transition-all"
                   >
-                    {isGenerating ? <><RefreshCw className="h-4 w-4 animate-spin" /> Synthesizing…</> : <>Generate <ArrowRight className="h-4 w-4" /></>}
+                    <Shuffle className="h-4 w-4" />
+                    Next question
                   </button>
-                </div>
+                )}
 
                 {/* Record toggle */}
                 <div className="rounded-[1.75rem] border border-border/40 bg-muted/3 p-5 flex items-center justify-between">
@@ -597,7 +559,7 @@ const Interviews = () => {
         <div className="max-w-2xl mx-auto min-w-0 relative z-10 space-y-6 md:space-y-8">
           <button
             onClick={backToSetup}
-            className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.2em] text-primary opacity-40 hover:opacity-100 transition-opacity"
+            className="inline-flex items-center gap-2 h-11 px-5 rounded-full border border-border/60 bg-muted/10 text-xs font-black uppercase tracking-[0.2em] text-foreground/70 hover:text-primary hover:border-primary/40 hover:bg-primary/5 transition-all"
           >
             <ArrowLeft className="h-4 w-4" />
             Back to setup
@@ -605,7 +567,7 @@ const Interviews = () => {
 
           {/* Question */}
           <div className="p-6 md:p-10 rounded-[2rem] bg-muted/10 border border-primary/20 space-y-3 text-center">
-            <p className="text-[10px] font-black uppercase tracking-[0.4em] text-primary">{current.difficulty} PROTOCOL</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.4em] text-primary">{current.difficulty} QUESTION</p>
             <h2 className="speak-serif text-2xl md:text-4xl leading-tight">"{current.q}"</h2>
           </div>
 
@@ -616,7 +578,7 @@ const Interviews = () => {
             </div>
 
             <div className="text-center space-y-3">
-              <p className="text-xs font-black uppercase tracking-[0.5em] opacity-40">INTERVIEW CLOCK</p>
+              <p className="text-xs font-black uppercase tracking-[0.5em] opacity-40">TIME LEFT</p>
               <div className="speak-serif text-6xl md:text-8xl font-bold tracking-tighter italic tabular-nums">
                 {mins}<span className="animate-pulse">:</span>{String(secs).padStart(2, "0")}
               </div>
@@ -651,7 +613,7 @@ const Interviews = () => {
                 className="flex items-center justify-center gap-2 text-xs font-black uppercase tracking-[0.4em] opacity-30 hover:opacity-100 transition-opacity"
               >
                 <RotateCcw className="h-3 w-3" />
-                Restart clock
+                Reset
               </button>
             </div>
           </div>
@@ -669,7 +631,7 @@ const Interviews = () => {
                 className="rounded-[2rem] bg-muted/5 border border-border/60 p-6 md:p-8 space-y-5"
               >
                 <p className="text-xs font-black uppercase tracking-widest text-primary flex items-center gap-2">
-                  <Zap className="h-3 w-3" /> Strategic STAR
+                  <Zap className="h-3 w-3" /> STAR method
                 </p>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {STAR.map(s => (
@@ -696,7 +658,7 @@ const Interviews = () => {
                 className="w-full py-6 border-2 border-dashed border-border/60 rounded-[2rem] text-xs font-black uppercase tracking-[0.4em] opacity-30 hover:opacity-100 hover:border-primary/40 hover:text-primary transition-all flex items-center justify-center gap-4"
               >
                 <Microscope className="h-4 w-4" />
-                Reveal strategic guidance
+                Show me how to answer
               </button>
             )}
           </AnimatePresence>

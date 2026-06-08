@@ -67,7 +67,7 @@ const EventDetail = () => {
     await generatePlan(event?.event_type || 'other', answers.focusAreas, daysUntil, answers.useCustomAI ? answers.customDescription : undefined);
     setActiveTab("plan");
     setShowAIGenerator(false);
-    toast({ title: "Protocol Synthesized", description: "Your custom AI practice plan is live." });
+    toast({ title: "Plan ready", description: "Your practice plan is ready." });
   };
 
   useEffect(() => {
@@ -87,7 +87,7 @@ const EventDetail = () => {
           <div className="h-1.5 w-32 bg-muted rounded-full mx-auto overflow-hidden border border-border/60">
             <motion.div animate={{ x: ["-100%", "100%"] }} transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }} className="h-full w-1/2 bg-primary shadow-glow" />
           </div>
-          <p className="text-xs font-black uppercase tracking-[0.5em] opacity-40 animate-pulse">RETRIEVING PROTOCOL...</p>
+          <p className="text-xs font-black uppercase tracking-[0.5em] opacity-40 animate-pulse">LOADING…</p>
         </div>
         <MobileNav />
       </main>
@@ -100,16 +100,16 @@ const EventDetail = () => {
   const daysUntil = Math.ceil((eventDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 
   const handleDelete = async () => {
-    if (window.confirm("Permanently purge this event record?")) {
+    if (window.confirm("Permanently delete this event?")) {
       await deleteEvent(event.id);
-      toast({ title: "Record Purged" });
+      toast({ title: "Event deleted" });
       navigate("/events");
     }
   };
 
   const handleArchive = async () => {
     await archiveEvent(event.id);
-    toast({ title: "Record Archived" });
+    toast({ title: "Event archived" });
     navigate("/events");
   };
 
@@ -138,7 +138,7 @@ const EventDetail = () => {
           <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
             <Link to="/events" className="inline-flex items-center gap-4 text-xs font-black uppercase tracking-[0.4em] text-primary opacity-40 hover:opacity-100 transition-all mb-12">
               <ArrowLeft className="h-4 w-4" />
-              BACK TO DEPLOYMENT LIST
+              BACK TO EVENTS
             </Link>
           </motion.div>
 
@@ -150,9 +150,9 @@ const EventDetail = () => {
                 </div>
                 <div className="space-y-2">
                   <p className="text-xs font-black uppercase tracking-[0.5em] text-primary">
-                    {EVENT_LABELS[event.event_type].toUpperCase()} PROTOCOL
+                    {EVENT_LABELS[event.event_type].toUpperCase()}
                   </p>
-                  {event.archived && <span className="text-[11px] font-black bg-muted/30 px-3 py-1 rounded-full opacity-40 uppercase tracking-widest">ARCHIVED RECORD</span>}
+                  {event.archived && <span className="text-[11px] font-black bg-muted/30 px-3 py-1 rounded-full opacity-40 uppercase tracking-widest">ARCHIVED</span>}
                 </div>
               </div>
               
@@ -180,11 +180,11 @@ const EventDetail = () => {
 
             <div className="flex items-center gap-4">
               {!event.archived && !isPast && (
-                <button onClick={handleArchive} className="h-16 w-16 rounded-full border border-border/60 flex items-center justify-center hover:bg-muted transition-all opacity-40 hover:opacity-100" title="Archive record">
+                <button onClick={handleArchive} className="h-16 w-16 rounded-full border border-border/60 flex items-center justify-center hover:bg-muted transition-all opacity-40 hover:opacity-100" title="Archive event">
                   <ArchiveRestore className="h-6 w-6" />
                 </button>
               )}
-              <button onClick={handleDelete} className="h-16 w-16 rounded-full border border-border/60 flex items-center justify-center hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all opacity-40 hover:opacity-100" title="Purge record">
+              <button onClick={handleDelete} className="h-16 w-16 rounded-full border border-border/60 flex items-center justify-center hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all opacity-40 hover:opacity-100" title="Delete event">
                 <Trash2 className="h-6 w-6" />
               </button>
             </div>
@@ -199,7 +199,7 @@ const EventDetail = () => {
                     <div className="space-y-6">
                       <div className="flex items-center gap-4 text-xs font-black uppercase tracking-[0.5em] text-primary">
                         <Target className="h-4 w-4" />
-                        MISSION READINESS
+                        COUNTDOWN
                       </div>
                       <div className="speak-serif text-5xl md:text-[8rem] leading-none tracking-tighter italic tabular-nums">
                         {daysUntil === 0 ? "LIVE" : daysUntil}
@@ -208,7 +208,7 @@ const EventDetail = () => {
                     </div>
                     <div className="text-right space-y-2">
                        <span className="speak-serif text-6xl md:text-7xl font-bold tabular-nums italic text-primary">{progressPercent}%</span>
-                       <p className="text-xs font-black uppercase tracking-[0.3em] opacity-40">PROTOCOL COMPLETED</p>
+                       <p className="text-xs font-black uppercase tracking-[0.3em] opacity-40">PLAN COMPLETE</p>
                     </div>
                   </div>
                   <div className="h-2 w-full bg-muted rounded-full overflow-hidden border border-border/60 relative">
@@ -221,23 +221,23 @@ const EventDetail = () => {
                       <Zap className="h-48 w-48" />
                    </div>
                    <div className="relative z-10 space-y-8">
-                      <p className="text-xs font-black uppercase tracking-[0.6em] opacity-80">DAILY OBJECTIVE</p>
+                      <p className="text-xs font-black uppercase tracking-[0.6em] opacity-80">TODAY'S FOCUS</p>
                       {todayPlan ? (
                         <>
                           <h3 className="speak-serif text-4xl md:text-5xl leading-tight italic">"{todayPlan.activities[0].title}"</h3>
                           <div className="flex flex-col gap-8 pt-8 border-t border-white/20">
                              <p className="text-sm font-medium opacity-80 leading-relaxed max-w-xs">{todayPlan.activities[0].content}</p>
                              <button onClick={() => setPracticeActivity(todayPlan.activities[0])} className="bg-white text-primary py-5 px-10 rounded-full flex items-center justify-center gap-4 group/btn shadow-xl transition-all">
-                                <span className="text-xs font-black uppercase tracking-[0.2em]">INITIALIZE DRILL</span>
+                                <span className="text-xs font-black uppercase tracking-[0.2em]">START DRILL</span>
                                 <Play className="h-4 w-4 fill-primary group-hover/btn:scale-110 transition-transform" />
                              </button>
                           </div>
                         </>
                       ) : (
                         <div className="py-12 space-y-6">
-                           <p className="text-sm opacity-60">No automated steps for today. Create an AI plan to optimize your training path.</p>
+                           <p className="text-sm opacity-60">Nothing scheduled for today. Create a plan to map out your practice.</p>
                            <button onClick={() => setShowAIGenerator(true)} className="w-full py-5 rounded-full border border-white/40 text-xs font-black uppercase tracking-[0.4em] hover:bg-white/10 transition-all">
-                              SYNTHESIZE PATH
+                              CREATE A PLAN
                            </button>
                         </div>
                       )}
@@ -248,15 +248,15 @@ const EventDetail = () => {
               {/* Protocol Details */}
               <div className="space-y-16">
                 <div className="flex justify-center md:justify-start gap-8 border-b border-border/60 pb-12">
-                  <button onClick={() => setActiveTab("plan")} className={cn("text-xs font-black uppercase tracking-[0.4em] transition-all", activeTab === "plan" ? "text-primary border-b-2 border-primary pb-12 -mb-12" : "opacity-30 hover:opacity-100")}>OPERATIONAL STEPS</button>
-                  <button onClick={() => setActiveTab("overview")} className={cn("text-xs font-black uppercase tracking-[0.4em] transition-all", activeTab === "overview" ? "text-primary border-b-2 border-primary pb-12 -mb-12" : "opacity-30 hover:opacity-100")}>INTEL BRIEFING</button>
+                  <button onClick={() => setActiveTab("plan")} className={cn("text-xs font-black uppercase tracking-[0.4em] transition-all", activeTab === "plan" ? "text-primary border-b-2 border-primary pb-12 -mb-12" : "opacity-30 hover:opacity-100")}>PRACTICE PLAN</button>
+                  <button onClick={() => setActiveTab("overview")} className={cn("text-xs font-black uppercase tracking-[0.4em] transition-all", activeTab === "overview" ? "text-primary border-b-2 border-primary pb-12 -mb-12" : "opacity-30 hover:opacity-100")}>OVERVIEW</button>
                 </div>
 
                 <AnimatePresence mode="wait">
                   {activeTab === "plan" ? (
                     <motion.div key="plan" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
                       {planLoading ? (
-                        <div className="py-40 text-center text-xs font-black tracking-[0.6em] opacity-10 animate-pulse uppercase">SYNCHRONIZING FEED...</div>
+                        <div className="py-40 text-center text-xs font-black tracking-[0.6em] opacity-10 animate-pulse uppercase">LOADING…</div>
                       ) : (
                         <div className="grid md:grid-cols-2 gap-6">
                           {(planDays as any[]).map((day, i) => {
@@ -270,7 +270,7 @@ const EventDetail = () => {
                                       {day.dayNumber}
                                     </div>
                                     <div className="space-y-1">
-                                      <p className="speak-serif text-xl md:text-2xl italic group-hover:text-primary transition-colors">{isToday ? "ACTIVE NOW" : `SESSION ${day.dayNumber}`}</p>
+                                      <p className="speak-serif text-xl md:text-2xl italic group-hover:text-primary transition-colors">{isToday ? "TODAY" : `DAY ${day.dayNumber}`}</p>
                                       <p className="text-xs font-black uppercase tracking-widest opacity-20">{new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} • {day.totalDuration} MINS</p>
                                     </div>
                                   </div>
@@ -301,19 +301,19 @@ const EventDetail = () => {
                   ) : (
                     <motion.div key="overview" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="grid md:grid-cols-[1.5fr_1fr] gap-12">
                       <div className="bg-muted/5 border border-border/60 rounded-[4rem] p-12 md:p-20 space-y-10 relative overflow-hidden">
-                        <p className="text-xs font-black uppercase tracking-[0.5em] text-primary">OPERATIONAL BRIEF</p>
-                        <p className="speak-serif text-4xl md:text-5xl leading-tight italic opacity-80">"{event.description || 'No strategic overview provided for this event.'}"</p>
+                        <p className="text-xs font-black uppercase tracking-[0.5em] text-primary">ABOUT THIS EVENT</p>
+                        <p className="speak-serif text-4xl md:text-5xl leading-tight italic opacity-80">"{event.description || 'No details added for this event.'}"</p>
                       </div>
                       <div className="p-12 rounded-[4rem] border border-border/60 space-y-8 flex flex-col justify-center">
                          <div className="flex items-center gap-4 text-xs font-black uppercase tracking-[0.5em] opacity-40">
                             <Microscope className="h-5 w-5" />
-                            INTEL SPECS
+                            GOOD TO KNOW
                          </div>
                          <p className="text-sm font-medium opacity-40 leading-relaxed">
-                            Full audit of deployment context. Sync occurs 24 hours prior to live initialization. Adherence to daily drills is mandatory for peak authority metrics.
+                            Your plan is built around this event. Practising a little each day is the surest way to walk in feeling confident.
                          </p>
                          <button onClick={() => navigate(`/events/new?edit=${event.id}`)} className="text-xs font-black uppercase tracking-[0.4em] text-primary hover:opacity-70 transition-opacity flex items-center gap-3">
-                            MODIFY PROTOCOL <RefreshCw className="h-3 w-3" />
+                            EDIT EVENT <RefreshCw className="h-3 w-3" />
                          </button>
                       </div>
                     </motion.div>
@@ -327,11 +327,11 @@ const EventDetail = () => {
             <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="py-60 text-center space-y-12 border-2 border-dashed border-border/60 rounded-[4rem] relative overflow-hidden">
               <ArchiveRestore className="h-24 w-24 mx-auto opacity-5" />
               <div className="space-y-4">
-                <p className="speak-serif text-3xl italic opacity-20">Deployment cycle completed.</p>
-                <p className="text-xs font-black uppercase tracking-[0.5em] opacity-40">OPERATIONAL WINDOW CLOSED</p>
+                <p className="speak-serif text-3xl italic opacity-20">This event has passed.</p>
+                <p className="text-xs font-black uppercase tracking-[0.5em] opacity-40">ALL DONE</p>
               </div>
               <Link to="/events/new" className="button-pill px-16 py-6 inline-flex">
-                <span className="text-xs font-black uppercase tracking-[0.2em]">INITIATE NEW DEPLOYMENT</span>
+                <span className="text-xs font-black uppercase tracking-[0.2em]">ADD A NEW EVENT</span>
               </Link>
             </motion.div>
           )}
@@ -341,7 +341,7 @@ const EventDetail = () => {
       <div className="py-32 flex flex-col items-center gap-8 border-t border-border/60">
           <div className="flex items-center gap-6 text-xs font-black uppercase tracking-[0.8em] opacity-10">
             <ShieldCheck className="h-4 w-4" />
-            PROTOCOL MANAGEMENT v2.4 SECURED
+            PLAN · PRACTICE · PERFORM
           </div>
       </div>
 

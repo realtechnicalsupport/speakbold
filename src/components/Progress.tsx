@@ -72,7 +72,7 @@ export const Progress = () => {
               ) : topFive.length === 0 ? (
                 <div className="py-20 text-center space-y-4 opacity-40">
                   <Target className="h-12 w-12 mx-auto" />
-                  <p className="text-xs font-bold uppercase tracking-widest">No protocol data available</p>
+                  <p className="text-xs font-bold uppercase tracking-widest">No rankings yet</p>
                 </div>
               ) : (
                 topFive.map((entry, index) => {
