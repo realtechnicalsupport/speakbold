@@ -1,4 +1,4 @@
-﻿import { ReactNode, useEffect, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft, ShieldCheck, Microscope } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
@@ -52,11 +52,11 @@ export const TrackShell = ({ eyebrow, title, intro, children, hideHeader = false
           transition={{ duration: 1 }}
         >
           <Link
-            to="/"
-            className="inline-flex items-center gap-3 text-xs font-black uppercase tracking-[0.3em] md:tracking-[0.4em] text-primary opacity-40 hover:opacity-100 transition-all mb-6 md:mb-8 lg:mb-16"
+            to="/lab"
+            className="inline-flex items-center gap-2 h-11 px-5 rounded-full border border-border/60 bg-muted/10 text-xs font-black uppercase tracking-[0.25em] text-foreground/70 hover:text-primary hover:border-primary/40 hover:bg-primary/5 transition-all mb-6 md:mb-8 lg:mb-16"
           >
             <ArrowLeft className="h-4 w-4" />
-            RETURN TO OPERATIONAL HUB
+            BACK TO THE LAB
           </Link>
         </motion.div>
 
