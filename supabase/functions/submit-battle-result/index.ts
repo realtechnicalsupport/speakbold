@@ -273,15 +273,17 @@ Deno.serve(async (req) => {
     const shouldWriteMyElo = !skipElo && (myIsPlacement || eloChange !== 0);
 
     // ── PvP: rate the OPPONENT too, from the SAME single judgment ───────────
-    // Fixes the "only the host gets rated" bug: previously the challenger's
-    // client never persisted its ELO. Now one authoritative call moves both
-    // ratings (and still writes exactly one battle row). Excluded:
+    // Forfeits (self) are now included: the forfeiting player's single call rates
+    // the opponent server-side with an opponent-forfeit win. The surviving player
+    // never calls submit-battle-result — it receives its ELO via elo-sync broadcast
+    // and the DB is already correct from this call. Excluded:
     //   • AI opponents (no profile row)
     //   • custom solo + ties (no ELO movement)
-    //   • forfeits (each side calls this independently and is rated there)
+    //   • opponent-forfeit side (they don't call this fn anymore)
     let oppNewElo = oppElo;
     let oppEloChange = 0;
-    const rateOpponent = !!opponentId && !body.isAi && !body.isCustom && !body.isTie && !body.isForfeit;
+    const rateOpponent = !!opponentId && !body.isAi && !body.isCustom && !body.isTie
+      && body.isForfeit !== "opponent"; // "self" forfeits now rate the opponent here
     if (rateOpponent) {
       const { count: oppMatches } = await admin
         .from("arena_battles")
@@ -296,7 +298,8 @@ Deno.serve(async (req) => {
         mode: body.gamemode,
         isAi: false,
         isTie: false,
-        isForfeit: null,
+        // Surviving player gets opponent-forfeit treatment (clean 80-20 win).
+        isForfeit: body.isForfeit === "self" ? "opponent" : null,
       });
       // If the opponent is also unranked, this PvP battle is THEIR placement too.
       oppNewElo = oppIsUnranked && haveScores

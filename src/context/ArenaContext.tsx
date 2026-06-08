@@ -436,8 +436,12 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
   // Signal the end of the active speaker's turn (+ final transcript) so both
   // clients advance the shared phase machine together.
-  const sendDebateTurnEnd = async (duelId: string, turn: "opening" | "rebuttal", transcript: string) => {
-    if (arenaChannel.current) arenaChannel.current.send({ type: "broadcast", event: "debate-turn-end", payload: { duelId, userId: user?.id, turn, transcript } });
+  // `final` distinguishes the instant lockstep signal (live/partial transcript,
+  // sent the moment the turn changes) from the authoritative COMPLETE transcript
+  // (sent once the full recording is transcribed server-side). The judging host
+  // waits for the final of every turn before scoring.
+  const sendDebateTurnEnd = async (duelId: string, turn: "opening" | "rebuttal", transcript: string, final = false) => {
+    if (arenaChannel.current) arenaChannel.current.send({ type: "broadcast", event: "debate-turn-end", payload: { duelId, userId: user?.id, turn, transcript, final } });
   };
   
   const broadcastBattleResult = async (duelId: string, results: any) => {
@@ -455,8 +459,8 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const oppElo = isCreator ? (duelObj.challenger?.elo ?? STARTING_ELO) : (duelObj.creator.elo ?? STARTING_ELO);
     const oppId = isCreator ? duelObj.challenger?.id : duelObj.creator.id;
     const isAi = !oppId || oppId === "ai" || oppId.startsWith("ai-") || oppId.startsWith("tutorial-");
+    const isPvp = isUuid(oppId);
 
-    // New formula: self-forfeit = flat -FORFEIT_PENALTY; opponent-forfeit = clean 80-20 win.
     const eloChange = computeEloChange({
       myElo,
       oppElo,
@@ -468,32 +472,30 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       isForfeit: isMe ? "self" : "opponent",
     });
 
-    // Forfeiting earns/keeps a real rating (ranked:true below), so keep the
-    // result off the unranked sentinel.
     const newElo = nudgeOffSentinel(Math.max(ELO_FLOOR, myElo + eloChange));
 
-    try {
-      // ── Optimistic local update ───────────────────────────────────────────
-      // Update UI immediately — don't wait for the round-trip to the server.
-      // The authoritative value below replaces this once the edge function
-      // returns; if the function is unreachable, the optimistic value sticks
-      // and a toast surfaces.
-      setProfile(prev => ({
-        ...prev,
-        elo: newElo,
-        // Entering and forfeiting a rated match still earns a (low) first rating.
-        ranked: true,
-        wins:   isMe ? prev.wins   : prev.wins + 1,
-        losses: isMe ? prev.losses + 1 : prev.losses,
-      }));
+    // Optimistic local update — immediate, regardless of who forfeited.
+    setProfile(prev => ({
+      ...prev,
+      elo: newElo,
+      ranked: true,
+      wins:   isMe ? prev.wins   : prev.wins + 1,
+      losses: isMe ? prev.losses + 1 : prev.losses,
+    }));
 
-      // ── Persist via authoritative edge function ───────────────────────────
-      // Edge function recomputes ELO server-side from DB-read inputs (not the
-      // client payload), writes the arena_battles row, then updates profiles.
-      // Replaces the old direct-UPDATE path which let any user PATCH their own
-      // rating to anything they wanted.
+    if (!isMe && isPvp) {
+      // ── Surviving player in a PvP forfeit ────────────────────────────────
+      // The forfeiting player's submit-battle-result call already rates us
+      // server-side and broadcasts elo-sync. Don't write a duplicate battle
+      // row — just show the local optimistic update above and wait for the
+      // elo-sync broadcast to reconcile with the authoritative server value.
+      arenaEmitter.emit("elo:updated", { change: eloChange, newElo, outcome: "win" });
+      return;
+    }
+
+    try {
       const opponent = isCreator ? duelObj.challenger : duelObj.creator;
-      const { newElo: serverElo, eloChange: serverDelta } = await submitBattleResult({
+      const { newElo: serverElo, eloChange: serverDelta, oppNewElo, oppEloChange } = await submitBattleResult({
         duelObj,
         isAi,
         isForfeit: isMe ? "self" : "opponent",
@@ -510,14 +512,27 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         fallbackEloChange: eloChange,
       });
 
-      // Reconcile with the server-authoritative value
       if (serverElo !== newElo) {
         setProfile(prev => ({ ...prev, elo: serverElo }));
       }
 
       await refresh(true);
-      // Self-forfeit is a loss for me; opponent-forfeit is a win for me.
       arenaEmitter.emit("elo:updated", { change: serverDelta, newElo: serverElo, outcome: isMe ? "loss" : "win" });
+
+      // PvP self-forfeit: the server also rated the surviving opponent.
+      // Push their new ELO so their client animates without writing a second row.
+      if (isMe && isPvp && typeof oppNewElo === "number" && typeof oppEloChange === "number" && arenaChannel.current) {
+        arenaChannel.current.send({
+          type: "broadcast",
+          event: "elo-sync",
+          payload: {
+            targetUserId: oppId,
+            newElo: oppNewElo,
+            change: oppEloChange,
+            outcome: "win",
+          },
+        });
+      }
     } catch (e) {
       console.error("[ArenaContext] handleForfeit failed:", e);
     }

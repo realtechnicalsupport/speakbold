@@ -18,6 +18,13 @@ import { transcribeAudio, judgeBattle, generateAIArgument, generateArenaPrompt, 
 import { ModelSpeech } from "@/components/ModelSpeech";
 import { arenaEmitter, type ArenaEvents } from "@/lib/events";
 import { setTimerActive } from "@/lib/timerState";
+import { submitForJudging, type PvpGamemode } from "@/lib/pvpJudge";
+
+// A real PvP match has two human players — both creator and challenger carry
+// auth UUIDs. Solo/AI duels never do (the AI side is "ai"), so this cleanly
+// separates server-judged PvP from client-judged PvE regardless of host state.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const isRealUserId = (s: unknown): s is string => typeof s === "string" && UUID_RE.test(s);
 
 // Filler list mirrors FILLER_WORDS in useImpromptuSession (inlined to keep this
 // component self-contained). Used to feed delivery signals into the judge.
@@ -357,7 +364,13 @@ export const DuelDrill = ({
 
       const myTranscript = await Promise.race([transcribeAudio(lastRecording.blob), timeoutPromise]) as string;
 
-      if (!myTranscript || myTranscript.trim().length < 5) {
+      const userName = user?.email?.split("@")[0] || "User";
+      const isPvp = !!duel && isRealUserId(duel.creator?.id) && isRealUserId(duel.challenger?.id);
+
+      // Empty/near-silent bail is PvE-only. In PvP we must still submit (even an
+      // empty side) so the server can score it 0 and resolve the match — bailing
+      // locally would strand the opponent polling for a verdict that never comes.
+      if (!isPvp && (!myTranscript || myTranscript.trim().length < 5)) {
         setVerdictResult({
           score: 0, oppScore: 0,
           feedback: "We couldn't hear you clearly. The recording seems to be empty or contained only background noise.",
@@ -365,6 +378,44 @@ export const DuelDrill = ({
           exampleSpeech: "Ensure your microphone is active and you speak directly into it. Try to maintain a steady pace and clear articulation."
         });
         setPhase("results");
+        return;
+      }
+
+      // ── Server-authoritative PvP judging ──────────────────────────────────
+      // Both players transcribe their OWN audio and submit it; the server judges
+      // once both sides are present and returns the same verdict to each (no host
+      // dependency, no dropped-broadcast race). The old host-judges-and-broadcasts
+      // path below is now PvE/solo only.
+      if (isPvp && duel) {
+        const isCreator = duel.creator.id === user?.id;
+        const myWords = myTranscript.split(/\s+/).filter(Boolean).length;
+        const recSecs = lastRecording?.durationMs ? lastRecording.durationMs / 1000 : duration;
+        const wpm = recSecs > 3 ? Math.round((myWords / recSecs) * 60) : 0;
+        const fillers = countFillers(myTranscript);
+        setAnalyzeText("SENDING YOUR ANSWER TO THE JUDGE…");
+        try {
+          const v = await submitForJudging({
+            duelId: duel.id,
+            gamemode: (mode || duel.gamemode || "standard") as PvpGamemode,
+            prompt: promptToUse,
+            isCreator,
+            payload: { transcript: myTranscript, wpm, fillers, name: userName, elo: userElo, avatar: "👤" },
+          }, { onWaiting: () => setAnalyzeText("WAITING FOR YOUR OPPONENT TO FINISH…") });
+          setVerdictResult({
+            score: v.myScore, oppScore: v.oppScore,
+            feedback: v.feedback, oppFeedback: v.oppFeedback,
+            won: v.won, tie: v.tie,
+            strengths: v.strengths, oppStrengths: v.oppStrengths,
+            exampleSpeech: v.exampleSpeech,
+          });
+          arenaEmitter.emit("elo:updated", { change: v.eloChange, newElo: v.newElo, outcome: v.tie ? "tie" : v.won ? "win" : "loss" });
+          if (v.won) sfx.win(); else if (!v.tie) sfx.loss();
+          setPhase("results");
+        } catch (e) {
+          console.error("[DuelDrill] PvP judging failed:", e);
+          toast({ title: "Judging failed", description: "We couldn't reach the judge. Please try again.", variant: "destructive" });
+          onClose();
+        }
         return;
       }
 
@@ -414,8 +465,6 @@ export const DuelDrill = ({
         judgeBattle(hostName, myTranscript, promptToUse, challengerName, finalOppTranscript || undefined, { hostWpm, hostFillers }),
         timeoutPromise
       ]) as any;
-
-      const userName = user?.email?.split("@")[0] || "User";
 
       // Single source of truth for the outcome: the higher of the two displayed
       // scores. The AI judge returns score, oppScore AND a free-text `winner`

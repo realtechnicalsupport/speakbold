@@ -32,7 +32,11 @@ export type ArenaEvents = {
   // `turn` is normalised ("opening"/"rebuttal") so the receiver, for whom the
   // sender is always the opponent, can slot it without caring about FOR/AGAINST.
   "arena:debate-live":      { duelId: string; userId: string; turn: "opening" | "rebuttal"; text: string };
-  "arena:debate-turn-end":  { duelId: string; userId: string; turn: "opening" | "rebuttal"; transcript: string };
+  // `final`: false = instant lockstep signal carrying the live/partial transcript
+  // sent at turn change; true = the authoritative COMPLETE transcript sent once
+  // the full recording is transcribed server-side. The judging host waits for
+  // the final of every turn before scoring.
+  "arena:debate-turn-end":  { duelId: string; userId: string; turn: "opening" | "rebuttal"; transcript: string; final?: boolean };
 };
 
 export const arenaEmitter = mitt<ArenaEvents>();

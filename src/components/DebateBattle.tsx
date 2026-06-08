@@ -9,6 +9,7 @@ import { judgeDebate, generateAIArgument, speakWithDeepgramTTS, onAIStatus, tran
 import { setRecordingActive, getActiveStream } from "@/lib/recordingState";
 import { setTimerActive } from "@/lib/timerState";
 import { speechRecognitionSupported } from "@/lib/speechRecognition";
+import { submitForJudging } from "@/lib/pvpJudge";
 import { MicrophoneBorder } from "@/components/MicrophoneBorder";
 import { RecorderPanel } from "@/components/RecorderPanel";
 import { SpamButton } from "@/components/SpamButton";
@@ -88,7 +89,7 @@ interface DebateBattleProps {
     isHost: boolean;
     opponentId: string;
     sendDebateLive: (duelId: string, turn: "opening" | "rebuttal", text: string) => void;
-    sendDebateTurnEnd: (duelId: string, turn: "opening" | "rebuttal", transcript: string) => void;
+    sendDebateTurnEnd: (duelId: string, turn: "opening" | "rebuttal", transcript: string, final?: boolean) => void;
     broadcastBattleResult: (duelId: string, results: any) => void;
     sendForfeit: (duelId: string) => void;
   };
@@ -900,44 +901,61 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
   const runJudging = async () => {
     setAnalyzeText("ASSEMBLING DEBATE TRANSCRIPT...");
 
-    // PvP: only the HOST judges (authoritative). The peer waits for the host's
-    // broadcast verdict, which the battle-result listener mirrors — exactly the
-    // pattern DuelDrill uses. Return before any judging/ELO work runs here.
-    if (isPeer && peer && !peer.isHost) {
-      setAnalyzeText("OPPONENT'S JUDGE IS DELIBERATING...");
-      return;
-    }
-
     await new Promise(r => setTimeout(r, 400));
 
-    // On mobile, user turns are transcribed server-side after each recording
-    // finishes. Wait for those before reading transcriptsRef, otherwise the
-    // judge sees empty user turns and the user gets a fake 0–50 loss.
+    // Wait for MY OWN turns to finish transcribing server-side — each turn's
+    // recording is transcribed in onRecorded. Without this the submit/judge
+    // could see an empty opening or rebuttal.
     if (pendingTranscriptionsRef.current.length > 0) {
       setAnalyzeText("TRANSCRIBING YOUR SPEECH...");
       try { await Promise.all(pendingTranscriptionsRef.current); } catch { /* individual failures already logged */ }
       pendingTranscriptionsRef.current = [];
     }
 
-    // PvP host: give a late corrected transcript from a peer on mobile (whose
-    // server-side transcription lands shortly after their turn-end) a moment to
-    // arrive before we read the transcripts for scoring.
-    if (isPeer && peer?.isHost) {
-      setAnalyzeText("COLLECTING BOTH CASES...");
-      await new Promise(r => setTimeout(r, 2500));
+    const t = transcriptsRef.current;
+    const userName = user?.email?.split("@")[0] || "You";
+
+    // ── PvP: server-authoritative judging ────────────────────────────────────
+    // Each client submits only its OWN case (opening + rebuttal). The server
+    // collects both sides, judges exactly once, and returns the same verdict to
+    // each — no host dependency, no waiting on the opponent's transcript over a
+    // best-effort broadcast, no dropped-verdict race. An empty side is still
+    // submitted so the match always resolves for both players. Both clients
+    // reach this in lockstep (the phase machine advances both to "judging").
+    if (isPeer && peer) {
+      setAnalyzeText("SENDING YOUR CASE TO THE JUDGE…");
+      try {
+        const v = await submitForJudging({
+          duelId: peer.duelId,
+          gamemode: "debate",
+          prompt,
+          isCreator: peer.isHost,
+          payload: { opening: t.userOpening, rebuttal: t.userRebuttal, stand: userStand, name: userName, elo: userElo, avatar: "👤" },
+        }, { onWaiting: () => setAnalyzeText("WAITING FOR YOUR OPPONENT…") });
+        setVerdict({
+          score: v.myScore, oppScore: v.oppScore,
+          feedback: v.feedback, oppFeedback: v.oppFeedback,
+          won: v.won,
+          strengths: v.strengths, oppStrengths: v.oppStrengths,
+          exampleSpeech: v.exampleSpeech,
+        });
+        arenaEmitter.emit("elo:updated", { change: v.eloChange, newElo: v.newElo, outcome: v.tie ? "tie" : v.won ? "win" : "loss" });
+        if (v.won) sfx.win(); else if (!v.tie) sfx.loss();
+      } catch (e) {
+        console.error("[Debate] PvP judging failed:", e);
+        setVerdict({
+          voided: true,
+          voidReason: "Our AI judge was unreachable, so this match wasn't recorded. Your ELO is unchanged — try again in a moment.",
+        });
+      }
+      setPhase("results");
+      return;
     }
 
-    const t = transcriptsRef.current;
+    // ── PvE (vs AI): local judging ────────────────────────────────────────────
     const userTotalLen = (t.userOpening + t.userRebuttal).trim().length;
-    const oppTotalLen = (t.aiOpening + t.aiRebuttal).trim().length;
-    // Void only when there's genuinely nothing to judge:
-    //  - PvE: the user's own speech is empty (don't penalise a broken mic).
-    //  - PvP: BOTH sides are empty — otherwise whoever DID speak should win, so
-    //    we let the judge score the silent side near 0 instead of voiding.
-    const nothingToJudge = isPeer ? (userTotalLen < 20 && oppTotalLen < 20) : (userTotalLen < 20);
-    if (nothingToJudge) {
-      // Voided match — don't fabricate a fake loss, don't call completeDuel,
-      // don't move ELO.
+    if (userTotalLen < 20) {
+      // Voided — the user's own speech is empty; don't penalise a broken mic.
       setVerdict({
         voided: true,
         voidReason:
@@ -949,7 +967,6 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
 
     setAnalyzeText("AI IS WEIGHING THE ARGUMENTS...");
 
-    const userName = user?.email?.split("@")[0] || "You";
     const oppName = opponent.name;
 
     // Surface provider chain progress so the screen never looks frozen for
@@ -1028,21 +1045,8 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
         );
       }
 
-      // PvP host: broadcast the verdict (host's perspective) so the peer mirrors
-      // it. The peer flips score↔oppScore and won, exactly like DuelDrill.
-      if (isPeer && peer?.isHost) {
-        peer.broadcastBattleResult(peer.duelId, {
-          score: result.score,
-          oppScore: result.oppScore,
-          feedback: result.feedback,
-          oppFeedback: result.oppFeedback,
-          strengths: result.strengths,
-          oppStrengths: result.oppStrengths,
-          won,
-          tie: result.winner === "tie",
-        });
-      }
-
+      // (PvP is judged server-side and returns earlier; this path is PvE only,
+      // so there's no peer to broadcast the verdict to.)
       setVerdict({
         score: result.score,
         oppScore: result.oppScore,
@@ -1229,31 +1233,9 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPeer, peer, phase, speechSupported]);
 
-  // ── PvP peer: mirror the host's broadcast verdict ─────────────────────────
-  // Same host-authoritative mirroring DuelDrill uses: flip score↔oppScore and
-  // the win flag, since the host broadcasts from its own perspective.
-  useEffect(() => {
-    if (!isPeer || !peer || peer.isHost) return;
-    const onResult = (p: ArenaEvents["arena:battle-result"]) => {
-      if (p.duelId !== peer.duelId) return;
-      const tie = !!p.tie || p.score === p.oppScore;
-      const iWon = tie ? false : !p.won;
-      setVerdict({
-        score: p.oppScore ?? 0,            // my score is the host's oppScore
-        oppScore: p.score,                 // host's score
-        feedback: p.oppFeedback || p.feedback,
-        oppFeedback: p.feedback,
-        won: iWon,
-        strengths: p.oppStrengths || "N/A",
-        oppStrengths: p.strengths || "N/A",
-      });
-      if (iWon) sfx.win(); else sfx.loss();
-      setPhase("results");
-    };
-    arenaEmitter.on("arena:battle-result", onResult);
-    return () => arenaEmitter.off("arena:battle-result", onResult);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPeer, peer]);
+  // (PvP verdicts are no longer broadcast host→peer — both clients submit their
+  // own case to the judge-match edge function and read the same server verdict,
+  // so the old battle-result mirror listener is gone.)
 
   // ── PvP: opponent forfeited (left the debate) → I win ─────────────────────
   useEffect(() => {
