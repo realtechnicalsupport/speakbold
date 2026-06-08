@@ -282,6 +282,12 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
   /** Outstanding server-side transcription promises for mobile turns. The
    *  judge must await these before scoring, or it'll see empty user turns. */
   const pendingTranscriptionsRef = useRef<Promise<void>[]>([]);
+  /** PvP judging fallback: the latest near-live transcript text we received and
+   *  displayed for each of the OPPONENT's turns. If their `debate-turn-end`
+   *  arrives empty (mobile/no-Web-Speech, server correction late or lost), we
+   *  judge on this instead of scoring them as silent — they were never silent,
+   *  we watched their words stream in. */
+  const oppLiveTextRef = useRef<{ opening: string; rebuttal: string }>({ opening: "", rebuttal: "" });
 
   // ── Mic permission check ──────────────────────────────────────────────────
   // Prefer the Permissions API — it tells us the current state without
@@ -1077,17 +1083,31 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
     const onLive = (p: ArenaEvents["arena:debate-live"]) => {
       if (p.duelId !== peer.duelId || p.userId !== peer.opponentId) return;
       setAiStream(p.text);
+      // Remember the longest live text seen for this turn as a judging fallback
+      // (in a ref — no render churn). Segments grow monotonically, but guard
+      // against a late shorter tick.
+      if (p.text && p.text.length > oppLiveTextRef.current[p.turn].length) {
+        oppLiveTextRef.current[p.turn] = p.text;
+      }
     };
     const onTurnEnd = (p: ArenaEvents["arena:debate-turn-end"]) => {
       if (p.duelId !== peer.duelId || p.userId !== peer.opponentId) return;
       // From our perspective the opponent occupies the "ai*" transcript slots.
-      // We store on EVERY turn-end (even a late mobile correction that arrives
-      // after we've moved on) so the host always judges the real text.
-      setTranscripts(prev => ({
-        ...prev,
-        ...(p.turn === "opening" ? { aiOpening: p.transcript } : { aiRebuttal: p.transcript }),
-      }));
-      setAiStream(p.transcript);
+      // The authoritative final transcript wins when present; if it's empty
+      // (mobile with no Web Speech sends an empty turn-end first, and its
+      // server-side correction can be late or lost) we fall back to the live
+      // text we already streamed and displayed — never score them silent when
+      // we literally watched their words. An empty turn-end must NEVER overwrite
+      // a value we already have.
+      const incoming = (p.transcript || "").trim();
+      const best = incoming || oppLiveTextRef.current[p.turn] || "";
+      if (best) {
+        setTranscripts(prev => ({
+          ...prev,
+          ...(p.turn === "opening" ? { aiOpening: best } : { aiRebuttal: best }),
+        }));
+        setAiStream(best);
+      }
       // Only advance if we're currently watching this exact turn (a late
       // correction for an already-finished turn must NOT skip a phase).
       const watchingPhase = p.turn === "opening" ? "opening-ai" : "rebuttal-ai";
@@ -1336,6 +1356,7 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
     window.speechSynthesis.cancel();
     try { recognitionRef.current?.stop(); } catch (_) {}
     setTranscripts({ userOpening: "", aiOpening: "", userRebuttal: "", aiRebuttal: "" });
+    oppLiveTextRef.current = { opening: "", rebuttal: "" };
     setLiveFinal("");
     setLiveInterim("");
     setAiStream("");

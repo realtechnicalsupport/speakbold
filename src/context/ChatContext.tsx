@@ -34,12 +34,19 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Wipe the previous account's conversation from memory the instant the user
+    // changes — never let one user's messages linger in another's session while
+    // the reload is in flight (or if it fails). The DB itself is already
+    // RLS-isolated (auth.uid() = user_id on both select and insert); this guards
+    // the in-memory view on account switch / sign-out.
+    setMessages([]);
+
     if (!user) {
-      setMessages([]);
       setIsOpen(false);
       return;
     }
 
+    let cancelled = false;
     const loadMessages = async () => {
       const { data, error } = await supabase
         .from("ai_chat_messages")
@@ -47,14 +54,21 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
         .eq("user_id", user.id)
         .order("created_at", { ascending: true })
         .limit(50);
-      
+
+      // Drop a response that resolves after the user changed again — stops a
+      // slow load for a previous account from populating the current one.
+      if (cancelled) return;
       if (!error && data) {
         setMessages(data as ChatMessage[]);
       }
     };
 
     loadMessages();
-  }, [user]);
+    return () => { cancelled = true; };
+    // Keyed on the user id (not the user object) so we don't needlessly clear +
+    // reload on every token refresh, which mints a new user object reference.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   const sendMessage = async (text: string) => {
     if (!user || !text.trim()) return;
