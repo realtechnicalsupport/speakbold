@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Sparkles, RefreshCw, Loader2, Mic, ArrowRight, Compass,
-  TrendingUp, TrendingDown, Minus, Video, Zap, PartyPopper,
+  TrendingUp, TrendingDown, Minus, Video, Zap, PartyPopper, HelpCircle,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useSkillProfile } from "@/hooks/useSkillProfile";
@@ -98,17 +98,31 @@ export const CoachHub = () => {
             Today, <span className="text-primary italic">{displayName}</span>.
           </h1>
         </div>
-        {profile && plan && (
+        <div className="flex items-center gap-4 shrink-0 mt-2">
+          {/* Opt-in tour entry — the only way the guided walkthrough is reached
+              now that it no longer auto-fires. Always shown (even mid-load) so a
+              first-time user can always find it. Dispatches the event GuidedTour
+              listens for; the tour itself routes here and spotlights the page. */}
           <button
-            onClick={() => regenerate(true)}
-            disabled={generating}
-            className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] opacity-40 hover:opacity-100 transition-opacity disabled:opacity-30 shrink-0 mt-2"
-            title="Regenerate plan"
+            onClick={() => window.dispatchEvent(new Event("speakbold:start-tour"))}
+            className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] opacity-40 hover:opacity-100 hover:text-primary transition-all"
+            title="Take a quick tour"
           >
-            {generating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-            {generating ? "Updating" : "Refresh"}
+            <HelpCircle className="h-3.5 w-3.5" />
+            Show me around
           </button>
-        )}
+          {profile && plan && (
+            <button
+              onClick={() => regenerate(true)}
+              disabled={generating}
+              className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] opacity-40 hover:opacity-100 transition-opacity disabled:opacity-30"
+              title="Regenerate plan"
+            >
+              {generating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+              {generating ? "Updating" : "Refresh"}
+            </button>
+          )}
+        </div>
       </div>
 
       {loading ? (

@@ -1,7 +1,12 @@
 // Guided-tour script. Each step optionally navigates to a route, spotlights a
-// real element (by CSS selector), and explains it. "do" steps wait for the user
-// to actually act (a click on the target, or an app event) — but every step
-// also offers Next/Skip so the tour can never trap the user.
+// real element (by CSS selector), and explains it. Every step also offers
+// Next/Skip so the tour can never trap the user.
+//
+// Kept deliberately SHORT (3 steps, all on /lab) — a brand-new user clicks away
+// from a long walkthrough. The old 9-step version route-hopped across /lab →
+// /pathway → /arena → /profile, which felt like a chore. These three answer the
+// only questions a first-timer actually has: what is this, how do I practise,
+// and where do I get help. Everything else is discoverable in the nav.
 
 export interface TourStep {
   id: string;
@@ -23,63 +28,22 @@ export const TOUR: TourStep[] = [
   {
     id: "welcome",
     route: "/lab",
-    title: "Welcome to SpeakBold 👋",
-    body: "A 45-second tour of how everything fits together. You can skip anytime.",
-  },
-  {
-    id: "coach-radar",
-    route: "/lab",
     target: "#tour-coach-radar",
-    title: "Your AI Coach",
-    body: "This radar maps your speaking across 6 skills. It fills in and sharpens as you practice.",
+    title: "Meet your coach 👋",
+    body: "This maps your speaking across 6 skills. Record a drill and it lights up — your coach learns exactly what to work on with you.",
   },
   {
-    id: "today-session",
+    id: "daily-drill",
     route: "/lab",
     target: "#tour-today-session",
-    title: "Today's session",
-    body: "Your coach builds a daily plan that targets your weakest skills. Tap any drill to start — it scores you and updates the radar.",
-  },
-  {
-    id: "lab-tracks",
-    route: "/lab",
-    target: "#lab-grid",
-    title: "Free practice",
-    body: "Or pick a specific skill to drill on your own terms — impromptu, interviews, body language, and more.",
-  },
-  {
-    id: "pathway",
-    route: "/pathway",
-    target: "#pathway-hero",
-    title: "The Pathway",
-    body: "Prefer a guided course? Take a quick placement test and we'll start you at the right tier, then climb structured lessons from Beginner to Orator.",
-  },
-  {
-    id: "arena",
-    route: "/arena",
-    target: "#arena-gamemodes",
-    title: "The Arena",
-    body: "Battle an AI opponent or a friend to practice under pressure and climb the ranks.",
-  },
-  {
-    id: "profile",
-    route: "/profile",
-    target: "#profile-stats",
-    title: "Your Profile",
-    body: "Track your streak, level, recordings, and achievements — and see how you stack up against friends.",
+    title: "Your drill for today",
+    body: "Tap here for a quick rep aimed at your weakest skill. Want a full course instead? The Pathway takes you from Beginner to Orator.",
   },
   {
     id: "coach-chat",
-    target: "#coach-chat-trigger",
-    title: "Your coach, anytime",
-    body: "Stuck? Tap here to ask your AI coach for advice — or just say “give me a drill.”",
-    doHint: "Give it a tap to open it →",
-    advanceClickSelector: "#coach-chat-trigger",
-  },
-  {
-    id: "finish",
     route: "/lab",
-    title: "You're all set 🎯",
-    body: "Record your first drill to activate your coach — it only takes 60 seconds.",
+    target: "#coach-chat-trigger",
+    title: "Stuck? Just ask",
+    body: "Your coach is one tap away — ask for tips, get feedback, or just say “give me a drill.” That's it — you're ready to go.",
   },
 ];
