@@ -2,7 +2,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { TrackShell } from "@/components/TrackShell";
 import { BodyLanguageCamera } from "@/components/BodyLanguageCamera";
-import { Activity, Eye, Smile, Hand, Sparkles, Zap, Shield, Shuffle } from "lucide-react";
+import { Activity, Smile, Hand, Sparkles, Zap, Shield, Shuffle } from "lucide-react";
 
 const METRICS_EXPLAINED = [
   {
@@ -12,14 +12,6 @@ const METRICS_EXPLAINED = [
     title: "Stand like you own it.",
     body: "Shoulder alignment, head position, spine angle. Slouching costs you authority before you say a word.",
     measure: "33-point skeletal tracking via MediaPipe Pose.",
-  },
-  {
-    icon: Eye,
-    color: "#38bdf8",
-    label: "EYE CONTACT",
-    title: "Hold their attention.",
-    body: "Facing the lens or scanning the room? Looking away mid-sentence breaks the connection instantly.",
-    measure: "Iris gaze direction from 478-point Face Mesh.",
   },
   {
     icon: Smile,
@@ -76,7 +68,7 @@ const BodyLanguage = () => {
           Your body speaks <span className="text-primary italic">before you do.</span>
         </>
       }
-      intro="Live, on-device feedback on your posture, eye contact, expression, and gestures."
+      intro="Live, on-device feedback on your posture, expression, and gestures."
       compact
     >
       {/* Ambient glow */}

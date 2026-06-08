@@ -78,7 +78,7 @@ const SLIDES: Slide[] = [
           {[
             { icon: Mic, title: "Impromptu drills", desc: "Think on your feet, on demand" },
             { icon: Swords, title: "Practice Lounge", desc: "Duel an AI — or a real person" },
-            { icon: Eye, title: "Body Language", desc: "Live posture & eye-contact AI" },
+            { icon: Eye, title: "Body Language", desc: "Live posture, expression & gesture AI" },
             { icon: Compass, title: "Guided Pathway", desc: "Beginner to orator, step by step" },
           ].map(({ icon: Icon, title, desc }) => (
             <div

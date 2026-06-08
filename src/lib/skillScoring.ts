@@ -92,20 +92,19 @@ export function coachToDims(p: {
 /**
  * Body-language session → the `delivery` spoke (which is literally "Body
  * Language" in the radar) plus an honest nudge to `confidence`: steady posture
- * and held eye-contact are exactly what an audience reads as confident. Camera
- * sessions are the only source that can fill `delivery`, so without this the
- * radar's Body Language spoke stays permanently empty.
+ * and an animated, engaged face are exactly what an audience reads as
+ * confident. Camera sessions are the only source that can fill `delivery`, so
+ * without this the radar's Body Language spoke stays permanently empty.
  */
 export function bodyToDims(m: {
   posture: number;
-  eyeContact: number;
   expression: number;
   gesture: number;
   overall: number;
 }): DimScores {
   return {
     delivery: clamp(m.overall),
-    confidence: clamp(m.posture * 0.5 + m.eyeContact * 0.5),
+    confidence: clamp(m.posture * 0.6 + m.expression * 0.4),
   };
 }
 

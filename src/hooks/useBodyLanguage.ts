@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 export interface BodyMetrics {
   posture: number;
-  eyeContact: number;
   expression: number;
   gesture: number;
   overall: number;
@@ -15,7 +14,7 @@ export interface BodyLanguageSession {
 
 export type BodyStatus = "idle" | "loading" | "live" | "recording" | "done" | "error" | "denied";
 
-const DEFAULT_METRICS: BodyMetrics = { posture: 0, eyeContact: 0, expression: 0, gesture: 0, overall: 0 };
+const DEFAULT_METRICS: BodyMetrics = { posture: 0, expression: 0, gesture: 0, overall: 0 };
 
 // WASM served locally from public/mediapipe-wasm (copied from node_modules at install time)
 const WASM_CDN = "/mediapipe-wasm";
@@ -64,20 +63,11 @@ function computePosture(landmarks: any[]): number {
   return Math.round(Math.max(0, 100 - tiltPenalty - leanPenalty - headPenalty));
 }
 
-function computeEyeContact(blendshapes: any[]): number {
-  if (!blendshapes?.[0]?.categories) return 50;
-  const shapes = blendshapes[0].categories;
-  const g = (name: string) => shapes.find((s: any) => s.categoryName === name)?.score ?? 0;
-  // Average the off-axis gaze blendshapes SYMMETRICALLY across both eyes and all
-  // four directions. The original sampled only left-up and left-down, so the
-  // score swung with which way the eyes drifted instead of how far off-camera.
-  const deviation = (
-    g("eyeLookOutLeft") + g("eyeLookOutRight") +
-    g("eyeLookUpLeft") + g("eyeLookUpRight") +
-    g("eyeLookDownLeft") + g("eyeLookDownRight")
-  ) / 6;
-  return Math.round(Math.max(0, Math.min(100, 100 - deviation * 250)));
-}
+// NOTE: an eye-contact metric used to live here. It scored gaze deviation from
+// the camera LENS, which systematically (and device-dependently) penalised the
+// natural thing every presenter does — look at their content on the SCREEN,
+// which on most laptops sits below the lens. It was removed rather than
+// offset; posture/expression/gesture remain the live signals.
 
 function computeExpression(blendshapes: any[]): number {
   if (!blendshapes?.[0]?.categories) return 50;
@@ -101,7 +91,6 @@ function computeGesture(curr: any[], prev: any[] | null): number {
 
 function getNudge(m: BodyMetrics): string {
   if (m.posture < 55) return "Straighten up — shoulders back, chin level";
-  if (m.eyeContact < 55) return "Look at the lens — eye contact commands attention";
   if (m.expression < 45) return "Bring energy — let your face match your words";
   if (m.gesture < 40) return "Unfreeze your hands — gestures build authority";
   return "";
@@ -154,7 +143,6 @@ export function useBodyLanguage() {
   const prevPoseRef = useRef<any[] | null>(null);
 
   const postBuf = useRef<number[]>([]);
-  const eyeBuf = useRef<number[]>([]);
   const exprBuf = useRef<number[]>([]);
   const gestBuf = useRef<number[]>([]);
 
@@ -195,30 +183,29 @@ export function useBodyLanguage() {
 
       if (!detected) {
         pushRolling(postBuf.current, 0);
-        pushRolling(eyeBuf.current, 0);
         pushRolling(exprBuf.current, 0);
         pushRolling(gestBuf.current, 0);
       } else {
         const posture = computePosture(pLM);
-        const eyeContact = computeEyeContact(blends);
         const expression = computeExpression(blends);
         const gesture = computeGesture(pLM, prevPoseRef.current);
         prevPoseRef.current = pLM;
 
         pushRolling(postBuf.current, posture);
-        pushRolling(eyeBuf.current, eyeContact);
         pushRolling(exprBuf.current, expression);
         pushRolling(gestBuf.current, gesture);
       }
 
       const sm: BodyMetrics = {
         posture: rollingAvg(postBuf.current),
-        eyeContact: rollingAvg(eyeBuf.current),
         expression: rollingAvg(exprBuf.current),
         gesture: rollingAvg(gestBuf.current),
         overall: 0,
       };
-      sm.overall = Math.round(sm.posture * 0.3 + sm.eyeContact * 0.35 + sm.expression * 0.2 + sm.gesture * 0.15);
+      // Weights re-normalised after dropping eye-contact (was posture .30 /
+      // eye .35 / expression .20 / gesture .15). Posture stays dominant — it's
+      // the most reliable landmark-based signal.
+      sm.overall = Math.round(sm.posture * 0.45 + sm.expression * 0.30 + sm.gesture * 0.25);
       metricsRef.current = sm;
 
       drawSkeleton(ctx, pLM, canvas.width, canvas.height, sm.posture);
@@ -361,7 +348,6 @@ export function useBodyLanguage() {
       durationMs,
       averageMetrics: {
         posture: avg("posture"),
-        eyeContact: avg("eyeContact"),
         expression: avg("expression"),
         gesture: avg("gesture"),
         overall: avg("overall"),

@@ -6,7 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useRecordings } from "@/hooks/useRecordings";
 import { toast } from "@/hooks/use-toast";
 import { judgeDebate, generateAIArgument, speakWithDeepgramTTS, onAIStatus, transcribeAudio } from "@/services/geminiService";
-import { setRecordingActive } from "@/lib/recordingState";
+import { setRecordingActive, getActiveStream } from "@/lib/recordingState";
 import { setTimerActive } from "@/lib/timerState";
 import { isMobileDevice } from "@/lib/isMobileDevice";
 import { MicrophoneBorder } from "@/components/MicrophoneBorder";
@@ -1124,48 +1124,85 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPeer, peer, phase, liveFinal, liveInterim, speechSupported]);
 
-  // ── PvP (mobile/tablet): near-live transcript for the watching opponent ────
-  // The Web Speech API is disabled on phones/tablets (it cycles the mic), so the
-  // desktop live-stream effect above sends nothing there and the opponent would
-  // stare at "Opponent is thinking…" for the whole turn. Here we periodically
-  // re-transcribe the audio captured so far — the chunks come from the SAME
-  // upload recorder (now timesliced), so no second mic stream is opened — and
-  // broadcast the growing text as the same `debate-live` event the watcher
-  // already renders. The authoritative final transcript still lands at turn-end
-  // (onRecorded → server transcription → sendDebateTurnEnd), correcting any lag.
-  const liveChunksRef = useRef<Blob[]>([]);
-  const handleLiveChunks = useCallback((chunks: Blob[]) => { liveChunksRef.current = chunks; }, []);
+  // ── PvP (mobile/tablet): near-live transcript via SEGMENTED re-recording ────
+  // Web Speech is disabled on phones/tablets (it cycles the mic), so the desktop
+  // live-stream effect above sends nothing there. We can't just re-transcribe a
+  // PREFIX of the in-progress recording either: on iOS Safari the recorder emits
+  // mp4, whose `moov` index atom is written only on stop(), so a mid-turn prefix
+  // is undecodable and every partial silently fails — that was the "doesn't work
+  // on tablet" bug. Instead we run a SECOND MediaRecorder on the SAME mic stream
+  // (read from the shared store — no second getUserMedia, so no NotReadableError)
+  // in short ~5s segments. Each segment is stopped, producing a COMPLETE,
+  // self-contained file (mp4 OR webm) that decodes everywhere, iPad included; we
+  // transcribe it, append to the running text, and broadcast over the same
+  // `debate-live` channel the watcher already renders. The authoritative full
+  // transcript still lands at turn-end (onRecorded → server transcription →
+  // sendDebateTurnEnd) and corrects the small gaps lost at segment boundaries.
+  const SEGMENT_MS = 5000;
   useEffect(() => {
     if (!isPeer || !peer || speechSupported) return;
     const turn = turnNameOf(phase);
     if (!turn || PHASE_CONFIG[phase].speaker !== "user") return; // only my speaking turn
-    // Drop any chunks left over from the previous turn — the recorder restarts
-    // per turn, so within one timeslice this refills with the new turn's audio.
-    liveChunksRef.current = [];
+
     let cancelled = false;
-    let inFlight = false;
-    let lastBytes = 0;
-    const id = window.setInterval(async () => {
-      if (cancelled || inFlight) return;
-      const chunks = liveChunksRef.current;
-      if (chunks.length === 0) return;
-      // Always rebuild from chunk 0 so the blob keeps its container header and
-      // stays decodable; re-transcribing the whole turn-so-far also keeps the
-      // text coherent and monotonic instead of stitching per-chunk fragments.
-      const blob = new Blob(chunks, { type: chunks[0].type || "audio/webm" });
-      if (blob.size <= lastBytes) return; // nothing new captured since last tick
-      lastBytes = blob.size;
-      inFlight = true;
+    let rec: MediaRecorder | null = null;
+    let segChunks: Blob[] = [];
+    let accumulated = "";
+    let cycleTimer: number | null = null;
+
+    const pickMime = (): string | undefined => {
+      if (typeof MediaRecorder === "undefined" || typeof MediaRecorder.isTypeSupported !== "function") return undefined;
+      return ["audio/webm;codecs=opus", "audio/webm", "audio/mp4;codecs=mp4a.40.2", "audio/mp4", "audio/aac"]
+        .find((t) => MediaRecorder.isTypeSupported(t));
+    };
+
+    const transcribeSegment = async (blob: Blob) => {
+      if (blob.size < 1200) return; // too small to carry speech — skip the round-trip
       try {
         const text = (await transcribeAudio(blob)).trim();
-        if (!cancelled && text) peer.sendDebateLive(peer.duelId, turn, text);
+        if (cancelled || !text) return;
+        accumulated = accumulated ? `${accumulated} ${text}` : text;
+        peer.sendDebateLive(peer.duelId, turn, accumulated);
       } catch {
-        /* a dropped partial is fine — the next tick or turn-end recovers */
-      } finally {
-        inFlight = false;
+        /* a dropped segment is fine — the turn-end transcript recovers it */
       }
-    }, 4000);
-    return () => { cancelled = true; window.clearInterval(id); };
+    };
+
+    const startSegment = () => {
+      if (cancelled) return;
+      const stream = getActiveStream();
+      if (!stream) {
+        // The main turn recorder hasn't published its stream yet — retry shortly.
+        cycleTimer = window.setTimeout(startSegment, 300);
+        return;
+      }
+      try {
+        const mime = pickMime();
+        rec = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+      } catch {
+        return; // can't build a 2nd recorder here — turn-end transcript still works
+      }
+      segChunks = [];
+      rec.ondataavailable = (e) => { if (e.data.size > 0) segChunks.push(e.data); };
+      rec.onstop = () => {
+        const type = rec?.mimeType || segChunks[0]?.type || "audio/webm";
+        void transcribeSegment(new Blob(segChunks, { type }));
+        if (!cancelled) startSegment(); // immediately roll the next complete segment
+      };
+      try { rec.start(); } catch { return; }
+      cycleTimer = window.setTimeout(() => {
+        try { if (rec && rec.state !== "inactive") rec.stop(); } catch { /* already gone */ }
+      }, SEGMENT_MS);
+    };
+
+    startSegment();
+
+    return () => {
+      cancelled = true;
+      if (cycleTimer) window.clearTimeout(cycleTimer);
+      try { if (rec && rec.state !== "inactive") rec.stop(); } catch { /* already stopped */ }
+      rec = null;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPeer, peer, phase, speechSupported]);
 
@@ -1643,6 +1680,11 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
               interimText=""
               currentText={!isUserTurn ? aiStream : ""}
               speechSupported={true}
+              // PvP only: a real human is on the other end, so when their turn
+              // is running but no live text has arrived yet (the first segment
+              // is still being captured, or their device can't stream partials),
+              // show "speaking live…" rather than the PvE "thinking…" copy.
+              liveSpeaking={isPeer}
             />
           </div>
 
@@ -1681,12 +1723,11 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
             externalRunning={isUserTurn}
             recorderStartRef={fn => { recorderStartRef.current = fn; }}
             recorderStopRef={fn => { recorderStopRef.current = fn; }}
-            // Only timeslice for a live PvP debate on mobile — that's the one
-            // case that needs mid-turn chunks (to feed near-live transcription
-            // to the opponent). Everywhere else the recorder stays in its
-            // original single-blob mode.
-            liveTimeslice={isPeer && !speechSupported ? 1000 : undefined}
-            onLiveChunks={isPeer && !speechSupported ? handleLiveChunks : undefined}
+            // Main turn recorder stays single-blob: it owns the authoritative
+            // full-turn upload + judge transcript. Near-live transcription is
+            // handled separately by a second segment recorder on the same mic
+            // stream (see the segmented near-live effect above) — so this one
+            // never needs timesliced chunks.
             onRecorded={async (rec) => {
               setLastRecording(rec);
 
@@ -1877,9 +1918,10 @@ interface PodiumProps {
   interimText: string;    // in-progress live speech (user only)
   currentText: string;    // AI streaming text
   speechSupported: boolean;
+  liveSpeaking?: boolean;  // PvP: opponent is a live human currently speaking
 }
 
-const Podium = ({ who, name, stand, isActive, avatar, previousText, previousLabel, liveText, interimText, currentText, speechSupported }: PodiumProps) => {
+const Podium = ({ who, name, stand, isActive, avatar, previousText, previousLabel, liveText, interimText, currentText, speechSupported, liveSpeaking }: PodiumProps) => {
   const standColor = stand === "FOR" ? "text-green-500 border-green-500/30 bg-green-500/5" : "text-red-500 border-red-500/30 bg-red-500/5";
 
   return (
@@ -1968,7 +2010,17 @@ const Podium = ({ who, name, stand, isActive, avatar, previousText, previousLabe
                   className="inline-block w-0.5 h-3.5 md:h-4 bg-primary align-middle ml-0.5"
                 />
                 {!currentText && (
-                  <span className="opacity-30 italic">Opponent is thinking…</span>
+                  liveSpeaking ? (
+                    // Live human opponent: their captions stream in a few seconds
+                    // behind (mobile transcribes per audio segment). Show presence
+                    // so the watcher never sees a dead "thinking…" screen.
+                    <span className="inline-flex items-center gap-1.5 opacity-50 italic align-middle">
+                      <Volume2 className="h-3 w-3 animate-pulse" />
+                      {name} is speaking live…
+                    </span>
+                  ) : (
+                    <span className="opacity-30 italic">Opponent is thinking…</span>
+                  )
                 )}
               </p>
             </div>

@@ -904,7 +904,6 @@ Return JSON ONLY:
 
 export async function generateBodyLanguageFeedback(metrics: {
   posture: number;
-  eyeContact: number;
   expression: number;
   gesture: number;
   overall: number;
@@ -913,7 +912,6 @@ export async function generateBodyLanguageFeedback(metrics: {
   const prompt = `You are an expert body language coach for public speakers. A student just completed a ${metrics.durationSecs}-second practice session with these AI-measured scores:
 
 - Posture & Alignment: ${metrics.posture}/100
-- Eye Contact: ${metrics.eyeContact}/100
 - Facial Expressiveness: ${metrics.expression}/100
 - Gesture Activity: ${metrics.gesture}/100
 - Overall Score: ${metrics.overall}/100
@@ -932,7 +930,7 @@ Return JSON ONLY:
     const jsonMatch = result.match(/\{[\s\S]*\}/);
     const p = JSON.parse(
       jsonMatch?.[0] ??
-        '{"title":"Keep Building","bullets":["Focus on shoulder alignment for a stronger presence.","Sustain eye contact through the full sentence.","Let your hands move naturally to reinforce your words."]}'
+        '{"title":"Keep Building","bullets":["Focus on shoulder alignment for a stronger presence.","Let your expression match your message through the full sentence.","Let your hands move naturally to reinforce your words."]}'
     );
     return { title: p.title ?? "Session Complete", bullets: Array.isArray(p.bullets) ? p.bullets.slice(0, 3) : [] };
   } catch {
@@ -940,7 +938,7 @@ Return JSON ONLY:
       title: "Keep Building",
       bullets: [
         `Your overall score of ${metrics.overall} shows real potential — consistency is the next step.`,
-        "Eye contact is your audience's trust signal — practice holding it through full thoughts.",
+        "Let your expression carry the emotion of your words — a flat face loses the room.",
         "Use deliberate gestures to anchor your key points and project authority.",
       ],
     };

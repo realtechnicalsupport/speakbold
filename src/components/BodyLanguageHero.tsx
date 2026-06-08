@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Camera, Loader2, AlertCircle, Lock, ArrowRight, Activity, Eye, Smile, Hand } from "lucide-react";
+import { Camera, Loader2, AlertCircle, Lock, ArrowRight, Activity, Smile, Hand } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useBodyLanguage } from "@/hooks/useBodyLanguage";
 import { track } from "@/lib/analytics";
@@ -17,7 +17,6 @@ import { track } from "@/lib/analytics";
 
 const METRICS = [
   { key: "posture", label: "Posture", icon: Activity, color: "#f97316" },
-  { key: "eyeContact", label: "Eye", icon: Eye, color: "#38bdf8" },
   { key: "expression", label: "Expression", icon: Smile, color: "#a78bfa" },
   { key: "gesture", label: "Gesture", icon: Hand, color: "#34d399" },
 ] as const;
@@ -46,7 +45,7 @@ export function BodyLanguageHero({ className }: { className?: string }) {
             Your body speaks <span className="text-primary">before you do.</span>
           </h2>
           <p className="text-sm md:text-base opacity-60 leading-relaxed max-w-md">
-            Real-time AI coaching on your posture, eye contact, expression, and gestures —
+            Real-time AI coaching on your posture, expression, and gestures —
             running entirely in your browser. Your camera never leaves this device.
           </p>
           <div className="flex items-center gap-2 text-[11px] font-bold opacity-50">

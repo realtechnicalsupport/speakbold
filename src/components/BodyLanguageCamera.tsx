@@ -1,6 +1,6 @@
 ﻿import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Camera, Video, Square, VideoOff, AlertCircle, Activity, Eye, Smile, Hand, Loader2, Sun, Ruler, UserCheck, Lock, PlayCircle, EyeOff } from "lucide-react";
+import { Camera, Video, Square, VideoOff, AlertCircle, Activity, Smile, Hand, Loader2, Sun, Ruler, UserCheck, Lock, PlayCircle, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useBodyLanguage, type BodyLanguageSession } from "@/hooks/useBodyLanguage";
 import { BodyLanguageReport } from "@/components/BodyLanguageReport";
@@ -10,7 +10,6 @@ import { bodyToDims } from "@/lib/skillScoring";
 
 const METRIC_CONFIG = [
   { key: "posture" as const, label: "POSTURE", icon: Activity, color: "#f97316" },
-  { key: "eyeContact" as const, label: "EYE CONTACT", icon: Eye, color: "#38bdf8" },
   { key: "expression" as const, label: "EXPRESSION", icon: Smile, color: "#a78bfa" },
   { key: "gesture" as const, label: "GESTURE", icon: Hand, color: "#34d399" },
 ];
@@ -97,19 +96,18 @@ function DemoFigure() {
 }
 
 function CameraFreeDemo() {
-  const [vals, setVals] = useState({ posture: 78, eyeContact: 72, expression: 68, gesture: 64 });
+  const [vals, setVals] = useState({ posture: 78, expression: 68, gesture: 64 });
   useEffect(() => {
     const id = setInterval(() => {
       setVals((v) => ({
         posture: clampDrift(v.posture),
-        eyeContact: clampDrift(v.eyeContact),
         expression: clampDrift(v.expression),
         gesture: clampDrift(v.gesture),
       }));
     }, 700);
     return () => clearInterval(id);
   }, []);
-  const overall = Math.round(vals.posture * 0.3 + vals.eyeContact * 0.35 + vals.expression * 0.2 + vals.gesture * 0.15);
+  const overall = Math.round(vals.posture * 0.45 + vals.expression * 0.30 + vals.gesture * 0.25);
 
   return (
     <div className="absolute inset-0 flex items-stretch bg-gradient-to-br from-black/50 to-black/25">
@@ -174,7 +172,6 @@ export function BodyLanguageCamera() {
       overall: m.overall,
       meta: {
         posture: m.posture,
-        eyeContact: m.eyeContact,
         expression: m.expression,
         gesture: m.gesture,
         overall: m.overall,

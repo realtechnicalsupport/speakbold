@@ -71,7 +71,7 @@ const BodyLanguagePanel = ({ onBack }: { onBack: () => void }) => (
         <span className="text-primary italic">before you do.</span>
       </h2>
       <p className="text-sm md:text-base font-medium opacity-40 leading-relaxed">
-        Real-time AI analysis of your posture, eye contact, expression, and gestures.
+        Real-time AI analysis of your posture, expression, and gestures.
         All processing happens in your browser — nothing is uploaded.
       </p>
     </div>
@@ -110,7 +110,7 @@ const BodyLanguageHeroCard = ({ onOpen }: { onOpen: () => void }) => (
           <span className="text-primary italic">before you do.</span>
         </h2>
         <p className="text-sm md:text-base font-medium opacity-50 leading-relaxed max-w-lg">
-          A real-time AI read on your posture, eye contact, expression, and gestures —
+          A real-time AI read on your posture, expression, and gestures —
           all on-device, nothing uploaded. The half of speaking nobody else measures.
         </p>
         <span className="inline-flex items-center gap-2.5 text-[11px] md:text-xs font-black uppercase tracking-[0.25em] text-orange-500 group-hover:gap-4 transition-all duration-300">

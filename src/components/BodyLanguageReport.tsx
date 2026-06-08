@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { RadialBarChart, RadialBar, PolarAngleAxis, ResponsiveContainer } from "recharts";
-import { Sparkles, RotateCcw, Trophy, Eye, Smile, Hand, Activity, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { Sparkles, RotateCcw, Trophy, Smile, Hand, Activity, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { BodyLanguageSession } from "@/hooks/useBodyLanguage";
 import { generateBodyLanguageFeedback } from "@/services/geminiService";
@@ -16,7 +16,6 @@ interface Props {
 
 const METRIC_CONFIG = [
   { key: "posture" as const, label: "POSTURE", icon: Activity, color: "#f97316" },
-  { key: "eyeContact" as const, label: "EYE CONTACT", icon: Eye, color: "#38bdf8" },
   { key: "expression" as const, label: "EXPRESSION", icon: Smile, color: "#a78bfa" },
   { key: "gesture" as const, label: "GESTURE", icon: Hand, color: "#34d399" },
 ];
@@ -112,7 +111,6 @@ export function BodyLanguageReport({ session, onReset }: Props) {
   useEffect(() => {
     generateBodyLanguageFeedback({
       posture: m.posture,
-      eyeContact: m.eyeContact,
       expression: m.expression,
       gesture: m.gesture,
       overall: m.overall,
@@ -125,7 +123,7 @@ export function BodyLanguageReport({ session, onReset }: Props) {
       .catch(() => {
         setBullets([
           "Review your posture score and focus on keeping shoulders level.",
-          "Eye contact is your strongest presence signal — keep working on it.",
+          "Let your expression carry the message — a little animation keeps the room engaged.",
           "Bring more gestural variety to command the room.",
         ]);
         setTitle("Keep Building");

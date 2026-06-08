@@ -258,35 +258,48 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           }
         });
 
+        // Every arena_battles row is written from its AUTHOR's perspective —
+        // `challenger_id`/`challenger_score`/`verdict`/`strengths` describe
+        // whoever ran the judge and submitted the row (see
+        // submit-battle-result: `challenger_id: userId`), while the `opp_*`
+        // columns describe the other side. When the viewer was the author
+        // (isUserChallenger) the row already matches "me"/"them"; when the
+        // viewer was the OTHER side, every field must be flipped — otherwise
+        // their history shows the opponent's score/verdict/strengths labelled
+        // as their own. `example_speech` has no `opp_` counterpart (it's
+        // generated solely for the author), so the non-author side has no
+        // personalised example to show — omit it rather than show theirs.
         const formatted: Duel[] = battleData.map(b => {
-          const hostProf = profileMap.get(b.challenger_id);
-          const oppProf = profileMap.get(b.opponent_id);
-          
+          const isUserChallenger = b.challenger_id === user.id;
+          const myProf  = profileMap.get(isUserChallenger ? b.challenger_id : b.opponent_id);
+          const oppProf = profileMap.get(isUserChallenger ? b.opponent_id  : b.challenger_id);
+          const oppId   = (isUserChallenger ? b.opponent_id : b.challenger_id) || "ai";
+
           return {
-            id: b.id, 
-            prompt: b.prompt, 
-            gamemode: b.gamemode as Gamemode, 
-            status: "completed", 
-            timestamp: new Date(b.created_at).getTime(), 
-            winner: b.winner_id, 
-            feedback: b.verdict,
-            oppFeedback: b.opp_feedback,
-            strengths: b.strengths,
-            oppStrengths: b.opp_strengths,
-            exampleSpeech: b.example_speech,
-            creator: { 
-              id: b.challenger_id, 
-              name: hostProf?.display_name || (b.challenger_id === user.id ? user.email?.split("@")[0] : "Player"), 
-              score: b.challenger_score, avatar: "👤", 
-              elo: hostProf?.elo ?? 0, 
-              rank: getRankFromElo(hostProf?.elo ?? 0) 
+            id: b.id,
+            prompt: b.prompt,
+            gamemode: b.gamemode as Gamemode,
+            status: "completed",
+            timestamp: new Date(b.created_at).getTime(),
+            winner: b.winner_id,
+            feedback: isUserChallenger ? b.verdict : (b.opp_feedback ?? b.verdict),
+            oppFeedback: isUserChallenger ? b.opp_feedback : b.verdict,
+            strengths: isUserChallenger ? b.strengths : (b.opp_strengths ?? b.strengths),
+            oppStrengths: isUserChallenger ? b.opp_strengths : b.strengths,
+            exampleSpeech: isUserChallenger ? b.example_speech : undefined,
+            creator: {
+              id: user.id,
+              name: myProf?.display_name || user.email?.split("@")[0] || "You",
+              score: isUserChallenger ? b.challenger_score : b.opponent_score, avatar: "👤",
+              elo: myProf?.elo ?? 0,
+              rank: getRankFromElo(myProf?.elo ?? 0)
             },
-            challenger: { 
-              id: b.opponent_id || "ai", 
-              name: oppProf?.display_name || (b.opponent_id ? "Opponent" : "AI Judge"), 
-              score: b.opponent_score, avatar: "🤖", 
-              elo: oppProf?.elo ?? 0, 
-              rank: getRankFromElo(oppProf?.elo ?? 0) 
+            challenger: {
+              id: oppId,
+              name: oppProf?.display_name || (oppId !== "ai" ? "Opponent" : "AI Judge"),
+              score: isUserChallenger ? b.opponent_score : b.challenger_score, avatar: "🤖",
+              elo: oppProf?.elo ?? 0,
+              rank: getRankFromElo(oppProf?.elo ?? 0)
             }
           };
         });
