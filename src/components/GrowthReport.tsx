@@ -10,6 +10,7 @@ import {
   ReferenceLine,
 } from "recharts";
 import { TrendingUp, TrendingDown, Minus, ArrowRight } from "lucide-react";
+import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useSkillProfile } from "@/hooks/useSkillProfile";
 
@@ -27,11 +28,16 @@ const fmtDelta = (n: number) => (n > 0 ? `+${n}` : `${n}`);
 export const GrowthReport = ({
   className,
   compact = false,
+  strip = false,
 }: {
   className?: string;
   /** Headline delta + curve only (no per-dimension bars) — for above-the-fold
    *  placement like the Lab landing, where the rising curve is the hook. */
   compact?: boolean;
+  /** Slim one-row ribbon (delta + mini sparkline + "see report") — for the very
+   *  top of the Lab, where growth should be present but must not overshadow the
+   *  practice tracks. Links through to the full /report. */
+  strip?: boolean;
 }) => {
   const { growth, loading } = useSkillProfile();
 
@@ -39,6 +45,67 @@ export const GrowthReport = ({
     () => (growth?.series ?? []).map((p, i) => ({ session: i + 1, overall: p.overall })),
     [growth]
   );
+
+  // ── Slim strip variant ─────────────────────────────────────────────────────
+  if (strip) {
+    if (loading) {
+      return <div className={cn("rounded-2xl border border-border/60 bg-muted/5 h-[72px] animate-pulse", className)} />;
+    }
+    if (!growth?.hasData) {
+      return (
+        <Link
+          to="/report"
+          className={cn("group flex items-center gap-4 rounded-2xl border border-border/60 bg-muted/5 hover:border-primary/40 transition-all p-4 md:p-5", className)}
+        >
+          <TrendingUp className="h-5 w-5 text-primary shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] font-black uppercase tracking-[0.25em] text-primary">Your growth</p>
+            <p className="text-sm font-medium opacity-60 leading-snug">Record two drills to unlock your improvement curve.</p>
+          </div>
+          <ArrowRight className="h-4 w-4 opacity-30 group-hover:opacity-100 group-hover:translate-x-1 transition-all shrink-0" />
+        </Link>
+      );
+    }
+    const up = growth.delta > 0;
+    const isFlat = growth.delta === 0;
+    const StripIcon = up ? TrendingUp : isFlat ? Minus : TrendingDown;
+    const stripAccent = up ? "text-primary" : isFlat ? "opacity-40" : "text-destructive";
+    return (
+      <Link
+        to="/report"
+        className={cn("group flex items-center gap-4 md:gap-6 rounded-2xl border border-primary/20 bg-primary/[0.04] hover:border-primary/40 hover:bg-primary/[0.07] transition-all p-4 md:p-5", className)}
+      >
+        <div className={cn("flex items-center gap-2 shrink-0", stripAccent)}>
+          <StripIcon className="h-5 w-5 md:h-6 md:w-6" strokeWidth={2.5} />
+          <span className="speak-serif text-3xl md:text-4xl font-bold italic leading-none">{fmtDelta(growth.delta)}</span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-[11px] font-black uppercase tracking-[0.25em] text-primary">Your growth</p>
+          <p className="text-sm font-medium opacity-70 leading-snug truncate">
+            {growth.baseline} → {growth.latest} over {growth.sessions} sessions
+          </p>
+        </div>
+        <div className="hidden sm:block w-28 md:w-40 h-10 shrink-0 -my-1">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={chartData} margin={{ top: 4, right: 2, left: 2, bottom: 0 }}>
+              <defs>
+                <linearGradient id="growthStripFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.35} />
+                  <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <YAxis domain={[0, 100]} hide />
+              <Area type="monotone" dataKey="overall" stroke="hsl(var(--primary))" strokeWidth={2} fill="url(#growthStripFill)" dot={false} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+        <span className="shrink-0 text-[10px] font-black uppercase tracking-widest text-primary opacity-60 group-hover:opacity-100 flex items-center gap-1.5 transition-opacity">
+          <span className="hidden md:inline">See report</span>
+          <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+        </span>
+      </Link>
+    );
+  }
 
   if (loading) {
     return (

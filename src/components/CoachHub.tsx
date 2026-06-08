@@ -180,13 +180,15 @@ export const CoachHub = () => {
             </div>
           )}
 
-          <div className="grid lg:grid-cols-[1fr_1.3fr] gap-8 lg:gap-14">
+          <div className="space-y-6 md:space-y-8">
 
-            {/* ── LEFT: Radar + skills ── */}
-            <div className="space-y-8">
+            {/* ── Skill profile: radar + breakdown, two balanced cards ── */}
+            <div className="grid lg:grid-cols-2 gap-6 md:gap-8">
+
+              {/* Radar */}
               <div id="tour-coach-radar" className="rounded-[2.5rem] border border-primary/20 bg-gradient-to-br from-primary/[0.06] via-muted/5 to-transparent p-6 md:p-8 relative overflow-hidden">
                 <div className="absolute -top-20 -right-20 h-48 w-48 rounded-full bg-primary/10 blur-[90px] pointer-events-none" />
-                <p className="text-[10px] font-black uppercase tracking-[0.4em] opacity-40 mb-4 relative z-10">Your skill profile</p>
+                <p className="text-[11px] font-black uppercase tracking-[0.25em] opacity-60 mb-4 relative z-10">Your skill profile</p>
                 <div className="relative z-10 text-foreground">
                   {/* key on sample count → radar re-animates each time a new drill lands */}
                   <SkillRadar key={profile.basedOnCount} dims={radarDims} />
@@ -198,61 +200,65 @@ export const CoachHub = () => {
                 )}
               </div>
 
-              {/* Dimension bars */}
-              {!profile.coldStart && (
-                <div className="space-y-3">
-                  <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Breakdown</p>
-                  {profile.dimensions.map((d) => {
-                    const isFocus = focusDims.includes(d.dimension);
-                    return (
-                      <div key={d.dimension} className="space-y-1.5">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className={cn("font-semibold", isFocus ? "text-primary" : "opacity-60")}>{d.label}</span>
-                          <span className="flex items-center gap-1.5 tabular-nums opacity-50">
-                            <TrendIcon trend={d.trend} />
-                            {d.sampleCount > 0 ? d.average : "—"}
-                          </span>
+              {/* Breakdown — bars centered so the card matches the radar's height */}
+              <div className="rounded-[2.5rem] border border-border/60 bg-muted/5 p-6 md:p-8 flex flex-col justify-center">
+                <p className="text-[11px] font-black uppercase tracking-[0.25em] opacity-60 mb-5">Breakdown</p>
+                {!profile.coldStart ? (
+                  <div className="space-y-4">
+                    {profile.dimensions.map((d) => {
+                      const isFocus = focusDims.includes(d.dimension);
+                      return (
+                        <div key={d.dimension} className="space-y-1.5">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className={cn("font-semibold", isFocus ? "text-primary" : "opacity-60")}>{d.label}</span>
+                            <span className="flex items-center gap-1.5 tabular-nums opacity-50">
+                              <TrendIcon trend={d.trend} />
+                              {d.sampleCount > 0 ? d.average : "—"}
+                            </span>
+                          </div>
+                          <div className="h-2 rounded-full bg-muted/40 overflow-hidden">
+                            <motion.div
+                              initial={{ width: 0 }}
+                              animate={{ width: `${d.sampleCount > 0 ? d.average : 0}%` }}
+                              transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+                              className={cn("h-full rounded-full", isFocus ? "bg-primary" : "bg-foreground/30")}
+                            />
+                          </div>
                         </div>
-                        <div className="h-1.5 rounded-full bg-muted/40 overflow-hidden">
-                          <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: `${d.sampleCount > 0 ? d.average : 0}%` }}
-                            transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-                            className={cn("h-full rounded-full", isFocus ? "bg-primary" : "bg-foreground/30")}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-sm opacity-50 leading-relaxed">
+                    Your skill breakdown shows up here once you've recorded a few drills with feedback.
+                  </p>
+                )}
 
-              {/* Body-language nudge — delivery is camera-only */}
-              {deliveryUnmeasured && (
-                <Link
-                  to="/tracks/body-language"
-                  className="group flex items-center gap-3 p-4 rounded-2xl border border-border/60 bg-background/40 hover:border-primary/40 transition-all"
-                >
-                  <div className="h-10 w-10 shrink-0 rounded-xl bg-primary/10 flex items-center justify-center">
-                    <Video className="h-4 w-4 text-primary" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold">Measure your body language</p>
-                    <p className="text-xs opacity-50">Record a camera drill to complete your radar.</p>
-                  </div>
-                  <ArrowRight className="h-4 w-4 opacity-20 group-hover:opacity-100 group-hover:translate-x-1 transition-all shrink-0" />
-                </Link>
-              )}
+                {/* Body-language nudge — delivery is camera-only */}
+                {deliveryUnmeasured && (
+                  <Link
+                    to="/tracks/body-language"
+                    className="group mt-5 flex items-center gap-3 p-4 rounded-2xl border border-border/60 bg-background/40 hover:border-primary/40 transition-all"
+                  >
+                    <div className="h-10 w-10 shrink-0 rounded-xl bg-primary/10 flex items-center justify-center">
+                      <Video className="h-4 w-4 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold">Measure your body language</p>
+                      <p className="text-xs opacity-50">Record a camera drill to complete your radar.</p>
+                    </div>
+                    <ArrowRight className="h-4 w-4 opacity-20 group-hover:opacity-100 group-hover:translate-x-1 transition-all shrink-0" />
+                  </Link>
+                )}
+              </div>
             </div>
 
-            {/* ── RIGHT: One targeted drill ──
-                Deliberately a SINGLE drill, not the full plan. The four track
-                practices (Body Language + the 3-track row) are the main ways to
-                practise; the coach offers one focused, weakness-targeted rep so
-                it complements rather than competes with them. */}
-            <div id="tour-today-session" className="space-y-4">
+            {/* ── Targeted drill — full width, one focused weakness-targeted rep.
+                Deliberately a SINGLE drill (not the full plan): the four track
+                practices are the main ways to practise; this just complements them. ── */}
+            <div id="tour-today-session" className="space-y-3">
               <div className="flex items-center justify-between">
-                <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Your targeted drill</p>
+                <p className="text-[11px] font-black uppercase tracking-[0.25em] opacity-60">Your targeted drill</p>
                 {plan && plan.drills[0] && (
                   <span className="text-[10px] font-bold uppercase tracking-widest text-primary/60">
                     {plan.drills[0].targetLabel}
@@ -261,7 +267,7 @@ export const CoachHub = () => {
               </div>
 
               {plan && plan.drills[0] ? (
-                <div className="space-y-3">
+                <>
                   {(() => {
                     const drill = plan.drills[0];
                     return (
@@ -292,39 +298,36 @@ export const CoachHub = () => {
                     );
                   })()}
 
-                  {/* On-demand: AI swaps in a fresh drill for the weakest skill. */}
-                  <button
-                    onClick={newDrill}
-                    disabled={generatingDrill}
-                    className="group w-full flex items-center justify-center gap-2 p-3.5 rounded-2xl border border-dashed border-primary/30 text-primary hover:bg-primary/[0.04] hover:border-primary/50 transition-all disabled:opacity-50"
-                  >
-                    {generatingDrill ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                    <span className="text-xs font-black uppercase tracking-widest">
-                      {generatingDrill ? "Generating…" : "Swap drill"}
-                    </span>
-                  </button>
-                </div>
+                  {/* Two side-by-side actions fill the full width cleanly. */}
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    <button
+                      onClick={newDrill}
+                      disabled={generatingDrill}
+                      className="group flex items-center justify-center gap-2 p-3.5 rounded-2xl border border-dashed border-primary/30 text-primary hover:bg-primary/[0.04] hover:border-primary/50 transition-all disabled:opacity-50"
+                    >
+                      {generatingDrill ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                      <span className="text-xs font-black uppercase tracking-widest">
+                        {generatingDrill ? "Generating…" : "Swap drill"}
+                      </span>
+                    </button>
+
+                    {/* Structured-course handoff */}
+                    <Link
+                      to="/pathway"
+                      className="group flex items-center justify-center gap-2 p-3.5 rounded-2xl bg-muted/10 border border-border/40 hover:border-primary/30 transition-all"
+                    >
+                      <Compass className="h-4 w-4 text-primary opacity-60" />
+                      <span className="text-xs font-black uppercase tracking-widest">Try the Pathway</span>
+                      <ArrowRight className="h-4 w-4 opacity-20 group-hover:opacity-100 group-hover:translate-x-1 transition-all shrink-0" />
+                    </Link>
+                  </div>
+                </>
               ) : (
                 <div className="rounded-2xl border border-dashed border-border/60 p-8 text-center space-y-3">
                   <Compass className="h-8 w-8 mx-auto opacity-20" />
                   <p className="text-sm opacity-50">Building your plan…</p>
                 </div>
               )}
-
-              {/* Structured-course handoff */}
-              <Link
-                to="/pathway"
-                className="group flex items-center justify-between gap-3 p-4 rounded-2xl bg-muted/10 border border-border/40 hover:border-primary/30 transition-all mt-2"
-              >
-                <div className="flex items-center gap-3">
-                  <Compass className="h-4 w-4 text-primary opacity-60" />
-                  <div>
-                    <p className="text-sm font-bold">Prefer a structured course?</p>
-                    <p className="text-xs opacity-50">Work through the Pathway, tier by tier.</p>
-                  </div>
-                </div>
-                <ArrowRight className="h-4 w-4 opacity-20 group-hover:opacity-100 group-hover:translate-x-1 transition-all shrink-0" />
-              </Link>
             </div>
           </div>
         </>

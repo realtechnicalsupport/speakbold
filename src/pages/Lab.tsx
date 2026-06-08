@@ -142,7 +142,7 @@ const Lab = () => {
       <div className="absolute top-[50%] left-[40%] w-[200px] h-[200px] bg-primary/4 rounded-full blur-[100px] opacity-15 pointer-events-none hidden lg:block" />
       <SiteHeader />
 
-      <section className="px-4 md:container pt-20 md:pt-48 pb-32 lg:pb-16 relative z-10">
+      <section className="px-4 md:container pt-20 md:pt-28 pb-32 lg:pb-16 relative z-10">
         <AnimatePresence mode="wait">
           {!showBodyLanguage ? (
             <motion.div
@@ -152,16 +152,21 @@ const Lab = () => {
               exit={{ opacity: 0 }}
               transition={{ duration: 0.3 }}
             >
+              {/* ── 0. Growth at a glance — slim ribbon up top, links to the full
+                      report. Deliberately one row so it surfaces progress without
+                      overshadowing the practice tracks below. ── */}
+              <GrowthReport strip className="mb-10 md:mb-14" />
+
               {/* ── 1. The AI Coach — the main event, leads the page ── */}
               <CoachHub />
 
               {/* ── 2. Body Language — co-headline crown jewel, equal billing ── */}
-              <div className="mt-16 md:mt-28">
+              <div className="mt-12 md:mt-20">
                 <BodyLanguageHeroCard onOpen={() => setShowBodyLanguage(true)} />
               </div>
 
               {/* ── 3. More ways to practice — the three structured tracks ── */}
-              <div className="mt-16 md:mt-24">
+              <div className="mt-12 md:mt-20">
                 <div className="flex items-center gap-3 text-[10px] md:text-xs font-black uppercase tracking-[0.3em] text-primary mb-5 md:mb-7">
                   <Dumbbell className="h-4 w-4" />
                   MORE WAYS TO PRACTICE
@@ -191,9 +196,9 @@ const Lab = () => {
                           </div>
                           <div className="relative z-10 flex-1">
                             <p className="text-base md:text-lg font-bold tracking-tight leading-tight">{tool.title}</p>
-                            <p className="text-[11px] md:text-xs opacity-50 mt-1 leading-snug">{tool.short}</p>
+                            <p className="text-xs md:text-sm opacity-70 mt-1 leading-snug">{tool.short}</p>
                           </div>
-                          <div className="relative z-10 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.25em] text-primary opacity-50 group-hover:opacity-100 group-hover:gap-2.5 transition-all duration-300">
+                          <div className="relative z-10 flex items-center gap-1.5 text-[11px] font-black uppercase tracking-[0.2em] text-primary opacity-80 group-hover:opacity-100 group-hover:gap-2.5 transition-all duration-300">
                             Start <ArrowRight className="h-3.5 w-3.5" />
                           </div>
                         </Link>
@@ -203,13 +208,8 @@ const Lab = () => {
                 </div>
               </div>
 
-              {/* ── 4. Proof of progress: the improvement curve ── */}
-              <div className="mt-16 md:mt-24">
-                <GrowthReport compact />
-              </div>
-
-              {/* ── 5. Recent practice: history footer → expands to full popup ── */}
-              <div className="border-t border-border/60 pt-12 md:pt-16 mt-16 md:mt-24">
+              {/* ── 4. Recent practice: history footer → expands to full popup ── */}
+              <div className="border-t border-border/60 pt-10 md:pt-12 mt-12 md:mt-20">
                 <RecentPracticeStrip />
               </div>
             </motion.div>

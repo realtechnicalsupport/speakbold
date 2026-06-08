@@ -391,8 +391,8 @@ const PublicSpeaking = () => {
                 >
                   <div className={cn("h-1.5 rounded-full transition-colors duration-300", active || done ? "bg-primary" : "bg-border/40")} />
                   <p className={cn(
-                    "text-[9px] font-black uppercase tracking-[0.3em] flex items-center gap-1.5 transition-colors",
-                    active ? "text-primary" : done ? "opacity-50 group-hover:opacity-90" : "opacity-25"
+                    "text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-1.5 transition-colors",
+                    active ? "text-primary" : done ? "opacity-60 group-hover:opacity-90" : "opacity-40"
                   )}>
                     {done ? <Check className="h-2.5 w-2.5" /> : <span className="tabular-nums">{n}</span>}
                     <span className="truncate">{label}</span>
@@ -417,7 +417,7 @@ const PublicSpeaking = () => {
                   <h2 className="speak-serif text-3xl md:text-4xl tracking-tighter leading-tight">
                     Pick a <span className="text-primary italic">drill.</span>
                   </h2>
-                  <p className="text-sm opacity-40 font-medium">
+                  <p className="text-sm opacity-60 font-medium">
                     {completedCount} of {drills.length} mastered — choose a skill to sharpen.
                   </p>
                 </div>
@@ -488,7 +488,7 @@ const PublicSpeaking = () => {
                   <h2 className="speak-serif text-3xl md:text-4xl tracking-tighter leading-tight">
                     Set the <span className="text-primary italic">scene.</span>
                   </h2>
-                  <p className="text-sm opacity-40 font-medium">Where you're speaking — and whether to record for AI feedback.</p>
+                  <p className="text-sm opacity-60 font-medium">Where you're speaking — and whether to record for AI feedback.</p>
                 </div>
 
                 {/* Context */}
@@ -546,7 +546,7 @@ const PublicSpeaking = () => {
                   <h2 className="speak-serif text-3xl md:text-4xl tracking-tighter leading-tight">
                     Ready.
                   </h2>
-                  <p className="text-sm opacity-40 font-medium">Your drill, your prompt — then the clock runs.</p>
+                  <p className="text-sm opacity-60 font-medium">Your drill, your prompt — then the clock runs.</p>
                 </div>
 
                 <div className="rounded-[2rem] border border-primary/20 bg-muted/5 p-6 md:p-8 space-y-6">

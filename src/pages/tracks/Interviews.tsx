@@ -307,8 +307,8 @@ const Interviews = () => {
                 >
                   <div className={cn("h-1.5 rounded-full transition-colors duration-300", activeStep || done ? "bg-primary" : "bg-border/40")} />
                   <p className={cn(
-                    "text-[9px] font-black uppercase tracking-[0.3em] flex items-center gap-1.5 transition-colors",
-                    activeStep ? "text-primary" : done ? "opacity-50 group-hover:opacity-90" : "opacity-25"
+                    "text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-1.5 transition-colors",
+                    activeStep ? "text-primary" : done ? "opacity-60 group-hover:opacity-90" : "opacity-40"
                   )}>
                     {done ? <Check className="h-2.5 w-2.5" /> : <span className="tabular-nums">{n}</span>}
                     <span className="truncate">{label}</span>
@@ -333,7 +333,7 @@ const Interviews = () => {
                   <h2 className="speak-serif text-3xl md:text-4xl tracking-tighter leading-tight">
                     How much <span className="text-primary italic">pressure?</span>
                   </h2>
-                  <p className="text-sm opacity-40 font-medium">Pick a difficulty — we'll line up matching questions.</p>
+                  <p className="text-sm opacity-60 font-medium">Pick a difficulty — we'll line up matching questions.</p>
                 </div>
 
                 <div className="space-y-3">
@@ -388,7 +388,7 @@ const Interviews = () => {
                   <h2 className="speak-serif text-3xl md:text-4xl tracking-tighter leading-tight">
                     Choose a <span className="text-primary italic">question.</span>
                   </h2>
-                  <p className="text-sm opacity-40 font-medium">{tier} questions — pick one to rehearse.</p>
+                  <p className="text-sm opacity-60 font-medium">{tier} questions — pick one to rehearse.</p>
                 </div>
 
                 <div className="space-y-3">
@@ -482,7 +482,7 @@ const Interviews = () => {
                   <h2 className="speak-serif text-3xl md:text-4xl tracking-tighter leading-tight">
                     Ready.
                   </h2>
-                  <p className="text-sm opacity-40 font-medium">Read the question, structure with STAR, then the clock runs.</p>
+                  <p className="text-sm opacity-60 font-medium">Read the question, structure with STAR, then the clock runs.</p>
                 </div>
 
                 <div className="rounded-[2rem] border border-primary/20 bg-muted/5 p-6 md:p-8 space-y-6">

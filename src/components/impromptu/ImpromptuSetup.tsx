@@ -334,8 +334,8 @@ export const ImpromptuSetup = ({
                   active || done ? "bg-primary" : "bg-border/40"
                 )} />
                 <p className={cn(
-                  "text-[9px] font-black uppercase tracking-[0.3em] flex items-center gap-1.5 transition-colors",
-                  active ? "text-primary" : done ? "opacity-50 group-hover:opacity-90" : "opacity-25"
+                  "text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-1.5 transition-colors",
+                  active ? "text-primary" : done ? "opacity-60 group-hover:opacity-90" : "opacity-40"
                 )}>
                   {done ? <Check className="h-2.5 w-2.5" /> : <span className="tabular-nums">{n}</span>}
                   <span className="truncate">{label}</span>
@@ -360,7 +360,7 @@ export const ImpromptuSetup = ({
                 <h2 className="speak-serif text-3xl md:text-4xl tracking-tighter leading-tight">
                   How hard do you <span className="text-primary italic">want it?</span>
                 </h2>
-                <p className="text-sm opacity-40 font-medium">Pick a challenge level — you can shuffle the topic later.</p>
+                <p className="text-sm opacity-60 font-medium">Pick a challenge level — you can shuffle the topic later.</p>
               </div>
 
               {/* Difficulty cards */}
@@ -444,7 +444,7 @@ export const ImpromptuSetup = ({
                 <h2 className="speak-serif text-3xl md:text-4xl tracking-tighter leading-tight">
                   Set your <span className="text-primary italic">format.</span>
                 </h2>
-                <p className="text-sm opacity-40 font-medium">How long you speak, and the optional twists.</p>
+                <p className="text-sm opacity-60 font-medium">How long you speak, and the optional twists.</p>
               </div>
 
               {/* Duration */}
@@ -543,7 +543,7 @@ export const ImpromptuSetup = ({
                 <h2 className="speak-serif text-3xl md:text-4xl tracking-tighter leading-tight">
                   You're <span className="text-primary italic">up.</span>
                 </h2>
-                <p className="text-sm opacity-40 font-medium">Here's your prompt — shuffle if it doesn't spark.</p>
+                <p className="text-sm opacity-60 font-medium">Here's your prompt — shuffle if it doesn't spark.</p>
               </div>
 
               {/* Topic card — the hero, revealed at the end */}
