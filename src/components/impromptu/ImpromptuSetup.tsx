@@ -316,7 +316,7 @@ export const ImpromptuSetup = ({
       <div className="max-w-2xl mx-auto min-w-0">
 
         {/* ── Step indicator (tap a past step to go back) ── */}
-        <div className="flex items-center gap-2.5 mb-8 md:mb-10">
+        <div className="flex items-center gap-2.5 mb-6 md:mb-10">
           {STEP_LABELS.map((label, i) => {
             const n = (i + 1) as 1 | 2 | 3;
             const done = step > n;
@@ -354,7 +354,7 @@ export const ImpromptuSetup = ({
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -24 }}
               transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-              className="space-y-7"
+              className="space-y-5 md:space-y-7"
             >
               <div className="space-y-2">
                 <h2 className="speak-serif text-3xl md:text-4xl tracking-tighter leading-tight">
@@ -438,7 +438,7 @@ export const ImpromptuSetup = ({
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -24 }}
               transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-              className="space-y-7"
+              className="space-y-5 md:space-y-7"
             >
               <div className="space-y-2">
                 <h2 className="speak-serif text-3xl md:text-4xl tracking-tighter leading-tight">
@@ -619,7 +619,7 @@ export const ImpromptuSetup = ({
         </AnimatePresence>
 
         {/* ── Footer nav: Back · Next / Take the Stage ── */}
-        <div className="flex items-center gap-3 mt-8 md:mt-10">
+        <div className="flex items-center gap-3 mt-6 md:mt-10">
           {step > 1 && (
             <button
               onClick={goBack}

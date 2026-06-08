@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, lazy, Suspense, type ReactNode } from "react";
 import { BrowserRouter, Route, Routes, Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "./context/AuthContext";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -7,27 +7,32 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import Index from "./pages/Index";
 import { MobileNav } from "./components/MobileNav";
-import NotFound from "./pages/NotFound";
-import Profile from "./pages/Profile";
-import ResetPassword from "./pages/ResetPassword";
-import PublicSpeaking from "./pages/tracks/PublicSpeaking";
-import Impromptu from "./pages/tracks/Impromptu";
-import Interviews from "./pages/tracks/Interviews";
-import BodyLanguage from "./pages/tracks/BodyLanguage";
-import PitchDeck from "./pages/PitchDeck";
-import ProgressReport from "./pages/ProgressReport";
-import Login from "./pages/Login";
-import Callback from "./pages/auth/callback";
-import Events from "./pages/Events";
-import CreateEvent from "./pages/CreateEvent";
-import EventDetail from "./pages/EventDetail";
-import Leaderboard from "./pages/Leaderboard";
-import Pathway from "./pages/Pathway";
-import Lab from "./pages/Lab";
-import Arena from "./pages/Arena";
-import Friends from "./pages/Friends";
-import FriendProfile from "./pages/FriendProfile";
-import FriendInviteLanding from "./pages/FriendInviteLanding";
+
+// Route components are lazy-loaded so the initial bundle stays small — heavy
+// deps (MediaPipe for Body Language, recharts for reports, the Arena engine)
+// only download when their route is actually visited. The landing page (Index)
+// stays eager for an instant first paint.
+const NotFound = lazy(() => import("./pages/NotFound"));
+const Profile = lazy(() => import("./pages/Profile"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const PublicSpeaking = lazy(() => import("./pages/tracks/PublicSpeaking"));
+const Impromptu = lazy(() => import("./pages/tracks/Impromptu"));
+const Interviews = lazy(() => import("./pages/tracks/Interviews"));
+const BodyLanguage = lazy(() => import("./pages/tracks/BodyLanguage"));
+const PitchDeck = lazy(() => import("./pages/PitchDeck"));
+const ProgressReport = lazy(() => import("./pages/ProgressReport"));
+const Login = lazy(() => import("./pages/Login"));
+const Callback = lazy(() => import("./pages/auth/callback"));
+const Events = lazy(() => import("./pages/Events"));
+const CreateEvent = lazy(() => import("./pages/CreateEvent"));
+const EventDetail = lazy(() => import("./pages/EventDetail"));
+const Leaderboard = lazy(() => import("./pages/Leaderboard"));
+const Pathway = lazy(() => import("./pages/Pathway"));
+const Lab = lazy(() => import("./pages/Lab"));
+const Arena = lazy(() => import("./pages/Arena"));
+const Friends = lazy(() => import("./pages/Friends"));
+const FriendProfile = lazy(() => import("./pages/FriendProfile"));
+const FriendInviteLanding = lazy(() => import("./pages/FriendInviteLanding"));
 import { FriendsProvider } from "./context/FriendsContext";
 import { useEventReminders } from "./hooks/useEventReminders";
 import { AuthProvider } from "./context/AuthContext";
@@ -71,6 +76,14 @@ const RequireAuth = ({ children }: { children: ReactNode }) => {
  * disable the browser's automatic scroll restoration so back/forward navigations
  * start at the top too.
  */
+/** Fallback shown while a lazy route chunk downloads — a quiet centered spinner
+ *  on the app background so navigation never flashes a blank white screen. */
+const RouteFallback = () => (
+  <div className="min-h-dvh flex items-center justify-center bg-background">
+    <div className="h-10 w-10 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
+  </div>
+);
+
 const ScrollToTop = () => {
   const { pathname } = useLocation();
   useEffect(() => {
@@ -141,6 +154,7 @@ const App = () => {
               </div>
 
               <div className={`${timerActive ? "pb-0" : "pb-24 lg:pb-0"} relative z-10`}>
+                <Suspense fallback={<RouteFallback />}>
                 <Routes>
                   {/* Public — anyone, signed in or not */}
                   <Route path="/" element={<Index />} />
@@ -177,6 +191,7 @@ const App = () => {
 
                   <Route path="*" element={<NotFound />} />
                 </Routes>
+                </Suspense>
                 {/* MobileNav lives INSIDE this z-10 content wrapper on purpose.
                     The wrapper's `relative z-10` creates a stacking context, so
                     every page modal (Arena archive z-150, duel screens z-180,

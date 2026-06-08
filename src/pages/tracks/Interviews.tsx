@@ -1,32 +1,22 @@
-﻿import { useEffect, useRef, useState, useCallback } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { TrackShell } from "@/components/TrackShell";
 import { RecorderPanel } from "@/components/RecorderPanel";
 import { RecordingsList } from "@/components/RecordingsList";
-import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { 
-  ChevronRight, 
-  Play, 
-  Pause, 
-  RotateCcw, 
-  Shuffle, 
-  Lightbulb, 
-  EyeOff,
-  Eye,
+import {
+  Play,
+  Pause,
+  RotateCcw,
   Mic,
-  CheckCircle2,
   Clock,
   Target,
-  Trophy,
   Sparkles,
-  Loader2,
   RefreshCw,
-  ShieldCheck,
   Zap,
   ArrowRight,
+  ArrowLeft,
   Microscope,
-  Briefcase
+  Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
@@ -37,7 +27,11 @@ import { generateInterviewQuestions } from "@/services/geminiService";
 import { setTimerActive, setTimerSeconds } from "@/lib/timerState";
 import { setRecordingActive } from "@/lib/recordingState";
 import { RecordingFeedbackModal } from "@/components/RecordingFeedback";
+import { LiveSpeechHUD } from "@/components/LiveSpeechHUD";
+import { useLiveSpeechMetrics } from "@/hooks/useLiveSpeechMetrics";
 import { motion, AnimatePresence } from "framer-motion";
+
+type Difficulty = "Warm-up" | "Standard" | "Pressure";
 
 interface Question {
   id: string;
@@ -46,7 +40,7 @@ interface Question {
   guidance: string;
   example: string;
   targetSeconds: number;
-  difficulty: "Warm-up" | "Standard" | "Pressure";
+  difficulty: Difficulty;
   keyPoints: string[];
   is_ai?: boolean;
 }
@@ -63,6 +57,16 @@ const DEFAULT_QUESTIONS: Question[] = [
     keyPoints: ["Present context", "Past experience", "Future alignment"],
   },
   {
+    id: "q-warm-2",
+    q: "Why are you interested in this role?",
+    type: "Motivation",
+    guidance: "Connect a genuine interest to something specific about the company or role. Avoid generic praise — name the thing that actually pulled you in.",
+    example: "I've followed your work on X, and the chance to...",
+    targetSeconds: 60,
+    difficulty: "Warm-up",
+    keyPoints: ["Specific hook", "Genuine motivation", "Mutual fit"],
+  },
+  {
     id: "q2",
     q: "Tell me about a time you failed.",
     type: "Behavioural",
@@ -71,7 +75,37 @@ const DEFAULT_QUESTIONS: Question[] = [
     targetSeconds: 90,
     difficulty: "Standard",
     keyPoints: ["Situation", "Task", "Action", "Result"],
-  }
+  },
+  {
+    id: "q-std-2",
+    q: "Describe a conflict with a coworker and how you resolved it.",
+    type: "Behavioural",
+    guidance: "STAR. Stay neutral about the other person — focus on what YOU did to de-escalate and reach a working outcome.",
+    example: "A teammate and I disagreed on the architecture...",
+    targetSeconds: 90,
+    difficulty: "Standard",
+    keyPoints: ["Neutral framing", "Your action", "Resolution", "Lesson"],
+  },
+  {
+    id: "q-pres-1",
+    q: "Why should we hire you over other candidates?",
+    type: "Pressure",
+    guidance: "Be confident, not arrogant. Name two or three concrete strengths and tie each to the role's actual needs. End on what you'd deliver.",
+    example: "Three things set me apart for this role...",
+    targetSeconds: 75,
+    difficulty: "Pressure",
+    keyPoints: ["Concrete strengths", "Tied to the role", "What you'll deliver"],
+  },
+  {
+    id: "q-pres-2",
+    q: "Tell me about a time you disagreed with your manager.",
+    type: "Pressure",
+    guidance: "STAR. Show you can push back respectfully with evidence, then commit to the decision. Avoid making your manager the villain.",
+    example: "I thought we were prioritising the wrong feature...",
+    targetSeconds: 90,
+    difficulty: "Pressure",
+    keyPoints: ["Respectful pushback", "Evidence-based", "Outcome", "Disagree & commit"],
+  },
 ];
 
 const STAR = [
@@ -81,26 +115,40 @@ const STAR = [
   { letter: "R", word: "RESULT", line: "Outcome & Lesson learned." },
 ];
 
+const TIERS: { id: Difficulty; dots: number; desc: string }[] = [
+  { id: "Warm-up", dots: 1, desc: "Ease into it" },
+  { id: "Standard", dots: 2, desc: "Core behavioural" },
+  { id: "Pressure", dots: 3, desc: "High-stakes" },
+];
+
+const AI_CATEGORIES = ["Behavioural", "Situational", "Leadership"];
+const STEP_LABELS = ["Difficulty", "Question", "Ready"] as const;
+
 const Interviews = () => {
   const [active, setActive] = useState(0);
-  const [mode, setMode] = useState<"browse" | "practice">("practice");
+  const [tier, setTier] = useState<Difficulty>("Warm-up");
   const [revealed, setRevealed] = useState(false);
   const [recordEnabled, setRecordEnabled] = useState(false);
   const [autoFeedbackId, setAutoFeedbackId] = useState<string | null>(null);
   const [completedQuestions, setCompletedQuestions] = useState<Set<string>>(new Set());
+
+  // Incremental setup → active. Same timer/recorder engine as before, only the
+  // configuration is now paced across steps.
+  const [phase, setPhase] = useState<"setup" | "active">("setup");
+  const [step, setStep] = useState<1 | 2 | 3>(1);
 
   // AI generation state
   const [isGenerating, setIsGenerating] = useState(false);
   const [aiCategory, setAiCategory] = useState("Behavioural");
 
   const { questions: syncedAIQuestions, addQuestions: saveAIQuestions } = useSyncedInterviewQuestions();
-  
+
   // Timer state
   const [duration, setDuration] = useState(75);
   const [seconds, setSeconds] = useState(75);
   const [running, setRunning] = useState(false);
   const [pausedAt, setPausedAt] = useState<number | null>(null);
-  
+
   useEffect(() => {
     setTimerActive(running || pausedAt !== null);
     setTimerSeconds(seconds, duration);
@@ -110,18 +158,19 @@ const Interviews = () => {
   const idRef = useRef<number | null>(null);
   const hasStartedRef = useRef<boolean>(false);
   const wasRunningRef = useRef<boolean>(false);
-  
+
   const recorderStartRef = useRef<() => void>();
   const recorderPauseRef = useRef<() => void>();
   const recorderResumeRef = useRef<() => void>();
   const recorderStopRef = useRef<() => void>();
-  
+
   const { user } = useAuth();
   const { upload: uploadRecording, refresh: refreshRecordings } = useRecordings("interview");
   const { markPracticed } = useSyncedStreak();
-  
-  const questions = [...DEFAULT_QUESTIONS, ...syncedAIQuestions];
+
+  const questions: Question[] = [...DEFAULT_QUESTIONS, ...(syncedAIQuestions as Question[])];
   const current = questions[active] || questions[0];
+  const questionsInTier = questions.filter(q => q.difficulty === tier);
 
   const generateAIQuestions = async () => {
     setIsGenerating(true);
@@ -138,7 +187,7 @@ const Interviews = () => {
         is_ai: true,
       }));
       if (user) await saveAIQuestions(formatted);
-      toast({ title: "Questions Synthesized", description: "New AI questions added." });
+      toast({ title: "Questions Synthesized", description: "New AI questions added to Standard." });
     } catch (error) {
       toast({ title: "Synthesis failed", variant: "destructive" });
     } finally { setIsGenerating(false); }
@@ -154,6 +203,7 @@ const Interviews = () => {
       hasStartedRef.current = false;
       wasRunningRef.current = false;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, current?.targetSeconds]);
 
   useEffect(() => {
@@ -213,304 +263,470 @@ const Interviews = () => {
   const secs = seconds % 60;
   const pct = duration > 0 ? (seconds / duration) * 100 : 0;
 
+  // Live captions + WPM/filler while answering.
+  const live = useLiveSpeechMetrics(running && !pausedAt, duration - seconds);
+
+  const goNext = useCallback(() => setStep(s => (s < 3 ? ((s + 1) as 1 | 2 | 3) : s)), []);
+  const goBack = useCallback(() => setStep(s => (s > 1 ? ((s - 1) as 1 | 2 | 3) : s)), []);
+
+  // Pick a difficulty tier → auto-select its first question.
+  const selectTier = (t: Difficulty) => {
+    setTier(t);
+    const idx = questions.findIndex(q => q.difficulty === t);
+    if (idx >= 0) setActive(idx);
+  };
+
+  const startQuestion = useCallback(() => {
+    if (seconds === 0) setSeconds(duration);
+    live.reset();
+    setPausedAt(null);
+    setRunning(true);
+    hasStartedRef.current = true;
+    setPhase("active");
+  }, [seconds, duration, live]);
+
+  const backToSetup = useCallback(() => {
+    recorderStopRef.current?.();
+    setRunning(false);
+    setPausedAt(null);
+    wasRunningRef.current = false;
+    hasStartedRef.current = false;
+    setSeconds(duration);
+    setRevealed(false);
+    setPhase("setup");
+    setStep(1);
+  }, [duration]);
+
   return (
     <TrackShell
       eyebrow="MODULE 03 — INTERVIEWS"
       title={<>Master the <span className="text-primary italic">High-Stakes</span> Q&A.</>}
       intro="Technical competence is assumed. Your delivery is what differentiates you. Practice the STAR method under pressure."
-      hideHeader={running || pausedAt !== null}
+      hideHeader={phase === "active"}
+      compact={phase === "setup"}
     >
       {/* Background Decorative Drifting Glow */}
       <div className="absolute top-[20%] right-[5%] w-[300px] h-[300px] md:w-[500px] md:h-[500px] bg-primary/5 rounded-full blur-[140px] animate-float opacity-30 pointer-events-none" />
 
-      <div className="grid lg:grid-cols-[1fr_400px] gap-6 lg:gap-12 relative z-10">
-        <div className="space-y-6 md:space-y-10 min-w-0">
-          {/* Mode toggle */}
-          <div className="flex bg-muted/5 p-2 rounded-[2rem] border border-border/60 max-w-md">
-            <button
-              onClick={() => setMode("practice")}
-              className={cn(
-                "flex-1 py-4 rounded-[1.5rem] text-xs font-black uppercase tracking-widest transition-all",
-                mode === "practice" ? "bg-primary text-white shadow-glow" : "opacity-40 hover:opacity-100"
-              )}
-            >
-              ACTIVE PRACTICE
-            </button>
-            <button
-              onClick={() => setMode("browse")}
-              className={cn(
-                "flex-1 py-4 rounded-[1.5rem] text-xs font-black uppercase tracking-widest transition-all",
-                mode === "browse" ? "bg-primary text-white shadow-glow" : "opacity-40 hover:opacity-100"
-              )}
-            >
-              BROWSE REPO
-            </button>
+      {/* ════════════════ SETUP — stepped wizard ════════════════ */}
+      {phase === "setup" && (
+        <div className="max-w-2xl mx-auto min-w-0 relative z-10">
+          {/* Step indicator */}
+          <div className="flex items-center gap-2.5 mb-6 md:mb-10">
+            {STEP_LABELS.map((label, i) => {
+              const n = (i + 1) as 1 | 2 | 3;
+              const done = step > n;
+              const activeStep = step === n;
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => n < step && setStep(n)}
+                  disabled={n >= step}
+                  className={cn("flex-1 text-left space-y-2 group", n < step && "cursor-pointer")}
+                >
+                  <div className={cn("h-1.5 rounded-full transition-colors duration-300", activeStep || done ? "bg-primary" : "bg-border/40")} />
+                  <p className={cn(
+                    "text-[9px] font-black uppercase tracking-[0.3em] flex items-center gap-1.5 transition-colors",
+                    activeStep ? "text-primary" : done ? "opacity-50 group-hover:opacity-90" : "opacity-25"
+                  )}>
+                    {done ? <Check className="h-2.5 w-2.5" /> : <span className="tabular-nums">{n}</span>}
+                    <span className="truncate">{label}</span>
+                  </p>
+                </button>
+              );
+            })}
           </div>
 
           <AnimatePresence mode="wait">
-            {mode === "practice" ? (
-              <motion.div 
-                key="practice-view"
-                initial={{ opacity: 0, x: -20 }}
+            {/* ──── STEP 1 — DIFFICULTY ──── */}
+            {step === 1 && (
+              <motion.div
+                key="iv-difficulty"
+                initial={{ opacity: 0, x: 24 }}
                 animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
-                className="space-y-12"
+                exit={{ opacity: 0, x: -24 }}
+                transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                className="space-y-5 md:space-y-7"
               >
-                {/* Active Question Card */}
-                <motion.div 
-                  layout
-                  className="bg-muted/10 border border-primary/20 rounded-2xl md:rounded-[4rem] p-6 md:p-16 shadow-soft relative overflow-hidden group">
-                   <div className="absolute top-0 right-0 p-16 opacity-5 pointer-events-none">
-                      <Briefcase className="h-48 w-48 text-primary" />
-                   </div>
+                <div className="space-y-2">
+                  <h2 className="speak-serif text-3xl md:text-4xl tracking-tighter leading-tight">
+                    How much <span className="text-primary italic">pressure?</span>
+                  </h2>
+                  <p className="text-sm opacity-40 font-medium">Pick a difficulty — we'll line up matching questions.</p>
+                </div>
 
-                   <div className="space-y-12 relative z-10">
-                      <div className="flex items-center justify-between">
-                         <div className="flex items-center gap-4 text-xs font-black uppercase tracking-[0.5em] text-primary opacity-60">
-                            <Target className="h-4 w-4" />
-                            {current.difficulty.toUpperCase()} PROTOCOL
-                         </div>
-                         <button 
-                          onClick={() => setActive((active + 1) % questions.length)}
-                          className="h-12 w-12 rounded-full border border-border/60 flex items-center justify-center hover:bg-muted/20 transition-all group/shuffle"
-                         >
-                           <Shuffle className="h-4 w-4 opacity-40 group-hover/shuffle:opacity-100 group-hover/shuffle:rotate-180 transition-all duration-700" />
-                         </button>
-                      </div>
-
-                      <h2 className="speak-serif text-4xl md:text-6xl leading-[1.1] tracking-tighter">
-                         "{current.q}"
-                      </h2>
-
-                      <AnimatePresence>
-                        {revealed ? (
-                          <motion.div 
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="grid md:grid-cols-2 gap-12 pt-12 border-t border-border/60"
-                          >
-                             <div className="space-y-6">
-                                <p className="text-xs font-black uppercase tracking-widest text-primary flex items-center gap-3">
-                                   <Zap className="h-3 w-3" />
-                                   STRATEGIC STAR
-                                </p>
-                                <div className="grid grid-cols-2 gap-4">
-                                   {STAR.map((s, i) => (
-                                     <div key={i} className="p-6 rounded-[2rem] bg-muted/5 border border-border/60 space-y-2">
-                                        <p className="text-xl font-black text-primary italic">{s.letter}</p>
-                                        <p className="text-[11px] font-black uppercase tracking-widest opacity-40">{s.word}</p>
-                                     </div>
-                                   ))}
-                                </div>
-                             </div>
-                             <div className="space-y-6">
-                                <p className="text-xs font-black uppercase tracking-widest opacity-40">GUIDANCE VECTORS</p>
-                                <div className="p-8 rounded-[2rem] bg-muted/5 border border-border/60 space-y-4">
-                                   <p className="text-sm font-medium opacity-60 leading-relaxed italic">"{current.guidance}"</p>
-                                   <ul className="space-y-2">
-                                      {current.keyPoints.map((p, i) => (
-                                        <li key={i} className="flex gap-3 text-xs font-bold uppercase tracking-widest opacity-40">
-                                           <span className="text-primary">✱</span> {p}
-                                        </li>
-                                      ))}
-                                   </ul>
-                                </div>
-                             </div>
-                          </motion.div>
-                        ) : (
-                          <button 
-                            onClick={() => setRevealed(true)}
-                            className="w-full py-8 border-2 border-dashed border-border/60 rounded-[3rem] text-xs font-black uppercase tracking-[0.4em] opacity-30 hover:opacity-100 hover:border-primary/40 hover:text-primary transition-all flex items-center justify-center gap-4"
-                          >
-                             <Microscope className="h-4 w-4" />
-                             REVEAL STRATEGIC GUIDANCE
-                          </button>
-                        )}
-                      </AnimatePresence>
-                   </div>
-                </motion.div>
-
-                {/* AI Generator Panel */}
-                <div className="p-5 md:p-10 rounded-2xl md:rounded-[3rem] bg-muted/5 border border-border/60 relative overflow-hidden group">
-                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 md:gap-12 relative z-10 min-w-0">
-                      <div className="space-y-4 min-w-0">
-                         <div className="flex items-center gap-3 text-xs font-black uppercase tracking-[0.4em] text-primary">
-                            <Sparkles className="h-4 w-4" />
-                            AI INTERVIEW ENGINE
-                         </div>
-                         <div className="flex flex-wrap gap-2 md:gap-4">
-                            {["Behavioural", "Situational", "Leadership"].map(cat => (
-                              <button 
-                                key={cat}
-                                onClick={() => setAiCategory(cat)}
-                                className={cn(
-                                  "px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest border transition-all",
-                                  aiCategory === cat ? "bg-primary text-white border-primary shadow-glow" : "border-border/60 opacity-40 hover:opacity-100"
-                                )}
-                              >
-                                {cat}
-                              </button>
-                            ))}
-                         </div>
-                      </div>
+                <div className="space-y-3">
+                  {TIERS.map(t => {
+                    const selected = tier === t.id;
+                    const count = questions.filter(q => q.difficulty === t.id).length;
+                    return (
                       <button
-                        onClick={generateAIQuestions}
-                        disabled={isGenerating}
-                        className="button-pill py-3 px-6 md:py-5 md:px-10 bg-primary text-white shadow-glow group/btn w-full md:w-auto"
-                      >
-                        {isGenerating ? (
-                          <RefreshCw className="h-5 w-5 animate-spin" />
-                        ) : (
-                          <span className="flex items-center gap-4 text-xs font-black uppercase tracking-[0.2em]">
-                             SYNTHESIZE QUESTIONS
-                             <ArrowRight className="h-4 w-4 group-hover/btn:translate-x-1 transition-transform" />
-                          </span>
+                        key={t.id}
+                        onClick={() => selectTier(t.id)}
+                        className={cn(
+                          "w-full text-left flex items-center gap-4 p-4 md:p-5 rounded-2xl border-2 transition-all duration-300",
+                          selected ? "border-primary/50 bg-primary/[0.05] shadow-glow shadow-primary/5" : "border-border/40 bg-muted/3 hover:border-border/80"
                         )}
+                      >
+                        <div className="flex gap-1 shrink-0">
+                          {[1, 2, 3].map(n => (
+                            <div key={n} className={cn(
+                              "h-1.5 w-5 rounded-full transition-all",
+                              n <= t.dots ? (selected ? "bg-primary" : "bg-foreground/20") : "bg-foreground/6"
+                            )} />
+                          ))}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={cn("text-sm font-black uppercase tracking-[0.25em]", selected ? "text-primary" : "opacity-60")}>{t.id}</p>
+                          <p className="text-[10px] font-medium opacity-30 mt-0.5">{t.desc} · {count} question{count === 1 ? "" : "s"}</p>
+                        </div>
+                        <div className={cn(
+                          "h-5 w-5 shrink-0 rounded-full border-2 transition-all flex items-center justify-center",
+                          selected ? "border-primary bg-primary" : "border-border/60"
+                        )}>
+                          {selected && <div className="h-2 w-2 rounded-full bg-white" />}
+                        </div>
                       </button>
-                   </div>
+                    );
+                  })}
                 </div>
               </motion.div>
-            ) : (
-              <motion.div 
-                key="browse-view"
-                initial={{ opacity: 0, x: 20 }}
+            )}
+
+            {/* ──── STEP 2 — QUESTION ──── */}
+            {step === 2 && (
+              <motion.div
+                key="iv-question"
+                initial={{ opacity: 0, x: 24 }}
                 animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="grid gap-6"
+                exit={{ opacity: 0, x: -24 }}
+                transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                className="space-y-5 md:space-y-7"
               >
-                 {questions.map((q, i) => (
-                   <button
-                    key={q.id}
-                    onClick={() => { setActive(i); setMode("practice"); }}
-                    className={cn(
-                      "p-6 md:p-10 rounded-2xl md:rounded-[3rem] border transition-all duration-500 text-left flex items-center justify-between gap-4 group overflow-hidden",
-                      active === i ? "bg-primary/[0.03] border-primary shadow-glow" : "bg-muted/5 border-border/60 hover:border-primary/30"
-                    )}
-                   >
-                      <div className="space-y-2 md:space-y-4 min-w-0">
-                         <div className="flex items-center gap-4 text-[11px] md:text-xs font-black uppercase tracking-[0.3em] opacity-40">
-                            {String(i + 1).padStart(2, "0")} • {q.type}
-                         </div>
-                         <h3 className="speak-serif text-lg md:text-3xl group-hover:text-primary transition-colors truncate">"{q.q}"</h3>
+                <div className="space-y-2">
+                  <h2 className="speak-serif text-3xl md:text-4xl tracking-tighter leading-tight">
+                    Choose a <span className="text-primary italic">question.</span>
+                  </h2>
+                  <p className="text-sm opacity-40 font-medium">{tier} questions — pick one to rehearse.</p>
+                </div>
+
+                <div className="space-y-3">
+                  {questionsInTier.map((q) => {
+                    const idx = questions.indexOf(q);
+                    const selected = active === idx;
+                    const isCompleted = completedQuestions.has(q.id);
+                    return (
+                      <button
+                        key={q.id}
+                        onClick={() => setActive(idx)}
+                        className={cn(
+                          "w-full text-left flex items-center gap-4 p-4 md:p-5 rounded-2xl border-2 transition-all duration-300",
+                          selected ? "border-primary/50 bg-primary/[0.05] shadow-glow shadow-primary/5" : "border-border/40 bg-muted/3 hover:border-border/80"
+                        )}
+                      >
+                        <div className={cn(
+                          "h-10 w-10 shrink-0 rounded-full flex items-center justify-center border-2 transition-all",
+                          isCompleted ? "bg-primary/10 border-primary text-primary" : selected ? "border-primary/50 text-primary" : "border-border/60 text-foreground/30"
+                        )}>
+                          {isCompleted ? <Check className="h-5 w-5" /> : <Target className="h-4 w-4" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={cn("speak-serif text-base md:text-lg leading-snug transition-colors", selected ? "text-primary" : "text-foreground")}>
+                            "{q.q}"
+                          </p>
+                          <div className="flex items-center gap-3 mt-1">
+                            <span className="text-[10px] font-black uppercase tracking-widest opacity-40 flex items-center gap-1.5">
+                              <Clock className="h-3 w-3" />
+                              {q.targetSeconds}s
+                            </span>
+                            {q.is_ai && (
+                              <span className="text-[9px] font-black uppercase tracking-widest text-primary bg-primary/10 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                <Sparkles className="h-2 w-2" /> AI
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+
+                  {questionsInTier.length === 0 && (
+                    <p className="text-sm opacity-40 italic text-center py-6">No questions in this tier yet — generate some below.</p>
+                  )}
+                </div>
+
+                {/* Compact AI generator (adds Standard questions) */}
+                <div className="rounded-2xl border border-primary/20 bg-primary/[0.03] p-4 md:p-5 space-y-4">
+                  <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.3em] text-primary">
+                    <Sparkles className="h-3.5 w-3.5" />
+                    Generate questions
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {AI_CATEGORIES.map(cat => (
+                      <button
+                        key={cat}
+                        onClick={() => setAiCategory(cat)}
+                        className={cn(
+                          "px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border transition-all",
+                          aiCategory === cat ? "bg-primary text-white border-primary" : "border-border/60 opacity-50 hover:opacity-100"
+                        )}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    onClick={generateAIQuestions}
+                    disabled={isGenerating}
+                    className="w-full py-3 rounded-xl border border-primary/30 text-primary text-xs font-black uppercase tracking-[0.2em] flex items-center justify-center gap-2 hover:bg-primary/5 transition-all disabled:opacity-50"
+                  >
+                    {isGenerating ? <><RefreshCw className="h-4 w-4 animate-spin" /> Synthesizing…</> : <>Generate <ArrowRight className="h-4 w-4" /></>}
+                  </button>
+                </div>
+
+                {/* Record toggle */}
+                <div className="rounded-[1.75rem] border border-border/40 bg-muted/3 p-5 flex items-center justify-between">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={cn(
+                      "h-8 w-8 shrink-0 rounded-full flex items-center justify-center border transition-all",
+                      recordEnabled ? "text-primary border-primary/30 bg-primary/8" : "text-foreground/20 border-border/30"
+                    )}>
+                      <Mic className="h-3.5 w-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-black uppercase tracking-[0.35em]">RECORD</p>
+                      <p className="text-[10px] font-medium opacity-30 truncate">
+                        {!user ? "Sign in to save & get AI feedback" : recordEnabled ? "Saving for AI feedback" : "Off"}
+                      </p>
+                    </div>
+                  </div>
+                  <Switch checked={recordEnabled} onCheckedChange={setRecordEnabled} disabled={!user} />
+                </div>
+              </motion.div>
+            )}
+
+            {/* ──── STEP 3 — READY ──── */}
+            {step === 3 && (
+              <motion.div
+                key="iv-ready"
+                initial={{ opacity: 0, x: 24 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -24 }}
+                transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                className="space-y-5 md:space-y-6"
+              >
+                <div className="space-y-2">
+                  <h2 className="speak-serif text-3xl md:text-4xl tracking-tighter leading-tight">
+                    Ready.
+                  </h2>
+                  <p className="text-sm opacity-40 font-medium">Read the question, structure with STAR, then the clock runs.</p>
+                </div>
+
+                <div className="rounded-[2rem] border border-primary/20 bg-muted/5 p-6 md:p-8 space-y-6">
+                  <div className="flex items-center gap-3 text-[10px] font-black uppercase tracking-[0.4em] text-primary">
+                    <Target className="h-3.5 w-3.5" />
+                    {current.difficulty} · {current.targetSeconds}s
+                  </div>
+                  <h3 className="speak-serif text-2xl md:text-3xl leading-tight">"{current.q}"</h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {STAR.map(s => (
+                      <div key={s.letter} className="p-4 rounded-2xl bg-muted/5 border border-border/60 space-y-1">
+                        <p className="text-lg font-black text-primary italic">{s.letter}</p>
+                        <p className="text-[9px] font-black uppercase tracking-widest opacity-40">{s.word}</p>
                       </div>
-                      <ChevronRight className="h-6 w-6 md:h-8 md:w-8 shrink-0 opacity-20 group-hover:opacity-100 group-hover:translate-x-2 transition-all duration-500" />
-                   </button>
-                 ))}
+                    ))}
+                  </div>
+                </div>
+
+                {/* Recap chips */}
+                <div className="flex items-center justify-center gap-2 flex-wrap text-[10px] font-black uppercase tracking-widest">
+                  <span className="px-3 py-1.5 rounded-full border border-border/50 bg-muted/5">{current.difficulty}</span>
+                  <span className="px-3 py-1.5 rounded-full border border-border/50 bg-muted/5">{current.targetSeconds}s</span>
+                  <span className="px-3 py-1.5 rounded-full border border-border/50 bg-muted/5 opacity-60">{recordEnabled ? "Recording" : "No recording"}</span>
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
-          <RecordingsList />
+
+          {/* Footer nav */}
+          <div className="flex items-center gap-3 mt-6 md:mt-10">
+            {step > 1 && (
+              <button
+                onClick={goBack}
+                className="shrink-0 h-14 px-5 rounded-[1.5rem] border border-border/50 flex items-center gap-2 text-xs font-black uppercase tracking-[0.2em] opacity-50 hover:opacity-100 transition-opacity"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back
+              </button>
+            )}
+            {step < 3 ? (
+              <motion.button
+                onClick={goNext}
+                whileTap={{ scale: 0.98 }}
+                className="flex-1 h-14 rounded-[1.5rem] bg-primary text-white flex items-center justify-center gap-3 shadow-glow group"
+              >
+                <span className="text-sm font-black uppercase tracking-[0.3em]">Next</span>
+                <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+              </motion.button>
+            ) : (
+              <motion.button
+                onClick={startQuestion}
+                whileTap={{ scale: 0.98 }}
+                className="relative flex-1 h-14 rounded-[1.5rem] bg-primary text-white overflow-hidden group"
+                style={{ boxShadow: "0 0 40px rgba(var(--primary-rgb, 139,92,246), 0.35)" }}
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
+                <div className="relative flex items-center justify-center gap-3">
+                  <Play className="h-4 w-4 fill-current" />
+                  <span className="text-sm font-black uppercase tracking-[0.3em]">Start</span>
+                </div>
+              </motion.button>
+            )}
+          </div>
+
+          {/* Past recordings */}
+          <div className="mt-12 md:mt-16">
+            <RecordingsList />
+          </div>
         </div>
+      )}
 
-        {/* Sidebar Controls */}
-        <aside className="space-y-8 relative z-10">
-          <div className="sticky top-32 space-y-8">
-            {/* Timer Panel */}
-            <div className="bg-muted/5 border border-border/60 rounded-2xl md:rounded-[3rem] p-6 md:p-10 space-y-6 md:space-y-10 relative overflow-hidden shadow-soft">
-              <div className="absolute top-0 left-0 h-1 bg-primary/20 w-full">
-                 <motion.div 
-                   className="h-full bg-primary shadow-glow" 
-                   initial={{ width: "100%" }}
-                   animate={{ width: `${pct}%` }}
-                   transition={{ duration: 0.5 }}
-                 />
-              </div>
+      {/* ════════════════ ACTIVE — focused question + timer ════════════════ */}
+      {phase === "active" && (
+        <div className="max-w-2xl mx-auto min-w-0 relative z-10 space-y-6 md:space-y-8">
+          <button
+            onClick={backToSetup}
+            className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.2em] text-primary opacity-40 hover:opacity-100 transition-opacity"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to setup
+          </button>
 
-              <div className="text-center space-y-4">
-                <p className="text-xs font-black uppercase tracking-[0.5em] opacity-40">INTERVIEW CLOCK</p>
-                <div className="speak-serif text-5xl md:text-7xl lg:text-8xl font-bold tracking-tighter italic tabular-nums">
-                  {mins}<span className="animate-pulse">:</span>{String(secs).padStart(2, "0")}
-                </div>
-              </div>
+          {/* Question */}
+          <div className="p-6 md:p-10 rounded-[2rem] bg-muted/10 border border-primary/20 space-y-3 text-center">
+            <p className="text-[10px] font-black uppercase tracking-[0.4em] text-primary">{current.difficulty} PROTOCOL</p>
+            <h2 className="speak-serif text-2xl md:text-4xl leading-tight">"{current.q}"</h2>
+          </div>
 
-              <div className="flex flex-col gap-4">
-                <AnimatePresence mode="wait">
-                  {!running ? (
-                    <button
-                      onClick={() => {
-                        if (seconds === 0) setSeconds(duration);
-                        setRunning(true);
-                        if (pausedAt) setPausedAt(null);
-                        hasStartedRef.current = true;
-                      }}
-                      className="button-pill w-full py-6 bg-primary text-white flex items-center justify-center gap-4 shadow-glow group"
-                    >
-                      <Play className="h-5 w-5 fill-current" />
-                      <span className="text-sm font-black uppercase tracking-[0.2em]">{hasStartedRef.current ? "RESUME" : "START"}</span>
-                    </button>
-                  ) : (
-                    <button 
-                      onClick={() => { setRunning(false); setPausedAt(Date.now()); }}
-                      className="button-pill w-full py-6 border border-primary/30 text-primary flex items-center justify-center gap-4 hover:bg-primary/5 transition-all"
-                    >
-                      <Pause className="h-5 w-5 fill-current" />
-                      <span className="text-sm font-black uppercase tracking-[0.2em]">PAUSE SESSION</span>
-                    </button>
-                  )}
-                </AnimatePresence>
-                <button 
-                  onClick={() => { setSeconds(duration); setRunning(false); setPausedAt(null); hasStartedRef.current = false; }}
-                  className="flex items-center justify-center gap-2 text-xs font-black uppercase tracking-[0.4em] opacity-30 hover:opacity-100 transition-opacity"
-                >
-                  <RotateCcw className="h-3 w-3" />
-                  RESTART CLOCK
-                </button>
-              </div>
-
-              {/* Recording Toggle */}
-              <div className="pt-6 border-t border-border/60 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className={cn(
-                    "h-10 w-10 rounded-full flex items-center justify-center border transition-all duration-500",
-                    recordEnabled ? "bg-primary/10 border-primary text-primary animate-pulse" : "bg-muted border-border/60 opacity-20"
-                  )}>
-                    <Mic className="h-4 w-4" />
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-xs font-black uppercase tracking-widest">RECORDING</p>
-                    <p className="text-[11px] font-bold opacity-30 uppercase tracking-widest">{recordEnabled ? "ACTIVE" : "OFF"}</p>
-                  </div>
-                </div>
-                <Switch 
-                  checked={recordEnabled} 
-                  onCheckedChange={setRecordEnabled} 
-                  disabled={!user}
-                />
-              </div>
+          {/* Timer */}
+          <div className="bg-muted/5 border border-border/60 rounded-[2.5rem] p-6 md:p-10 space-y-8 relative overflow-hidden shadow-soft">
+            <div className="absolute top-0 left-0 h-1 bg-primary/20 w-full">
+              <motion.div className="h-full bg-primary shadow-glow" initial={{ width: "100%" }} animate={{ width: `${pct}%` }} transition={{ duration: 0.5 }} />
             </div>
 
-            {/* Recorder Hidden Panel */}
-            {recordEnabled && (
-              <div className="opacity-0 pointer-events-none absolute">
-                <RecorderPanel
-                  externalRunning={running}
-                  recorderStartRef={(fn) => { recorderStartRef.current = fn; }}
-                  recorderPauseRef={(fn) => { recorderPauseRef.current = fn; }}
-                  recorderResumeRef={(fn) => { recorderResumeRef.current = fn; }}
-                  recorderStopRef={(fn) => { recorderStopRef.current = fn; }}
-                  onRecorded={async ({ blob, durationMs }) => {
-                    markPracticed();
-                    if (user) {
-                      const result = await uploadRecording(blob, {
-                        promptText: `Interview: ${current.q}`,
-                        difficulty: current.difficulty,
-                        durationMs,
-                        targetSeconds: duration,
-                      });
-                      if (result?.id) setAutoFeedbackId(result.id);
-                    }
-                  }}
-                />
+            <div className="text-center space-y-3">
+              <p className="text-xs font-black uppercase tracking-[0.5em] opacity-40">INTERVIEW CLOCK</p>
+              <div className="speak-serif text-6xl md:text-8xl font-bold tracking-tighter italic tabular-nums">
+                {mins}<span className="animate-pulse">:</span>{String(secs).padStart(2, "0")}
               </div>
-            )}
+              {recordEnabled && (
+                <div className="flex items-center justify-center gap-2">
+                  <span className={cn("h-2 w-2 rounded-full", running && !pausedAt ? "bg-red-500 animate-ping" : "bg-muted-foreground/40")} />
+                  <span className="text-[10px] font-black uppercase tracking-widest opacity-40">{running && !pausedAt ? "Recording" : "Paused"}</span>
+                </div>
+              )}
+            </div>
 
-            <div className="flex items-center gap-4 text-[11px] font-black uppercase tracking-[0.5em] opacity-20 justify-center">
-               <ShieldCheck className="h-3 w-3" />
-               ENCRYPTED STREAM
+            <div className="flex flex-col gap-3">
+              {!running ? (
+                <button
+                  onClick={() => { if (seconds === 0) setSeconds(duration); setRunning(true); if (pausedAt) setPausedAt(null); hasStartedRef.current = true; }}
+                  className="button-pill w-full py-5 bg-primary text-white flex items-center justify-center gap-3 shadow-glow"
+                >
+                  <Play className="h-5 w-5 fill-current" />
+                  <span className="text-sm font-black uppercase tracking-[0.2em]">{hasStartedRef.current ? "Resume" : "Start"}</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => { setRunning(false); setPausedAt(Date.now()); }}
+                  className="button-pill w-full py-5 border border-primary/30 text-primary flex items-center justify-center gap-3 hover:bg-primary/5 transition-all"
+                >
+                  <Pause className="h-5 w-5 fill-current" />
+                  <span className="text-sm font-black uppercase tracking-[0.2em]">Pause</span>
+                </button>
+              )}
+              <button
+                onClick={() => { recorderStopRef.current?.(); live.reset(); setSeconds(duration); setRunning(false); setPausedAt(null); wasRunningRef.current = false; hasStartedRef.current = false; }}
+                className="flex items-center justify-center gap-2 text-xs font-black uppercase tracking-[0.4em] opacity-30 hover:opacity-100 transition-opacity"
+              >
+                <RotateCcw className="h-3 w-3" />
+                Restart clock
+              </button>
             </div>
           </div>
-        </aside>
-      </div>
+
+          {/* Live HUD — captions + WPM + fillers */}
+          <LiveSpeechHUD metrics={live} active={running && !pausedAt} />
+
+          {/* Reveal guidance */}
+          <AnimatePresence mode="wait">
+            {revealed ? (
+              <motion.div
+                key="guidance"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="rounded-[2rem] bg-muted/5 border border-border/60 p-6 md:p-8 space-y-5"
+              >
+                <p className="text-xs font-black uppercase tracking-widest text-primary flex items-center gap-2">
+                  <Zap className="h-3 w-3" /> Strategic STAR
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {STAR.map(s => (
+                    <div key={s.letter} className="p-4 rounded-2xl bg-muted/5 border border-border/60 space-y-1">
+                      <p className="text-lg font-black text-primary italic">{s.letter}</p>
+                      <p className="text-[9px] font-black uppercase tracking-widest opacity-40">{s.word}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="space-y-3 pt-2 border-t border-border/40">
+                  <p className="text-sm font-medium opacity-60 leading-relaxed italic">"{current.guidance}"</p>
+                  <ul className="space-y-1.5">
+                    {current.keyPoints.map((p, i) => (
+                      <li key={i} className="flex gap-3 text-xs font-bold uppercase tracking-widest opacity-40">
+                        <span className="text-primary">✱</span> {p}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </motion.div>
+            ) : (
+              <button
+                onClick={() => setRevealed(true)}
+                className="w-full py-6 border-2 border-dashed border-border/60 rounded-[2rem] text-xs font-black uppercase tracking-[0.4em] opacity-30 hover:opacity-100 hover:border-primary/40 hover:text-primary transition-all flex items-center justify-center gap-4"
+              >
+                <Microscope className="h-4 w-4" />
+                Reveal strategic guidance
+              </button>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
+
+      {/* Recorder — mounted whenever recording is enabled, across both phases */}
+      {recordEnabled && (
+        <div className="opacity-0 pointer-events-none absolute">
+          <RecorderPanel
+            externalRunning={running}
+            recorderStartRef={(fn) => { recorderStartRef.current = fn; }}
+            recorderPauseRef={(fn) => { recorderPauseRef.current = fn; }}
+            recorderResumeRef={(fn) => { recorderResumeRef.current = fn; }}
+            recorderStopRef={(fn) => { recorderStopRef.current = fn; }}
+            onRecorded={async ({ blob, durationMs }) => {
+              markPracticed();
+              if (user) {
+                const result = await uploadRecording(blob, {
+                  promptText: `Interview: ${current.q}`,
+                  difficulty: current.difficulty,
+                  durationMs,
+                  targetSeconds: duration,
+                });
+                if (result?.id) setAutoFeedbackId(result.id);
+              }
+            }}
+          />
+        </div>
+      )}
 
       {autoFeedbackId && (
         <RecordingFeedbackModal
