@@ -84,8 +84,8 @@ const Arena = () => {
 
   const [matchmaking, setMatchmaking] = useState(false);
   const [matchFound, setMatchFound] = useState<Duel | null>(null);
-  const [eloUpdate, setEloUpdate] = useState<{ change: number; newElo: number } | null>(null);
-  const pendingUpdate = useRef<{ change: number; newElo: number } | null>(null);
+  const [eloUpdate, setEloUpdate] = useState<{ change: number; newElo: number; outcome?: "win" | "loss" | "tie" } | null>(null);
+  const pendingUpdate = useRef<{ change: number; newElo: number; outcome?: "win" | "loss" | "tie" } | null>(null);
   
   // Kill any residual AI speech on mount/unmount
   useEffect(() => {
@@ -97,11 +97,11 @@ const Arena = () => {
   // Buffer the update whenever a battle overlay (drill OR debate) is open
   // so the animation fires on the lobby page after the overlay closes.
   useEffect(() => {
-    const handleEloUpdate = ({ change, newElo }: ArenaEvents["elo:updated"]) => {
+    const handleEloUpdate = ({ change, newElo, outcome }: ArenaEvents["elo:updated"]) => {
       if (activeDrill || debateConfig) {
-        pendingUpdate.current = { change, newElo };
+        pendingUpdate.current = { change, newElo, outcome };
       } else {
-        setEloUpdate({ change, newElo });
+        setEloUpdate({ change, newElo, outcome });
         setTimeout(() => setEloUpdate(null), 8000);
       }
     };
@@ -112,8 +112,11 @@ const Arena = () => {
   // ── Sound: ELO gain / loss when the banner appears ───────────────────────
   useEffect(() => {
     if (!eloUpdate) return;
-    if (eloUpdate.change > 0) arenasfx.eloGain();
-    else if (eloUpdate.change < 0) arenasfx.eloLoss();
+    // Sound follows the match outcome (matching the VICTORY/DEFEAT headline),
+    // falling back to the delta sign when no outcome was supplied.
+    const outcome = eloUpdate.outcome ?? (eloUpdate.change > 0 ? "win" : eloUpdate.change < 0 ? "loss" : "tie");
+    if (outcome === "win") arenasfx.eloGain();
+    else if (outcome === "loss") arenasfx.eloLoss();
   }, [eloUpdate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Debug command — DEV ONLY. Previously shipped to production, which let
@@ -507,13 +510,24 @@ const Arena = () => {
       {/* ── ELO Result Screen ──────────────────────────────────────────────── */}
       <AnimatePresence>
         {eloUpdate && (() => {
-          const gained = eloUpdate.change > 0;
-          const lost   = eloUpdate.change < 0;
+          // Headline VICTORY/DEFEAT/DRAW follows the MATCH outcome (what the
+          // verdict + match history say), NOT the sign of the ELO change. A real
+          // win can carry a non-positive delta (sub-30 "near-silent" win, or a
+          // placement landing below the seed) — that used to flash DEFEAT over a
+          // match the user won. Fall back to the delta's sign only when the
+          // emitter didn't supply an outcome (legacy/edge paths).
+          const outcome = eloUpdate.outcome ?? (eloUpdate.change > 0 ? "win" : eloUpdate.change < 0 ? "loss" : "tie");
+          const gained = outcome === "win";
+          const lost   = outcome === "loss";
+          // Rank movement tracks the actual rating change, independent of the
+          // win/loss label, so we never claim "Rank Up" on a delta that fell.
+          const eloRose = eloUpdate.change > 0;
+          const eloFell = eloUpdate.change < 0;
           const oldRank = getRankFromElo(eloUpdate.newElo - eloUpdate.change);
           const newRank = getRankFromElo(eloUpdate.newElo);
           const rankChanged = newRank.name !== oldRank.name || newRank.tier !== oldRank.tier;
-          const rankUp   = gained && rankChanged;
-          const rankDown = lost   && rankChanged;
+          const rankUp   = eloRose && rankChanged;
+          const rankDown = eloFell && rankChanged;
 
           const accent = gained ? "#22c55e" : lost ? "#ef4444" : "#eab308";
 
@@ -571,7 +585,7 @@ const Arena = () => {
                   className="relative z-10 speak-serif font-black italic leading-none tabular-nums"
                   style={{ fontSize: "clamp(5rem, 22vw, 9rem)", color: accent }}
                 >
-                  {gained ? "+" : ""}{eloUpdate.change}
+                  {eloUpdate.change > 0 ? "+" : ""}{eloUpdate.change}
                 </motion.div>
 
                 <motion.p

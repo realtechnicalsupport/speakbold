@@ -1731,33 +1731,41 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
             onRecorded={async (rec) => {
               setLastRecording(rec);
 
-              // Mobile transcript fallback: Web Speech is disabled on phones/
-              // tablets (it cycles the mic), so the recorded blob is our only
-              // source of truth for the user's words. Transcribe server-side
-              // and slot the text into the correct turn. The judge awaits
-              // these promises before scoring.
+              // Server-side transcript fallback. Gated on the actual CAPABILITY/
+              // outcome, NOT the device: transcribe the recorded blob whenever
+              // the live Web Speech path didn't give us usable words. This covers
+              //  • browsers with no Web Speech API at all — Firefox, Brave, most
+              //    in-app/embedded webviews — plus every phone & tablet, and
+              //  • browsers where it's "supported" but produced nothing (mic
+              //    contention with the recorder, recognition errors, flaky net).
+              // Previously this was gated on isMobileDevice(), so a no-Web-Speech
+              // DESKTOP browser transcribed via NEITHER path and the match voided
+              // with an empty transcript ("transcription doesn't work at all").
+              // captureUserTurnTranscript() ran synchronously at turn-end, so the
+              // Web Speech result (if any) is already in transcriptsRef here.
               const recordedPhase = recordingPhaseRef.current;
               recordingPhaseRef.current = null;
-              if (isMobileDevice() && recordedPhase) {
-                const key =
-                  recordedPhase === "opening-user" ? "userOpening" :
-                  recordedPhase === "rebuttal-user" ? "userRebuttal" : null;
-                if (key) {
+              const key =
+                recordedPhase === "opening-user" ? "userOpening" :
+                recordedPhase === "rebuttal-user" ? "userRebuttal" : null;
+              if (key) {
+                const fromSpeech = (transcriptsRef.current[key] || "").trim();
+                if (!speechSupported || fromSpeech.length < 15) {
                   const p = (async () => {
                     try {
                       const text = (await transcribeAudio(rec.blob)).trim();
                       if (text) {
                         setTranscripts(prev => ({ ...prev, [key]: text }));
-                        // PvP: a mobile speaker's live turn-end carried empty/rough
-                        // text (no Web Speech). Now that the server transcript is
-                        // ready, re-broadcast it so the host re-stores the real
-                        // text before judging (its runJudging waits a settle window).
+                        // PvP: the live turn-end we already sent carried empty/
+                        // rough text. Now that the server transcript is ready,
+                        // re-broadcast so the host re-stores the real words before
+                        // judging (its runJudging waits a settle window for this).
                         if (isPeer && peer) {
                           peer.sendDebateTurnEnd(peer.duelId, key === "userOpening" ? "opening" : "rebuttal", text);
                         }
                       }
                     } catch (err) {
-                      console.warn("[Debate] Mobile server transcription failed:", err);
+                      console.warn("[Debate] Server transcription fallback failed:", err);
                     }
                   })();
                   pendingTranscriptionsRef.current.push(p);
@@ -1990,7 +1998,7 @@ const Podium = ({ who, name, stand, isActive, avatar, previousText, previousLabe
               ) : (
                 <div className="space-y-2 md:space-y-3">
                   <p className="text-xs opacity-50 italic leading-relaxed">
-                    Live transcription not supported in this browser. Speak now — audio is being recorded.
+                    Make your case — speak naturally. Your words are captured and transcribed when your turn ends.
                   </p>
                   <div className="flex items-center gap-2 text-[9px] md:text-[10px] font-black uppercase tracking-widest text-primary">
                     <motion.div animate={{ scale: [1, 1.3, 1] }} transition={{ duration: 1, repeat: Infinity }} className="h-1.5 w-1.5 rounded-full bg-primary" />

@@ -368,7 +368,7 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         // The host's authoritative call may have *placed* us (first PvP battle) —
         // adopt the rating and mark ranked so we stop showing as Unranked.
         setProfile(prev => ({ ...prev, elo: payload.newElo, ranked: true }));
-        arenaEmitter.emit("elo:updated", { change: payload.change, newElo: payload.newElo });
+        arenaEmitter.emit("elo:updated", { change: payload.change, newElo: payload.newElo, outcome: payload.outcome });
         refresh(true);
       })
       .subscribe(async (status) => {
@@ -516,7 +516,8 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
 
       await refresh(true);
-      arenaEmitter.emit("elo:updated", { change: serverDelta, newElo: serverElo });
+      // Self-forfeit is a loss for me; opponent-forfeit is a win for me.
+      arenaEmitter.emit("elo:updated", { change: serverDelta, newElo: serverElo, outcome: isMe ? "loss" : "win" });
     } catch (e) {
       console.error("[ArenaContext] handleForfeit failed:", e);
     }
@@ -624,7 +625,15 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         arenaChannel.current.send({
           type: "broadcast",
           event: "elo-sync",
-          payload: { targetUserId: opponent!.id, newElo: oppNewElo, change: oppEloChange },
+          // Outcome is from the OPPONENT's perspective — the inverse of mine
+          // (a tie is symmetric). The opponent's client never recomputes its own
+          // win/loss here, so it must come from the authoritative host result.
+          payload: {
+            targetUserId: opponent!.id,
+            newElo: oppNewElo,
+            change: oppEloChange,
+            outcome: tie ? "tie" : won ? "loss" : "win",
+          },
         });
       }
 
@@ -643,7 +652,7 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       await markPracticedDay(user.id);
 
       await refresh(true);
-      arenaEmitter.emit("elo:updated", { change: persistedDelta, newElo: persistedElo });
+      arenaEmitter.emit("elo:updated", { change: persistedDelta, newElo: persistedElo, outcome: tie ? "tie" : won ? "win" : "loss" });
     } catch (e) {
       console.error("[ArenaContext] completeDuel failed:", e);
     }

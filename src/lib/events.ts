@@ -17,7 +17,13 @@ export type ArenaEvents = {
   "arena:battle-analyzing": { duelId: string };
   "arena:battle-transcript":{ duelId: string; userId: string; transcript: string };
   "arena:battle-forfeit":   { duelId: string; userId: string };
-  "elo:updated":            { change: number; newElo: number };
+  // `outcome` is the MATCH result (win/loss/tie) and is what the ELO pop-up
+  // should label VICTORY/DEFEAT/DRAW with — NOT the sign of `change`. A genuine
+  // match win can carry a non-positive `change` (a sub-30 "near-silent" win, or
+  // a placement that lands below the unranked seed), which used to make the pop
+  // say DEFEAT while the verdict + match history said WIN. When omitted, the
+  // pop falls back to the sign of `change`.
+  "elo:updated":            { change: number; newElo: number; outcome?: "win" | "loss" | "tie" };
   // ── Live PvP debate sync (turn-based, transcript-only) ──────────────────────
   // `debate-live`: the active speaker streams their in-progress transcript so the
   // watching peer sees the words appear in real time (same UX as the AI stream).
