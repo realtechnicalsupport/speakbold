@@ -30,7 +30,22 @@ export interface Recording {
   createdAt: number;
 }
 
-export const useRecorder = () => {
+/**
+ * Optional live-capture hooks. Off by default — when omitted the recorder
+ * behaves byte-for-byte as before (a single `mr.start()`, one blob on stop).
+ *
+ * `timeslice` switches MediaRecorder into chunked mode (`mr.start(ms)`), and
+ * `onChunks` fires after every chunk with the cumulative array captured so far.
+ * Used by the live PvP debate so a mobile speaker (where the Web Speech API is
+ * unavailable) can periodically re-transcribe the audio so far and stream it to
+ * the watching opponent. The final blob built on stop is unaffected.
+ */
+export interface RecorderOptions {
+  timeslice?: number;
+  onChunks?: (chunks: Blob[]) => void;
+}
+
+export const useRecorder = (opts?: RecorderOptions) => {
   const [state, setState] = useState<RecordingState>("idle");
   const [recording, setRecording] = useState<Recording | null>(null);
   const [elapsedMs, setElapsedMs] = useState(0);
@@ -38,6 +53,12 @@ export const useRecorder = () => {
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  // Keep the live-capture options in refs so `start` (memoised on [recording])
+  // never needs them in its dep array and can't go stale.
+  const timesliceRef = useRef(opts?.timeslice);
+  const onChunksRef = useRef(opts?.onChunks);
+  timesliceRef.current = opts?.timeslice;
+  onChunksRef.current = opts?.onChunks;
   const startedAtRef = useRef<number>(0);
   const pausedAtRef = useRef<number>(0);
   const pauseDurationRef = useRef<number>(0);
@@ -113,7 +134,13 @@ export const useRecorder = () => {
       mediaRecorderRef.current = mr;
       chunksRef.current = [];
       mr.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data);
+        if (e.data.size > 0) {
+          chunksRef.current.push(e.data);
+          // Hand the cumulative chunks to the live consumer (debate live
+          // transcription). A copy, so they can build a blob without racing
+          // our next push.
+          onChunksRef.current?.(chunksRef.current.slice());
+        }
       };
       mr.onstop = () => {
         // Use the recorder's actual mime type so the blob is never mislabeled
@@ -128,7 +155,10 @@ export const useRecorder = () => {
       startedAtRef.current = Date.now();
       pauseDurationRef.current = 0;
       setElapsedMs(0);
-      mr.start();
+      // Chunked mode only when a timeslice was requested — otherwise a bare
+      // start() (one blob on stop), identical to the original behaviour.
+      const ts = timesliceRef.current;
+      if (ts && ts > 0) mr.start(ts); else mr.start();
       setState("recording");
       setRecordingActive(true);
       tickRef.current = window.setInterval(() => {

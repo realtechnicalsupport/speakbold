@@ -1109,6 +1109,11 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
   const lastLiveSentRef = useRef(0);
   useEffect(() => {
     if (!isPeer || !peer) return;
+    // Desktop path only: streams Web Speech results. On mobile/tablet
+    // `liveFinal`/`liveInterim` never populate (Web Speech is off there), so
+    // there's nothing to stream — the mobile near-live effect below handles it
+    // by re-transcribing the recorded audio instead.
+    if (!speechSupported) return;
     const turn = turnNameOf(phase);
     if (!turn || PHASE_CONFIG[phase].speaker !== "user") return; // only my speaking turns
     const now = Date.now();
@@ -1117,7 +1122,52 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
     const text = (liveFinal + " " + liveInterim).trim();
     peer.sendDebateLive(peer.duelId, turn, text);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPeer, peer, phase, liveFinal, liveInterim]);
+  }, [isPeer, peer, phase, liveFinal, liveInterim, speechSupported]);
+
+  // ── PvP (mobile/tablet): near-live transcript for the watching opponent ────
+  // The Web Speech API is disabled on phones/tablets (it cycles the mic), so the
+  // desktop live-stream effect above sends nothing there and the opponent would
+  // stare at "Opponent is thinking…" for the whole turn. Here we periodically
+  // re-transcribe the audio captured so far — the chunks come from the SAME
+  // upload recorder (now timesliced), so no second mic stream is opened — and
+  // broadcast the growing text as the same `debate-live` event the watcher
+  // already renders. The authoritative final transcript still lands at turn-end
+  // (onRecorded → server transcription → sendDebateTurnEnd), correcting any lag.
+  const liveChunksRef = useRef<Blob[]>([]);
+  const handleLiveChunks = useCallback((chunks: Blob[]) => { liveChunksRef.current = chunks; }, []);
+  useEffect(() => {
+    if (!isPeer || !peer || speechSupported) return;
+    const turn = turnNameOf(phase);
+    if (!turn || PHASE_CONFIG[phase].speaker !== "user") return; // only my speaking turn
+    // Drop any chunks left over from the previous turn — the recorder restarts
+    // per turn, so within one timeslice this refills with the new turn's audio.
+    liveChunksRef.current = [];
+    let cancelled = false;
+    let inFlight = false;
+    let lastBytes = 0;
+    const id = window.setInterval(async () => {
+      if (cancelled || inFlight) return;
+      const chunks = liveChunksRef.current;
+      if (chunks.length === 0) return;
+      // Always rebuild from chunk 0 so the blob keeps its container header and
+      // stays decodable; re-transcribing the whole turn-so-far also keeps the
+      // text coherent and monotonic instead of stitching per-chunk fragments.
+      const blob = new Blob(chunks, { type: chunks[0].type || "audio/webm" });
+      if (blob.size <= lastBytes) return; // nothing new captured since last tick
+      lastBytes = blob.size;
+      inFlight = true;
+      try {
+        const text = (await transcribeAudio(blob)).trim();
+        if (!cancelled && text) peer.sendDebateLive(peer.duelId, turn, text);
+      } catch {
+        /* a dropped partial is fine — the next tick or turn-end recovers */
+      } finally {
+        inFlight = false;
+      }
+    }, 4000);
+    return () => { cancelled = true; window.clearInterval(id); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPeer, peer, phase, speechSupported]);
 
   // ── PvP peer: mirror the host's broadcast verdict ─────────────────────────
   // Same host-authoritative mirroring DuelDrill uses: flip score↔oppScore and
@@ -1631,6 +1681,12 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
             externalRunning={isUserTurn}
             recorderStartRef={fn => { recorderStartRef.current = fn; }}
             recorderStopRef={fn => { recorderStopRef.current = fn; }}
+            // Only timeslice for a live PvP debate on mobile — that's the one
+            // case that needs mid-turn chunks (to feed near-live transcription
+            // to the opponent). Everywhere else the recorder stays in its
+            // original single-blob mode.
+            liveTimeslice={isPeer && !speechSupported ? 1000 : undefined}
+            onLiveChunks={isPeer && !speechSupported ? handleLiveChunks : undefined}
             onRecorded={async (rec) => {
               setLastRecording(rec);
 

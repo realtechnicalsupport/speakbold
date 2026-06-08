@@ -92,4 +92,26 @@ describe("computeEloChange — outcome-sign guarantee", () => {
     });
     expect(delta).toBe(-30);
   });
+
+  it("opponent-forfeit grants the surviving player a win (positive ELO)", () => {
+    // When the other side forfeits, the remaining player is rated as a clean
+    // 80–20 win — must be a gain, even against an equally-rated opponent.
+    const delta = computeEloChange({
+      ...base,
+      isForfeit: "opponent",
+    });
+    expect(delta).toBeGreaterThan(0);
+  });
+
+  it("opponent-forfeit still gains ELO against a much stronger opponent", () => {
+    // The win is awarded by the forfeit, not by rating math — a survivor far
+    // below the forfeiter must never come out negative.
+    const delta = computeEloChange({
+      ...base,
+      myElo: 1000,
+      oppElo: 2000,
+      isForfeit: "opponent",
+    });
+    expect(delta).toBeGreaterThan(0);
+  });
 });

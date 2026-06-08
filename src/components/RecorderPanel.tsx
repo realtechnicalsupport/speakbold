@@ -22,6 +22,10 @@ interface RecorderPanelProps {
   recorderResumeRef?: (fn: (() => void) | undefined) => void;
   recorderStopRef?: (fn: (() => void) | undefined) => void;
   onRecorded?: (rec: { blob: Blob; durationMs: number }) => void;
+  /** Live-capture passthrough (see useRecorder). Used by the PvP debate to
+   *  re-transcribe a mobile speaker's audio mid-turn. Off unless provided. */
+  liveTimeslice?: number;
+  onLiveChunks?: (chunks: Blob[]) => void;
 }
 
 export const RecorderPanel = React.forwardRef(({
@@ -33,8 +37,10 @@ export const RecorderPanel = React.forwardRef(({
   recorderResumeRef,
   recorderStopRef,
   onRecorded,
+  liveTimeslice,
+  onLiveChunks,
 }: RecorderPanelProps, ref) => {
-  const { state, recording, elapsedMs, error, start, stop, pause, resume, reset } = useRecorder();
+  const { state, recording, elapsedMs, error, start, stop, pause, resume, reset } = useRecorder({ timeslice: liveTimeslice, onChunks: onLiveChunks });
   const { permission, requestPermission } = useMicPermission();
   const externallyControlled = !!(recorderStartRef && recorderPauseRef && recorderResumeRef && recorderStopRef);
 
