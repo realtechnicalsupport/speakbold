@@ -1151,6 +1151,12 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
     const onForfeit = (p: ArenaEvents["arena:battle-forfeit"]) => {
       if (p.duelId !== peer.duelId || p.userId !== peer.opponentId) return;
       aiAbortRef.current = true;
+
+      // Show victory UI immediately
+      toast({
+        title: "Opponent left",
+        description: "You win by forfeit! ELO has been awarded.",
+      });
       setVerdict({
         score: 100, oppScore: 0, won: true, byForfeit: true,
         feedback: `${opponent.name} left the debate. You win by forfeit.`,
@@ -1158,6 +1164,39 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
       });
       sfx.win();
       setPhase("results");
+
+      // Persist the win and award ELO — previously missing, causing the
+      // remaining player to be stuck with no outcome recorded.
+      if (handleForfeit) {
+        const userName = user?.email?.split("@")[0] || "You";
+        const synthDuel: Duel = {
+          id: peer.duelId,
+          prompt,
+          gamemode: "debate",
+          creator: {
+            id: user?.id,
+            name: userName,
+            avatar: "👤",
+            elo: userElo,
+            rank: getRankFromElo(userElo),
+            score: 100,
+          },
+          challenger: {
+            id: peer.opponentId,
+            name: opponent.name,
+            avatar: opponent.avatar,
+            elo: opponent.elo,
+            rank: opponent.rank,
+            score: 0,
+          },
+          status: "completed",
+          winner: user?.id ?? null,
+          feedback: `${opponent.name} left the debate. You win by forfeit.`,
+          timestamp: Date.now(),
+        };
+        // isMe = false → opponent forfeited → I get the win ELO
+        handleForfeit(peer.duelId, false, synthDuel);
+      }
     };
     arenaEmitter.on("arena:battle-forfeit", onForfeit);
     return () => arenaEmitter.off("arena:battle-forfeit", onForfeit);
