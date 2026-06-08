@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
+import { useLocalStorageState } from "@/hooks/useLocalStorageState";
 import { useRecordings, useSyncedStreak } from "@/hooks/useRecordings";
 import { RecordingFeedbackModal } from "@/components/RecordingFeedback";
 import { LiveSpeechHUD } from "@/components/LiveSpeechHUD";
@@ -206,7 +207,7 @@ const PublicSpeaking = () => {
     const saved = localStorage.getItem("speakbold:speaking-completed");
     return saved ? new Set(JSON.parse(saved)) : new Set();
   });
-  const [recordEnabled, setRecordEnabled] = useState(false);
+  const [recordEnabled, setRecordEnabled] = useLocalStorageState<boolean>("speakbold:record-attempts", true);
   const [autoFeedbackId, setAutoFeedbackId] = useState<string | null>(null);
 
   // Incremental setup → active practice. Same engine as before; we just gate the

@@ -56,7 +56,7 @@ export function useImpromptuSession() {
   const [difficulty, setDifficultyState] = useLocalStorageState<Difficulty>("speakbold:impromptu:difficulty", "Medium");
   const [duration, setDurationState] = useLocalStorageState<number>("speakbold:impromptu:duration", 60);
   const [curveballEnabled, setCurveballEnabledState] = useLocalStorageState<boolean>("speakbold:impromptu:curveball", false);
-  const [recordEnabled, setRecordEnabledState] = useLocalStorageState<boolean>("speakbold:impromptu:record", false);
+  const [recordEnabled, setRecordEnabledState] = useLocalStorageState<boolean>("speakbold:record-attempts", true);
   const [challengeMode, setChallengeModeState] = useLocalStorageState<boolean>("speakbold:impromptu:challenge", false);
   const [topic, setTopicState] = useState<ImpromptuTopic>(() => getRandomTopic(difficulty));
 

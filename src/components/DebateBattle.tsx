@@ -20,6 +20,7 @@ import {
   type DebatePhase,
   phaseOrderFor,
   turnNameOf,
+  speakerOf,
   speakingOrder,
   turnLabel as turnLabelOf,
   userOpensFirst as userOpensFirstOf,
@@ -1493,46 +1494,35 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
 
       {/* DEBATE STAGE — two podiums */}
       {!showResults && !showJudging && phase !== "prep" && (() => {
-        // The "previous turn" surfaces on each podium when its speaker isn't
-        // active. We want it to reflect the SPEAKER'S most recent finished
-        // turn, not always the opening — otherwise the rebuttal-ai screen
-        // shows the user their Round 1 transcript while their just-spoken
-        // rebuttal disappears.
-        let userPrevText = "";
-        let userPrevLabel = "Your opening";
-        if (phase === "rebuttal-user") {
-          userPrevText = transcripts.userOpening;
-        } else if (phase === "rebuttal-ai") {
-          // Has the user's OWN rebuttal already happened in this client's order?
-          // FOR: …rebuttal-user → rebuttal-ai, so yes — show "Your rebuttal".
-          // AGAINST: …rebuttal-ai → rebuttal-user, so no — they've only opened.
-          // Keying off the order (not `userRebuttal` being non-empty) stops the
-          // opening from flashing on mobile/tablet, where the rebuttal transcript
-          // arrives a beat later from server-side transcription and the old
-          // `&& transcripts.userRebuttal` guard fell back to the opening until then.
-          const userRebuttalDone =
-            phaseOrder.indexOf("rebuttal-user") < phaseOrder.indexOf("rebuttal-ai");
-          if (userRebuttalDone) {
-            userPrevText = transcripts.userRebuttal;
-            userPrevLabel = "Your rebuttal";
-          } else {
-            userPrevText = transcripts.userOpening;
+        // Each inactive podium surfaces its speaker's most recently COMPLETED
+        // turn, so you can read what your opponent just said while you respond
+        // (and review your own last turn while they speak). Derived from the
+        // real speaking order rather than hard-coded per phase: the previous
+        // implementation only populated this during rebuttal phases, so the
+        // second opener (every AGAINST / PvP-peer client) saw a BLANK opponent
+        // podium right after the opponent finished their opening — their
+        // transcript only reappeared once a rebuttal phase began. This walks
+        // backwards from the current phase to the latest finished turn by that
+        // speaker, which is correct for both FOR and AGAINST orders.
+        //
+        // Order-driven (not emptiness-driven) on purpose: on mobile the final
+        // transcript for a turn lands a beat late via server-side transcription,
+        // so keying off emptiness would briefly flash the earlier turn before
+        // the latest one arrives.
+        const prevTurnFor = (speaker: "user" | "ai"): { text: string; label: string } => {
+          const curIdx = phaseOrder.indexOf(phase);
+          for (let i = curIdx - 1; i >= 0; i--) {
+            const p = phaseOrder[i];
+            if (speakerOf(p) !== speaker) continue;
+            if (p === "opening-user") return { text: transcripts.userOpening, label: "Your opening" };
+            if (p === "rebuttal-user") return { text: transcripts.userRebuttal, label: "Your rebuttal" };
+            if (p === "opening-ai") return { text: transcripts.aiOpening, label: "Their opening" };
+            if (p === "rebuttal-ai") return { text: transcripts.aiRebuttal, label: "Their rebuttal" };
           }
-        }
-
-        let aiPrevText = "";
-        let aiPrevLabel = "Their opening";
-        if (phase === "rebuttal-user" || phase === "rebuttal-ai") {
-          // Mirror logic: in AGAINST order, the AI just gave their rebuttal
-          // before rebuttal-user fires, so show that. In FOR order the AI's
-          // only prior turn at rebuttal-user is their opening.
-          if (oppStand === "FOR" && phase === "rebuttal-user" && transcripts.aiRebuttal) {
-            aiPrevText = transcripts.aiRebuttal;
-            aiPrevLabel = "Their rebuttal";
-          } else {
-            aiPrevText = transcripts.aiOpening;
-          }
-        }
+          return { text: "", label: speaker === "user" ? "Your opening" : "Their opening" };
+        };
+        const { text: userPrevText, label: userPrevLabel } = prevTurnFor("user");
+        const { text: aiPrevText, label: aiPrevLabel } = prevTurnFor("ai");
 
         return (
         <div className="flex-1 px-3 md:px-12 py-3 md:py-6 max-w-6xl mx-auto w-full flex flex-col">

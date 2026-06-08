@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
+import { useLocalStorageState } from "@/hooks/useLocalStorageState";
 import { useRecordings, useSyncedStreak } from "@/hooks/useRecordings";
 import { useSyncedInterviewQuestions } from "@/hooks/useSyncedInterviewQuestions";
 import { setTimerActive, setTimerSeconds } from "@/lib/timerState";
@@ -125,7 +126,7 @@ const Interviews = () => {
   const [active, setActive] = useState(0);
   const [tier, setTier] = useState<Difficulty>("Warm-up");
   const [revealed, setRevealed] = useState(false);
-  const [recordEnabled, setRecordEnabled] = useState(false);
+  const [recordEnabled, setRecordEnabled] = useLocalStorageState<boolean>("speakbold:record-attempts", true);
   const [autoFeedbackId, setAutoFeedbackId] = useState<string | null>(null);
   const [completedQuestions, setCompletedQuestions] = useState<Set<string>>(new Set());
 

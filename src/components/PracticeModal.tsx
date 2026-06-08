@@ -4,6 +4,7 @@ import { Switch } from "@/components/ui/switch";
 import { useRecorder, RecordingState } from "@/hooks/useRecorder";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
+import { useLocalStorageState } from "@/hooks/useLocalStorageState";
 import { toast } from "@/hooks/use-toast";
 import { Pause, RotateCcw, Mic, MicOff, Check, X, Play } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -33,7 +34,7 @@ export const PracticeModal = ({ activity, eventId, onClose, onComplete }: Practi
   const [seconds, setSeconds] = useState(activity.duration * 60);
   const [running, setRunning] = useState(false);
   const [pausedAt, setPausedAt] = useState<number | null>(null);
-  const [recordEnabled, setRecordEnabled] = useState(false);
+  const [recordEnabled, setRecordEnabled] = useLocalStorageState<boolean>("speakbold:record-attempts", true);
   const [isSaving, setIsSaving] = useState(false);
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
