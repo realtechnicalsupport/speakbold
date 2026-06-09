@@ -196,7 +196,7 @@ export const PlacementTest = ({ userName, onPlace, onSkip, autoStart = false }: 
 
       <div className="px-4 md:container max-w-2xl mx-auto py-10 md:py-24 relative z-10 flex-1 flex flex-col justify-center">
         {/* PHASE: OFFER */}
-        {phase === "offer" && (
+        {phase === "offer" && !autoStart && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center space-y-8">
             <div className="flex items-center justify-center gap-3 text-[10px] md:text-xs font-black uppercase tracking-[0.5em] text-primary">
               <Compass className="h-4 w-4" />
