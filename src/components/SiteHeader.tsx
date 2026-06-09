@@ -42,7 +42,7 @@ export const SiteHeader = () => {
           <div className="h-8 w-8 lg:h-10 lg:w-10 rounded-full bg-primary flex items-center justify-center shadow-glow transition-transform group-hover:scale-110">
             <Mic className="h-3.5 w-3.5 lg:h-4 lg:w-4 text-white" />
           </div>
-          <span className="speak-serif text-2xl lg:text-3xl font-bold tracking-tighter">
+          <span className="speak-serif text-3xl lg:text-4xl font-bold tracking-tighter">
             Speak<span className="text-primary italic">Bold</span>
           </span>
         </Link>
