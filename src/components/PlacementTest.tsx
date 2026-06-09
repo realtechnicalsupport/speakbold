@@ -128,7 +128,7 @@ export const PlacementTest = ({ userName, onPlace, onSkip, autoStart = false }: 
     // user always moves forward.
     setTimeout(() => {
       if (phaseRef.current === "recording") {
-        fallback("We couldn't capture your audio, so we'll start you from the beginning. You can jump ahead anytime.");
+        fallback("We couldn't capture your audio — we'll start you from the beginning. You can jump ahead anytime.");
       }
     }, 1500);
   };
@@ -148,17 +148,17 @@ export const PlacementTest = ({ userName, onPlace, onSkip, autoStart = false }: 
   const analyze = async (blob: Blob) => {
     setPhase("analyzing");
     if (blob.size < 100) {
-      fallback("We couldn't capture any audio, so we'll start you from the beginning. You can jump ahead anytime.");
+      fallback("We couldn't capture any audio — we'll start you from the beginning. You can jump ahead anytime.");
       return;
     }
     const timeout = setTimeout(() => {
-      if (phaseRef.current === "analyzing") fallback("That took too long to analyze — we'll start you from the beginning for now.");
+      if (phaseRef.current === "analyzing") fallback("We couldn't get a clear read on that one — we'll start you from the beginning. You can jump ahead anytime.");
     }, 25000);
     try {
       const transcript = await transcribeAudio(blob);
       if (!transcript || transcript.trim().length < 5) {
         clearTimeout(timeout);
-        fallback("We couldn't hear you clearly, so we'll start you from the beginning. You can jump ahead anytime.");
+        fallback("We couldn't hear you clearly — we'll start you from the beginning. You can jump ahead anytime.");
         return;
       }
       const judged = await judgePathwayDrill(
@@ -174,7 +174,7 @@ export const PlacementTest = ({ userName, onPlace, onSkip, autoStart = false }: 
       setPhase("result");
     } catch {
       clearTimeout(timeout);
-      fallback("We hit a snag analyzing that — we'll start you from the beginning for now.");
+      fallback("We couldn't analyze that recording — we'll start you from the beginning. You can jump ahead anytime.");
     }
   };
 
@@ -187,27 +187,25 @@ export const PlacementTest = ({ userName, onPlace, onSkip, autoStart = false }: 
   return (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[60] bg-black text-white overflow-y-auto overflow-x-hidden scrollbar-hide flex flex-col"
+      className="fixed inset-0 z-[60] bg-background/95 backdrop-blur-2xl overflow-y-auto overflow-x-hidden scrollbar-hide flex flex-col"
     >
-      <div className="fixed inset-0 pointer-events-none">
-        <div className="absolute top-[10%] left-[-10%] w-[50%] h-[50%] bg-primary/5 rounded-full blur-[150px]" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-accent/5 rounded-full blur-[120px]" />
-      </div>
+      <div className="px-4 md:container max-w-2xl mx-auto py-16 md:py-28 relative z-10 flex-1 flex flex-col justify-center">
 
-      <div className="px-4 md:container max-w-2xl mx-auto py-10 md:py-24 relative z-10 flex-1 flex flex-col justify-center">
         {/* PHASE: OFFER */}
         {phase === "offer" && !autoStart && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center space-y-8">
-            <div className="flex items-center justify-center gap-3 text-[10px] md:text-xs font-black uppercase tracking-[0.5em] text-primary">
-              <Compass className="h-4 w-4" />
-              Find your level
+            <div className="inline-flex h-16 w-16 md:h-20 md:w-20 rounded-[1.5rem] md:rounded-[2rem] bg-primary/10 border border-primary/20 text-primary items-center justify-center mx-auto">
+              <Compass className="h-8 w-8 md:h-10 md:w-10" />
             </div>
-            <h1 className="speak-serif text-4xl md:text-6xl tracking-tighter leading-[0.95]">
-              Where should we <span className="text-primary italic">start you?</span>
-            </h1>
-            <p className="text-base md:text-lg opacity-60 max-w-lg mx-auto leading-relaxed">
-              Take a quick 60-second speaking test and we'll drop you at the right tier — Beginner, Intermediate, or Orator. Or just start from the beginning.
-            </p>
+            <div className="space-y-4">
+              <p className="text-xs font-black uppercase tracking-[0.5em] text-primary">Find your level</p>
+              <h1 className="speak-serif text-4xl md:text-6xl tracking-tighter leading-[0.95]">
+                Where should we <span className="text-primary italic">start you?</span>
+              </h1>
+              <p className="text-base md:text-lg opacity-60 max-w-lg mx-auto leading-relaxed">
+                Take a quick 60-second speaking test and we'll drop you at the right tier — Beginner, Intermediate, or Orator. Or just start from the beginning.
+              </p>
+            </div>
             <div className="flex flex-col gap-3 max-w-sm mx-auto pt-2">
               <button
                 onClick={handleStart}
@@ -228,37 +226,49 @@ export const PlacementTest = ({ userName, onPlace, onSkip, autoStart = false }: 
 
         {/* PHASE: RECORDING */}
         {phase === "recording" && (
-          <div className="space-y-6 md:space-y-8">
-            <div className="flex items-center justify-center gap-2 text-xs font-semibold">
+          <div className="space-y-5 md:space-y-6">
+            <div className="flex items-center justify-center gap-2">
               <div className={cn(
-                "flex items-center gap-1.5 py-1 px-2.5 rounded-full border",
-                micError ? "bg-red-500/10 border-red-500/20 text-red-500" : "bg-green-500/10 border-green-500/20 text-green-500"
+                "flex items-center gap-1.5 py-1.5 px-3 rounded-full border text-xs font-semibold",
+                micError
+                  ? "bg-destructive/10 border-destructive/20 text-destructive"
+                  : "bg-green-500/10 border-green-500/20 text-green-500"
               )}>
                 {micError ? <MicOff className="h-3 w-3" /> : <Mic className="h-3 w-3 animate-pulse" />}
                 {micError ? "Mic error" : "Mic on"}
               </div>
             </div>
-            <div className="bg-muted/10 border border-primary/20 rounded-3xl lg:rounded-[2.5rem] p-6 lg:p-10 text-center">
-              <p className="text-xs font-semibold text-primary mb-3 lg:mb-5">Your prompt</p>
+
+            {/* Prompt card */}
+            <div className="glass-card border border-primary/20 rounded-[2.5rem] p-6 lg:p-10 text-center">
+              <p className="text-[10px] font-black uppercase tracking-[0.4em] text-primary mb-3 lg:mb-5">Your prompt</p>
               <p className="speak-serif text-xl lg:text-3xl italic tracking-tight leading-tight">"{PLACEMENT_PROMPT}"</p>
             </div>
-            <div className="bg-muted/5 border border-border/60 rounded-3xl lg:rounded-[2.5rem] p-6 lg:p-8 space-y-5">
-              <div className="h-1 w-full bg-muted rounded-full overflow-hidden">
-                <motion.div className="h-full bg-primary shadow-glow" animate={{ width: `${pct}%` }} transition={{ duration: 0.5 }} />
+
+            {/* Timer card */}
+            <div className="glass-card border border-border/60 rounded-[2.5rem] p-6 lg:p-8 space-y-5">
+              <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                <motion.div
+                  className="h-full bg-primary rounded-full shadow-glow"
+                  animate={{ width: `${pct}%` }}
+                  transition={{ duration: 0.5 }}
+                />
               </div>
               <div className="text-center">
-                <div className="speak-serif text-6xl lg:text-8xl font-bold italic tabular-nums">{mins}:{String(secs).padStart(2, "0")}</div>
+                <div className="speak-serif text-6xl lg:text-8xl font-bold italic tabular-nums">
+                  {mins}:{String(secs).padStart(2, "0")}
+                </div>
                 <div className="flex items-center justify-center gap-2 mt-2">
-                  <div className="h-2 w-2 rounded-full bg-red-500 animate-ping" />
-                  <span className="text-xs font-semibold text-red-500">Recording</span>
+                  <div className="h-2 w-2 rounded-full bg-destructive animate-ping" />
+                  <span className="text-xs font-semibold text-destructive">Recording</span>
                 </div>
               </div>
               <button
                 onClick={handleStop}
                 className="button-pill w-full py-4 lg:py-5 border border-primary/30 text-primary flex items-center justify-center gap-3"
               >
-                <Sparkles className="h-5 w-5" />
-                <span className="text-sm font-semibold">Finish & analyze</span>
+                <Sparkles className="h-4 w-4" />
+                <span className="text-sm font-semibold">Finish &amp; analyze</span>
               </button>
             </div>
           </div>
@@ -267,11 +277,16 @@ export const PlacementTest = ({ userName, onPlace, onSkip, autoStart = false }: 
         {/* PHASE: ANALYZING */}
         {phase === "analyzing" && (
           <div className="flex flex-col items-center justify-center py-20 space-y-8">
-            <motion.div animate={{ rotate: 360 }} transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-              className="h-20 w-20 border-t-4 border-primary rounded-full" />
+            <div className="h-24 w-24 rounded-[2rem] glass-card border border-primary/20 flex items-center justify-center">
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                className="h-10 w-10 border-t-2 border-primary rounded-full"
+              />
+            </div>
             <div className="text-center space-y-3">
               <p className="speak-serif text-3xl italic">Finding your level...</p>
-              <p className="text-xs font-black uppercase tracking-[0.4em] text-primary/50 animate-pulse">SIZING UP YOUR SPEAKING</p>
+              <p className="text-xs font-black uppercase tracking-[0.4em] text-primary/60 animate-pulse">Sizing up your speaking</p>
             </div>
           </div>
         )}
@@ -279,16 +294,20 @@ export const PlacementTest = ({ userName, onPlace, onSkip, autoStart = false }: 
         {/* PHASE: RESULT */}
         {phase === "result" && result && tierMeta && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center space-y-8">
-            <div className="flex items-center justify-center gap-3 text-[10px] md:text-xs font-black uppercase tracking-[0.5em] text-primary">
-              <Compass className="h-4 w-4" />
-              Your starting tier
+            <div className="inline-flex h-16 w-16 md:h-20 md:w-20 rounded-[1.5rem] md:rounded-[2rem] bg-primary/10 border border-primary/20 text-primary items-center justify-center mx-auto">
+              <Compass className="h-8 w-8 md:h-10 md:w-10" />
             </div>
-            <h1 className="speak-serif text-5xl md:text-7xl tracking-tighter leading-[0.9] italic">
-              {tierMeta.name}.
-            </h1>
-            <p className="text-base md:text-lg opacity-60 max-w-lg mx-auto leading-relaxed">{result.feedback}</p>
-            <p className="text-sm opacity-40 max-w-md mx-auto italic">{tierMeta.tagline} {tierMeta.description}</p>
-            <div className="flex flex-col gap-3 max-w-sm mx-auto pt-2">
+            <div className="space-y-2">
+              <p className="text-xs font-black uppercase tracking-[0.5em] text-primary">Your starting tier</p>
+              <h1 className="speak-serif text-5xl md:text-7xl tracking-tighter leading-[0.9] italic">
+                {tierMeta.name}.
+              </h1>
+            </div>
+            <div className="glass-card border border-border/60 rounded-[2rem] p-6 md:p-8 text-left space-y-3">
+              <p className="text-sm leading-relaxed opacity-70">{result.feedback}</p>
+              <p className="text-xs opacity-40 italic">{tierMeta.tagline} {tierMeta.description}</p>
+            </div>
+            <div className="flex flex-col gap-3 max-w-sm mx-auto">
               <button
                 onClick={() => goReveal(result.tier)}
                 className="button-pill w-full py-5 bg-primary text-white shadow-glow flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-100 transition-transform"
@@ -313,10 +332,10 @@ export const PlacementTest = ({ userName, onPlace, onSkip, autoStart = false }: 
         {phase === "reveal" && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8 py-6">
             <div className="text-center space-y-4">
-              <div className="flex items-center justify-center gap-3 text-[10px] md:text-xs font-black uppercase tracking-[0.5em] text-primary">
-                <Sparkles className="h-4 w-4" />
-                You're all set
+              <div className="inline-flex h-14 w-14 rounded-[1.2rem] bg-primary/10 border border-primary/20 text-primary items-center justify-center mx-auto">
+                <Sparkles className="h-7 w-7" />
               </div>
+              <p className="text-xs font-black uppercase tracking-[0.5em] text-primary">You're all set</p>
               <h1 className="speak-serif text-4xl md:text-6xl tracking-tighter leading-[0.95]">
                 That feedback? It's <span className="text-primary italic">everywhere.</span>
               </h1>
@@ -332,10 +351,10 @@ export const PlacementTest = ({ userName, onPlace, onSkip, autoStart = false }: 
                   initial={{ opacity: 0, y: 16 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.15 + i * 0.12 }}
-                  className="flex items-start gap-4 p-5 rounded-3xl bg-white/[0.03] border border-white/10"
+                  className="glass-card border border-border/60 rounded-[2rem] p-5 flex items-start gap-4"
                 >
-                  <div className="h-12 w-12 rounded-2xl bg-primary/15 border border-primary/25 flex items-center justify-center shrink-0">
-                    <f.icon className="h-6 w-6 text-primary" />
+                  <div className="h-12 w-12 rounded-[1.2rem] bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 text-primary">
+                    <f.icon className="h-6 w-6" />
                   </div>
                   <div className="space-y-1">
                     <h3 className="speak-serif text-lg md:text-xl italic tracking-tight">{f.name}</h3>

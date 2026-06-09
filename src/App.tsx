@@ -5,7 +5,7 @@ import { useAuth } from "./context/AuthContext";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import Index from "./pages/Index";
+import IndexPage from "./pages/Index";
 import { MobileNav } from "./components/MobileNav";
 
 // Route components are lazy-loaded so the initial bundle stays small — heavy
@@ -67,6 +67,18 @@ const RequireAuth = ({ children }: { children: ReactNode }) => {
   if (loading) return null;
   if (!session) return <Navigate to="/login" replace state={{ from: location }} />;
   return <>{children}</>;
+};
+
+/**
+ * Landing-page route: authenticated users who have finished onboarding go
+ * straight to their Pathway rather than seeing the marketing page again.
+ * Signed-out or mid-onboarding users get the normal landing experience.
+ */
+const IndexRoute = () => {
+  const { user, onboardingDone, loading, statusLoading } = useAuth();
+  if (loading || statusLoading) return null;
+  if (user && onboardingDone) return <Navigate to="/pathway" replace />;
+  return <IndexPage />;
 };
 
 /**
@@ -173,7 +185,7 @@ const App = () => {
                 <Suspense fallback={<RouteFallback />}>
                 <Routes>
                   {/* Public — anyone, signed in or not */}
-                  <Route path="/" element={<Index />} />
+                  <Route path="/" element={<IndexRoute />} />
                   <Route path="/login" element={<Login />} />
                   <Route path="/auth/callback" element={<Callback />} />
                   <Route path="/reset-password" element={<ResetPassword />} />

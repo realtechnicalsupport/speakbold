@@ -1165,7 +1165,7 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPeer, peer, phase, liveFinal, liveInterim, speechSupported]);
 
-  // ── PvP (mobile/tablet): near-live transcript via SEGMENTED re-recording ────
+  // ── Mobile/tablet: near-live transcript via SEGMENTED re-recording ──────────
   // Web Speech is disabled on phones/tablets (it cycles the mic), so the desktop
   // live-stream effect above sends nothing there. We can't just re-transcribe a
   // PREFIX of the in-progress recording either: on iOS Safari the recorder emits
@@ -1175,13 +1175,16 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
   // (read from the shared store — no second getUserMedia, so no NotReadableError)
   // in short ~5s segments. Each segment is stopped, producing a COMPLETE,
   // self-contained file (mp4 OR webm) that decodes everywhere, iPad included; we
-  // transcribe it, append to the running text, and broadcast over the same
-  // `debate-live` channel the watcher already renders. The authoritative full
-  // transcript still lands at turn-end (onRecorded → server transcription →
-  // sendDebateTurnEnd) and corrects the small gaps lost at segment boundaries.
+  // transcribe it, append to the running text, and (a) show it on the speaker's
+  // OWN podium and (b) in PvP, broadcast it over the same `debate-live` channel
+  // the opponent's watcher renders. This runs in BOTH PvE and PvP: previously it
+  // was PvP-only and fed ONLY the opponent, so a mobile speaker watched a blank
+  // "Recording" box while their opponent saw the words stream in. The
+  // authoritative full transcript still lands at turn-end (onRecorded → server
+  // transcription) and corrects the small gaps lost at segment boundaries.
   const SEGMENT_MS = 5000;
   useEffect(() => {
-    if (!isPeer || !peer || speechSupported) return;
+    if (speechSupported) return; // desktop streams Web Speech results instead
     const turn = turnNameOf(phase);
     if (!turn || PHASE_CONFIG[phase].speaker !== "user") return; // only my speaking turn
 
@@ -1203,7 +1206,13 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
         const text = (await transcribeAudio(blob)).trim();
         if (cancelled || !text) return;
         accumulated = accumulated ? `${accumulated} ${text}` : text;
-        peer.sendDebateLive(peer.duelId, turn, accumulated);
+        // Show it on MY own podium — on mobile this is the only live caption the
+        // speaker gets (Web Speech, which fills liveFinal on desktop, is off).
+        // advancePhase() clears liveFinal/liveInterim at every turn change, so
+        // this can't bleed into the next turn.
+        setLiveFinal(accumulated);
+        // PvP: also stream it to the opponent's watcher.
+        if (isPeer && peer) peer.sendDebateLive(peer.duelId, turn, accumulated);
       } catch {
         /* a dropped segment is fine — the turn-end transcript recovers it */
       }
@@ -2013,10 +2022,20 @@ const Podium = ({ who, name, stand, isActive, avatar, previousText, previousLabe
                     <span className="opacity-30 italic">Start speaking — your words appear here in real time…</span>
                   )}
                 </p>
+              ) : liveText ? (
+                // Mobile/tablet: no Web Speech, but the segmented re-recorder
+                // feeds back the speaker's own words a beat behind. Show them.
+                <div className="space-y-2 md:space-y-3">
+                  <p className="text-xs md:text-sm leading-relaxed opacity-90">{liveText}</p>
+                  <div className="flex items-center gap-2 text-[9px] md:text-[10px] font-black uppercase tracking-widest text-primary">
+                    <motion.div animate={{ scale: [1, 1.3, 1] }} transition={{ duration: 1, repeat: Infinity }} className="h-1.5 w-1.5 rounded-full bg-primary" />
+                    Recording · live captions catch up every few seconds
+                  </div>
+                </div>
               ) : (
                 <div className="space-y-2 md:space-y-3">
                   <p className="text-xs opacity-50 italic leading-relaxed">
-                    Make your case — speak naturally. Your words are captured and transcribed when your turn ends.
+                    Make your case — speak naturally. Your words appear here as you go, and the full transcript lands when your turn ends.
                   </p>
                   <div className="flex items-center gap-2 text-[9px] md:text-[10px] font-black uppercase tracking-widest text-primary">
                     <motion.div animate={{ scale: [1, 1.3, 1] }} transition={{ duration: 1, repeat: Infinity }} className="h-1.5 w-1.5 rounded-full bg-primary" />

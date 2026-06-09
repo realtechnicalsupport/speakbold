@@ -290,6 +290,14 @@ export const DuelDrill = ({
   // Ready-up countdown
   useEffect(() => {
     if (phase !== "drilling" || (userReady && opponentReady)) return;
+    // NEW SESSION (PvE custom) drills open on a "draft your prompt" step BEFORE
+    // the ready-up phase. The ready UI is hidden until draftingDone, but this
+    // 15s countdown used to tick underneath it the whole time — so a user who
+    // spent more than 15s writing a custom prompt got "Session Timed Out" and
+    // kicked out. Hold the clock until the draft is committed. (PvP never hits
+    // this: isCreating is false there, so draftingDone is true from the start
+    // and the ready-up window — a genuine two-human handshake — runs as before.)
+    if (isCreating && !draftingDone) return;
     if (readyTimer <= 0) {
       toast({ title: "Session Timed Out", description: "Players did not ready up in time.", variant: "destructive" });
       onClose();
@@ -297,7 +305,7 @@ export const DuelDrill = ({
     }
     const timer = setInterval(() => setReadyTimer(prev => prev - 1), 1000);
     return () => clearInterval(timer);
-  }, [readyTimer, userReady, opponentReady, phase, onClose, isCreating, duel?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [readyTimer, userReady, opponentReady, phase, onClose, isCreating, duel?.id, draftingDone]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const isAIOpponent = duel?.id.startsWith("ai-") || isCreating;
 
