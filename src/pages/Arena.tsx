@@ -961,7 +961,7 @@ const Arena = () => {
                         </div>
                         <div>
                           <p className="text-sm font-bold truncate max-w-[80px]">{u.name}</p>
-                          <p className="text-[11px] font-black opacity-30">{u.elo} ELO</p>
+                          <p className="text-[11px] font-black opacity-30">{u.ranked === false ? "Unranked" : `${u.elo} ELO`}</p>
                         </div>
                       </div>
                       <button 

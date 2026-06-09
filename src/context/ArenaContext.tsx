@@ -380,6 +380,7 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               avatar: "👤", 
               rank: getRankFromElo(profile.elo), 
               elo: profile.elo,
+              ranked: profile.ranked,
               status: "idle" // Default status
             },
             online_at: new Date().toISOString(),
@@ -725,11 +726,12 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         avatar: "👤", 
         rank: getRankFromElo(profile.elo), 
         elo: profile.elo,
+        ranked: profile.ranked,
         status 
       },
       online_at: new Date().toISOString(),
     });
-  }, [user, profile.elo]);
+  }, [user, profile.elo, profile.ranked]);
 
   // Only show the full loading screen on the very first load.
   // Subsequent refreshes (auth token rotation, background re-fetches) run silently
