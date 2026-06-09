@@ -369,10 +369,19 @@ Deno.serve(async (req) => {
       admin.from("arena_battles").select("id", { count: "exact", head: true }).or(`challenger_id.eq.${joinerId},opponent_id.eq.${joinerId}`),
     ]);
 
-    const cDelta = computeEloChange({ myElo: cElo, oppElo: jElo, myScore: v.score, oppScore: v.oppScore, matchesPlayed: cMatches ?? 0, mode: gamemode });
-    const jDelta = computeEloChange({ myElo: jElo, oppElo: cElo, myScore: v.oppScore, oppScore: v.score, matchesPlayed: jMatches ?? 0, mode: gamemode });
-    const cNewElo = cUnranked ? computePlacementElo(jElo, v.score, v.oppScore) : nudgeOffSentinel(Math.max(ELO_FLOOR, cElo + cDelta));
-    const jNewElo = jUnranked ? computePlacementElo(cElo, v.oppScore, v.score) : nudgeOffSentinel(Math.max(ELO_FLOOR, jElo + jDelta));
+    // Ties skip ELO entirely — mirrors submit-battle-result's skipElo=isTie behaviour.
+    // Without this guard, computeEloChange applies the full expected-score penalty
+    // to the higher-rated player (up to MAX_SINGLE_LOSS=-40) even on equal scores.
+    const isTie = winnerId === null;
+
+    const cDelta = isTie ? 0 : computeEloChange({ myElo: cElo, oppElo: jElo, myScore: v.score, oppScore: v.oppScore, matchesPlayed: cMatches ?? 0, mode: gamemode });
+    const jDelta = isTie ? 0 : computeEloChange({ myElo: jElo, oppElo: cElo, myScore: v.oppScore, oppScore: v.score, matchesPlayed: jMatches ?? 0, mode: gamemode });
+    const cNewElo = (!isTie && cUnranked) ? computePlacementElo(jElo, v.score, v.oppScore) : nudgeOffSentinel(Math.max(ELO_FLOOR, cElo + cDelta));
+    const jNewElo = (!isTie && jUnranked) ? computePlacementElo(cElo, v.oppScore, v.score) : nudgeOffSentinel(Math.max(ELO_FLOOR, jElo + jDelta));
+    // For the verdict row: unranked players who tied stay unranked (null), so the
+    // client doesn't display a phantom rating.
+    const cVerdictElo = (isTie && cUnranked) ? null : cNewElo;
+    const jVerdictElo = (isTie && jUnranked) ? null : jNewElo;
 
     // 7. Persist: arena_battles row (creator-oriented), both profiles, verdict.
     await admin.from("arena_battles").insert({
@@ -382,23 +391,25 @@ Deno.serve(async (req) => {
       opp_strengths: v.oppStrengths?.slice(0, 2000) ?? null, opp_feedback: v.oppFeedback?.slice(0, 4000) ?? null,
       example_speech: v.exampleSpeech?.slice(0, 4000) ?? null, winner_id: winnerId,
     });
-    await Promise.all([
-      admin.from("profiles").update({ elo: cNewElo }).eq("id", creatorId),
-      admin.from("profiles").update({ elo: jNewElo }).eq("id", joinerId),
-    ]);
+    if (!isTie) {
+      await Promise.all([
+        admin.from("profiles").update({ elo: cNewElo }).eq("id", creatorId),
+        admin.from("profiles").update({ elo: jNewElo }).eq("id", joinerId),
+      ]);
+    }
 
     const { data: finalRow } = await admin.from("pvp_match_verdicts").update({
       status: "done", challenger_score: v.score, opponent_score: v.oppScore, winner_id: winnerId,
       feedback: v.feedback, opp_feedback: v.oppFeedback, strengths: v.strengths, opp_strengths: v.oppStrengths,
       example_speech: v.exampleSpeech, challenger_elo_change: cDelta, opponent_elo_change: jDelta,
-      challenger_new_elo: cNewElo, opponent_new_elo: jNewElo, updated_at: new Date().toISOString(),
+      challenger_new_elo: cVerdictElo, opponent_new_elo: jVerdictElo, updated_at: new Date().toISOString(),
     }).eq("duel_id", duelId).select().maybeSingle();
 
     return json(orientVerdict(finalRow ?? {
       challenger_id: creatorId, challenger_score: v.score, opponent_score: v.oppScore, winner_id: winnerId,
       feedback: v.feedback, opp_feedback: v.oppFeedback, strengths: v.strengths, opp_strengths: v.oppStrengths,
       example_speech: v.exampleSpeech, challenger_elo_change: cDelta, opponent_elo_change: jDelta,
-      challenger_new_elo: cNewElo, opponent_new_elo: jNewElo,
+      challenger_new_elo: cVerdictElo, opponent_new_elo: jVerdictElo,
     }, userId));
 
   } catch (e) {

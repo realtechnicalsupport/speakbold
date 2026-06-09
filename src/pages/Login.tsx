@@ -339,9 +339,7 @@ const Login = () => {
                 </button>
               )}
             </p>
-            <Link to="/tracks/impromptu" className="text-xs font-bold uppercase tracking-widest opacity-20 hover:opacity-100 transition-opacity flex items-center gap-2">
-              ANONYMOUS PRACTICE <ArrowRight className="h-3 w-3" />
-            </Link>
+
           </div>
         </motion.div>
       </div>

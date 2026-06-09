@@ -1073,6 +1073,7 @@ const Arena = () => {
             userElo={profile.elo}
             onClose={() => {
               setDebateConfig(null);
+              refreshArena(true);
               // Show buffered ELO animation even when user closes via X
               if (pendingUpdate.current) {
                 const upd = pendingUpdate.current;
@@ -1248,10 +1249,11 @@ const Arena = () => {
             userStand={pvpDebateConfig.userStand}
             opponent={pvpDebateConfig.opponent}
             userElo={profile.elo}
-            onClose={() => { setActiveDrill(null); sessionStorage.removeItem("arena_active_drill"); }}
+            onClose={() => { setActiveDrill(null); sessionStorage.removeItem("arena_active_drill"); refreshArena(true); }}
             onComplete={() => {
               setActiveDrill(null);
               sessionStorage.removeItem("arena_active_drill");
+              refreshArena(true);
               if (pendingUpdate.current) {
                 const upd = pendingUpdate.current;
                 pendingUpdate.current = null;
@@ -1301,6 +1303,7 @@ const Arena = () => {
               sessionStorage.removeItem("arena_seconds");
               sessionStorage.removeItem("arena_start_time");
               sessionStorage.removeItem("arena_has_fired_count");
+              refreshArena(true);
             }}
             onComplete={(score, prompt, mode, feedback) => {
               if (isCreating) {

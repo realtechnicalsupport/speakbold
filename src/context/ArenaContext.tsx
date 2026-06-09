@@ -606,6 +606,40 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         losses: (!won && !tie) ? prev.losses + 1 : prev.losses,
       }));
 
+      // Optimistically prepend the completed battle to history so the list
+      // updates the moment the overlay closes, even while the DB write is still
+      // in flight. refresh(true) below replaces this with the server row.
+      const optimisticOpp = isChallenger ? duelObj.creator : duelObj.challenger;
+      setDuels(prev => [{
+        id: `pending-${duelId}`,
+        prompt: duelObj.prompt,
+        gamemode: duelObj.gamemode,
+        status: "completed" as const,
+        timestamp: Date.now(),
+        winner: tie ? null : won ? user.id : (optimisticOpp?.id ?? null),
+        feedback,
+        strengths: details?.strengths,
+        oppStrengths: details?.oppStrengths,
+        oppFeedback: details?.oppFeedback,
+        exampleSpeech: details?.exampleSpeech,
+        creator: {
+          id: user.id,
+          name: user.email?.split("@")[0] || "You",
+          score: myScore,
+          avatar: "👤",
+          elo: myElo,
+          rank: getRankFromElo(myElo),
+        },
+        challenger: optimisticOpp ? {
+          id: optimisticOpp.id ?? "ai",
+          name: optimisticOpp.name,
+          score: oppScore,
+          avatar: optimisticOpp.avatar || "🤖",
+          elo: optimisticOpp.elo ?? 0,
+          rank: getRankFromElo(optimisticOpp.elo ?? 0),
+        } : null,
+      }, ...prev]);
+
       // ── Persist via authoritative edge function ───────────────────────────
       // The function recomputes ELO server-side from DB-read inputs and writes
       // both the arena_battles row AND profiles.elo atomically. Replaces the
