@@ -76,13 +76,32 @@ describe("computeEloChange — outcome-sign guarantee", () => {
     expect(delta).toBeLessThan(0);
   });
 
-  it("a sub-30 'win' (both nearly silent) does not gain ELO", () => {
+  it("a sub-30 win still earns ELO (near-silent but decisive)", () => {
     const delta = computeEloChange({
       ...base,
       myScore: 25,
       oppScore: 18,
     });
-    expect(delta).toBeLessThanOrEqual(0);
+    expect(delta).toBeGreaterThan(0);
+  });
+
+  it("a sub-30 win earns positive ELO even at placement K-factor", () => {
+    const delta = computeEloChange({
+      ...base,
+      matchesPlayed: 0,
+      myScore: 29,
+      oppScore: 2,
+    });
+    expect(delta).toBeGreaterThan(0);
+  });
+
+  it("a sub-30 win at steady-state K earns positive ELO", () => {
+    const delta = computeEloChange({
+      ...base,
+      myScore: 28,
+      oppScore: 5,
+    });
+    expect(delta).toBeGreaterThan(0);
   });
 
   it("self-forfeit is a flat penalty regardless of scores", () => {

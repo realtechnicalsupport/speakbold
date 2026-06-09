@@ -74,19 +74,16 @@ function computeEloChange(input: {
   delta *= MODE_MULTIPLIERS[mode] ?? 1.0;
   delta = Math.max(-MAX_SINGLE_LOSS, Math.min(MAX_SINGLE_GAIN, delta));
 
-  if (myScore < 30 && delta > 0) {
-    delta = -Math.min(LOW_SCORE_PENALTY_CAP, Math.abs(delta) || 1);
-  }
-  // Outcome-sign guarantee: a scored loss never gains, a win never loses.
+  // Outcome-sign guarantee: a scored loss never gains, a WIN never loses.
   if (myScore !== oppScore) {
     const iWon = myScore > oppScore;
     if (!iWon && delta > 0) delta = -Math.min(LOW_SCORE_PENALTY_CAP, Math.abs(delta) || 1);
-    else if (iWon && delta < 0 && myScore >= 30) delta = Math.min(LOW_SCORE_PENALTY_CAP, Math.abs(delta) || 1);
+    else if (iWon && delta < 0) delta = Math.min(LOW_SCORE_PENALTY_CAP, Math.abs(delta) || 1);
   }
 
   const rounded = Math.round(delta);
   if (rounded === 0) {
-    if (myScore < 30) return -1;
+    if (myScore < 30) return myScore > oppScore ? 1 : -1;
     if (perfMargin > 0) return 1;
     if (perfMargin < 0) return -1;
     return expectedSigned > 0 ? -1 : 1;

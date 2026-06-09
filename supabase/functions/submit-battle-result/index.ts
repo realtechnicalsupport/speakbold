@@ -116,10 +116,6 @@ function computeEloChange(input: EloInput): number {
 
   delta = Math.max(-MAX_SINGLE_LOSS, Math.min(MAX_SINGLE_GAIN, delta));
 
-  if (myScore != null && myScore < 30 && delta > 0) {
-    delta = -Math.min(LOW_SCORE_PENALTY_CAP, Math.abs(delta) || 1);
-  }
-
   // Outcome-sign guarantee (mirror of src/hooks/arenaUtils.ts): a decisive,
   // scored LOSS must never gain rating and a WIN must never lose it. The hybrid
   // performance/quality terms can otherwise flip a narrow or high-scoring loss
@@ -129,16 +125,14 @@ function computeEloChange(input: EloInput): number {
     const iWon = myScore > oppScore;
     if (!iWon && delta > 0) {
       delta = -Math.min(LOW_SCORE_PENALTY_CAP, Math.abs(delta) || 1);
-    } else if (iWon && delta < 0 && myScore >= 30) {
+    } else if (iWon && delta < 0) {
       delta = Math.min(LOW_SCORE_PENALTY_CAP, Math.abs(delta) || 1);
     }
   }
 
   const rounded = Math.round(delta);
   if (rounded === 0 && !isTie) {
-    // A near-silent score never earns the +1 decisive nudge (mirror of
-    // arenaUtils) — keeps a sub-30 technical win from gaining rating.
-    if (myScore != null && myScore < 30) return -1;
+    if (myScore != null && myScore < 30) return (oppScore != null && myScore > oppScore) ? 1 : -1;
     if (perfMargin > 0) return 1;
     if (perfMargin < 0) return -1;
     return expectedSigned > 0 ? -1 : 1;
