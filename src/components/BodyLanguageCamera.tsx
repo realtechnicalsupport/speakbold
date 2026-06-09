@@ -7,6 +7,7 @@ import { BodyLanguageReport } from "@/components/BodyLanguageReport";
 import { useAuth } from "@/context/AuthContext";
 import { logSkillEvent } from "@/lib/skillEvents";
 import { bodyToDims } from "@/lib/skillScoring";
+import { setTimerActive } from "@/lib/timerState";
 
 const METRIC_CONFIG = [
   { key: "posture" as const, label: "POSTURE", icon: Activity, color: "#f97316" },
@@ -155,6 +156,14 @@ export function BodyLanguageCamera() {
   const isLive = status === "live" || status === "recording";
   const isRecording = status === "recording";
   const isDone = status === "done" && !!session;
+
+  // Body Language is rendered INLINE (not a full-screen overlay), so the mobile
+  // nav would otherwise sit on top of the camera. Hide it (and arm the unload
+  // guard) for the whole live session — camera preview through recording.
+  useEffect(() => {
+    setTimerActive(isLive);
+    return () => setTimerActive(false);
+  }, [isLive]);
 
   // Persist each completed session into the skill graph so Body Language stops
   // being a throwaway live read: this fills the radar's "delivery" spoke, feeds

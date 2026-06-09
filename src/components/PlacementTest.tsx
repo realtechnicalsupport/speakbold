@@ -6,6 +6,7 @@ import { RecorderPanel } from "@/components/RecorderPanel";
 import { transcribeAudio, judgePathwayDrill } from "@/services/geminiService";
 import { TIERS, type TierId } from "@/hooks/usePathway";
 import { toast } from "@/hooks/use-toast";
+import { setTimerActive } from "@/lib/timerState";
 
 const PLACEMENT_PROMPT = "Tell me about a challenge you faced recently and how you handled it.";
 const PLACEMENT_SECONDS = 60;
@@ -56,6 +57,12 @@ export const PlacementTest = ({ userName, onPlace, onSkip, autoStart = false }: 
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoStart, micChecked]);
+
+  // Hide the mobile nav + arm the unload guard while recording the placement.
+  useEffect(() => {
+    setTimerActive(running);
+    return () => setTimerActive(false);
+  }, [running]);
 
   useEffect(() => {
     if (!running) { if (idRef.current) clearInterval(idRef.current); return; }

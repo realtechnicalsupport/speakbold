@@ -119,7 +119,23 @@ const App = () => {
       "font-weight: normal; color: #888; line-height: 1.6;"
     );
   }, []);
-  
+
+  // ── Crash / accidental-closure safeguard ───────────────────────────────────
+  // While ANY drill is active (timerActive is raised by every recording surface
+  // — Arena duels & debates, Pathway lessons, Lab coach + body-language, and the
+  // speaking tracks), warn before a tab close, refresh, or browser-back so an
+  // in-progress recording isn't lost. This fires only on a real browser unload —
+  // NOT on in-app react-router navigation — so it never nags during normal use.
+  useEffect(() => {
+    if (!timerActive) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = ""; // Chrome requires a set returnValue to show the prompt
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [timerActive]);
+
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>

@@ -8,6 +8,7 @@ import { ModelSpeech } from "@/components/ModelSpeech";
 import { transcribeAudio, judgeCoachDrill } from "@/services/geminiService";
 import { logSkillEvent } from "@/lib/skillEvents";
 import { coachToDims } from "@/lib/skillScoring";
+import { setTimerActive } from "@/lib/timerState";
 import { cn } from "@/lib/utils";
 import type { AdaptiveDrill } from "@/lib/skillProfile";
 
@@ -44,6 +45,12 @@ export const CoachDrillRunner = ({ drill, onClose }: { drill: AdaptiveDrill; onC
   const timerRef = useRef<number | undefined>(undefined);
   const phaseRef = useRef(phase);
   useEffect(() => { phaseRef.current = phase; }, [phase]);
+
+  // Hide the mobile nav + arm the unload guard while actively recording.
+  useEffect(() => {
+    setTimerActive(phase === "recording");
+    return () => setTimerActive(false);
+  }, [phase]);
 
   const analyze = useCallback(
     async (blob: Blob, durationMs: number) => {

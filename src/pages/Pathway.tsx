@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { transcribeAudio, judgePathwayDrill, speakWithDeepgramTTS } from "@/services/geminiService";
 import { track } from "@/lib/analytics";
+import { setTimerActive } from "@/lib/timerState";
 import { ModelSpeech } from "@/components/ModelSpeech";
 import { DebateBattle } from "@/components/DebateBattle";
 import { useArena, AI_PERSONAS } from "@/hooks/useArena";
@@ -652,6 +653,12 @@ const LessonDrill = ({
     };
     checkMic();
   }, []);
+
+  // Hide the mobile nav + arm the unload guard while recording this lesson.
+  useEffect(() => {
+    setTimerActive(running);
+    return () => setTimerActive(false);
+  }, [running]);
 
   useEffect(() => {
     if (!running) { if (idRef.current) clearInterval(idRef.current); return; }

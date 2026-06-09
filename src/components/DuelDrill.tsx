@@ -573,6 +573,30 @@ export const DuelDrill = ({
     return () => { if (idRef.current) clearInterval(idRef.current); };
   }, [running, finished, recordEnabled, refresh, duration]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Keep the duel running across tab-outs / app-switches / screen-locks ─────
+  // The timer is wall-clock (startTimeRef), so it never drifts — but while the
+  // tab is hidden the browser throttles, then freezes, the interval. On return
+  // we recompute from the wall clock immediately so the countdown never looks
+  // paused, and a turn whose time fully elapsed while we were away finishes at
+  // once instead of resuming on a stale value. Works for PvP and PvE alike.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.hidden || !running || finished || !startTimeRef.current) return;
+      const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+      const remaining = Math.max(0, duration - elapsed);
+      setSeconds(remaining);
+      if (remaining <= 0) {
+        setRunning(false);
+        setFinished(true);
+        if (recordEnabled) {
+          setTimeout(() => { recorderStopRef.current?.(); wasRecording.current = false; refresh(); }, 100);
+        }
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [running, finished, duration, recordEnabled, refresh]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (!recordEnabled) return;
     if (running && !wasRecording.current) { recorderStartRef.current?.(); wasRecording.current = true; }

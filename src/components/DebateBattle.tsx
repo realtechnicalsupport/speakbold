@@ -345,6 +345,20 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
         advancePhaseRef.current();
         return; // phase changed — let the new effect handle the rest
       }
+      // Wall-clock catch-up: while the tab was hidden the phase timer was
+      // throttled, then frozen. If the CURRENT timed turn's full duration
+      // elapsed while we were away, advance immediately rather than waiting for
+      // the interval's next (throttled) tick — so the debate genuinely keeps
+      // running in the background for both PvP and PvE. advancedFromRef inside
+      // advancePhase guards against a double advance racing the resumed timer.
+      const cur = phaseRef.current;
+      const curCfg = PHASE_CONFIG[cur];
+      if (curCfg.duration > 0 && cur !== "judging" && cur !== "results" && cur !== "prep") {
+        const elapsed = (Date.now() - phaseStartRef.current) / 1000;
+        const remaining = Math.max(0, Math.ceil(curCfg.duration - elapsed));
+        setSecondsLeft(remaining);
+        if (remaining <= 0) { advancePhaseRef.current(); return; }
+      }
       // If it's the user's turn, clear stale interim and force-restart recognition
       const isUserSpeaking = PHASE_CONFIG[phaseRef.current].speaker === "user"
         && phaseRef.current !== "judging" && phaseRef.current !== "results";
