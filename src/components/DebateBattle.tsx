@@ -42,23 +42,29 @@ const getSpeechRecognition = () => {
 
 // ─── Phase machine ───────────────────────────────────────────────────────────
 // DebatePhase, the FOR/AGAINST phase orders, and the pure turn/label/sync
-// helpers now live in @/lib/debateSync (unit-tested). PHASE_CONFIG stays here
+// helpers now live in @/lib/debateSync (unit-tested). phaseConfig stays here
 // because it carries UI-only data (durations + display labels).
-const PHASE_CONFIG: Record<DebatePhase, { duration: number; label: string; speaker: "user" | "ai"; round: string; }> = {
-  "prep":          { duration: 5,  label: "GET READY", speaker: "user", round: "PREP" },
-  "opening-user":  { duration: 45, label: "OPENING ARGUMENT", speaker: "user", round: "ROUND 1 · 1 of 4" },
-  "opening-ai":    { duration: 45, label: "OPPONENT'S OPENING", speaker: "ai",  round: "ROUND 1 · 2 of 4" },
-  "rebuttal-user": { duration: 30, label: "YOUR REBUTTAL", speaker: "user", round: "ROUND 2 · 3 of 4" },
-  "rebuttal-ai":   { duration: 30, label: "OPPONENT'S REBUTTAL", speaker: "ai",  round: "ROUND 2 · 4 of 4" },
-  "judging":       { duration: 0,  label: "AI IS DELIBERATING", speaker: "ai",  round: "VERDICT" },
-  "results":       { duration: 0,  label: "VERDICT DELIVERED", speaker: "ai",  round: "FINAL" },
-};
+function getPhaseConfig(extended: boolean): Record<DebatePhase, { duration: number; label: string; speaker: "user" | "ai"; round: string; }> {
+  const open = extended ? 90 : 45;
+  const reb  = extended ? 60 : 30;
+  return {
+    "prep":          { duration: 5,    label: "GET READY",              speaker: "user", round: "PREP" },
+    "opening-user":  { duration: open, label: "OPENING ARGUMENT",       speaker: "user", round: "ROUND 1 · 1 of 4" },
+    "opening-ai":    { duration: open, label: "OPPONENT'S OPENING",     speaker: "ai",   round: "ROUND 1 · 2 of 4" },
+    "rebuttal-user": { duration: reb,  label: "YOUR REBUTTAL",          speaker: "user", round: "ROUND 2 · 3 of 4" },
+    "rebuttal-ai":   { duration: reb,  label: "OPPONENT'S REBUTTAL",    speaker: "ai",   round: "ROUND 2 · 4 of 4" },
+    "judging":       { duration: 0,    label: "AI IS DELIBERATING",     speaker: "ai",   round: "VERDICT" },
+    "results":       { duration: 0,    label: "VERDICT DELIVERED",      speaker: "ai",   round: "FINAL" },
+  };
+}
 
 interface DebateBattleProps {
   prompt: string;
   userStand: "FOR" | "AGAINST";
   opponent: DuelPlayer & { persona?: any };
   userElo: number;
+  /** "standard" = 45s opening / 30s rebuttal (default). "extended" = 90s / 60s. */
+  roundFormat?: "standard" | "extended";
   onClose: () => void;
   onComplete: (score: number, prompt: string, mode: Gamemode, feedback: string) => void;
   completeDuel: (duelId: string, challengerName: string, creatorScore: number, challengerScore: number, feedback: string, duelObj: Duel, explicitWinner?: string, details?: { strengths?: string, oppStrengths?: string, oppFeedback?: string, exampleSpeech?: string }) => void;
@@ -142,7 +148,7 @@ function debateIdentity(prompt: string, opponentName: string): string {
   return `${prompt}|${opponentName}`;
 }
 
-export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, onComplete, completeDuel, handleForfeit, mode = "arena", peer }: DebateBattleProps) => {
+export const DebateBattle = ({ prompt, userStand, opponent, userElo, roundFormat = "standard", onClose, onComplete, completeDuel, handleForfeit, mode = "arena", peer }: DebateBattleProps) => {
   const isPathway = mode === "pathway";
   const isPeer = !!peer;
   const { user } = useAuth();
@@ -151,6 +157,7 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
 
   const oppStand = userStand === "FOR" ? "AGAINST" : "FOR";
   const phaseOrder = phaseOrderFor(userStand);
+  const phaseConfig = getPhaseConfig(roundFormat === "extended");
 
   // ── Phase + timer (with sessionStorage persistence for tab-discard recovery) ──
   // Recoverable phases: any user/ai speaking turn. "judging" and "results" are not restored.
@@ -168,7 +175,7 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
     : null;
   const _validSavedPhase = (
     _savedPhaseRaw !== null &&
-    _savedPhaseRaw in PHASE_CONFIG &&
+    _savedPhaseRaw in phaseConfig &&
     _savedPhaseRaw !== "results" &&
     _savedPhaseRaw !== "judging" &&
     _savedPhaseRaw !== "prep"
@@ -196,9 +203,9 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
   const [secondsLeft, setSecondsLeft] = useState<number>(() => {
     if (_validSavedPhase && _savedPhaseStart) {
       const elapsed = (Date.now() - parseInt(_savedPhaseStart, 10)) / 1000;
-      return Math.max(0, Math.ceil(PHASE_CONFIG[_savedPhaseRaw as DebatePhase].duration - elapsed));
+      return Math.max(0, Math.ceil(phaseConfig[_savedPhaseRaw as DebatePhase].duration - elapsed));
     }
-    return PHASE_CONFIG[phaseOrder[0]].duration;
+    return phaseConfig[phaseOrder[0]].duration;
   });
 
   // ── Transcripts per turn ──────────────────────────────────────────────────
@@ -352,7 +359,7 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
       // running in the background for both PvP and PvE. advancedFromRef inside
       // advancePhase guards against a double advance racing the resumed timer.
       const cur = phaseRef.current;
-      const curCfg = PHASE_CONFIG[cur];
+      const curCfg = phaseConfig[cur];
       if (curCfg.duration > 0 && cur !== "judging" && cur !== "results" && cur !== "prep") {
         const elapsed = (Date.now() - phaseStartRef.current) / 1000;
         const remaining = Math.max(0, Math.ceil(curCfg.duration - elapsed));
@@ -360,7 +367,7 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
         if (remaining <= 0) { advancePhaseRef.current(); return; }
       }
       // If it's the user's turn, clear stale interim and force-restart recognition
-      const isUserSpeaking = PHASE_CONFIG[phaseRef.current].speaker === "user"
+      const isUserSpeaking = phaseConfig[phaseRef.current].speaker === "user"
         && phaseRef.current !== "judging" && phaseRef.current !== "results";
       if (isUserSpeaking) {
         // Clear the dangling interim phrase (recognition is fresh now)
@@ -378,7 +385,7 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
 
   // ── Mark recording state globally for UI border ───────────────────────────
   useEffect(() => {
-    const userTurn = PHASE_CONFIG[phase].speaker === "user" && phase !== "judging" && phase !== "results" && phase !== "prep";
+    const userTurn = phaseConfig[phase].speaker === "user" && phase !== "judging" && phase !== "results" && phase !== "prep";
     setRecordingActive(userTurn);
     return () => setRecordingActive(false);
   }, [phase]);
@@ -392,7 +399,7 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
 
   // ── Start user recording when user turn starts ────────────────────────────
   useEffect(() => {
-    const cfg = PHASE_CONFIG[phase];
+    const cfg = phaseConfig[phase];
     if (cfg.speaker === "user" && phase !== "judging" && phase !== "results" && phase !== "prep") {
       if (!wasRecording.current) {
         // Remember which turn this recording belongs to — by the time the
@@ -414,7 +421,7 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
   // blob in the onRecorded handler below.
   useEffect(() => {
     if (!speechSupported) return;
-    const cfg = PHASE_CONFIG[phase];
+    const cfg = phaseConfig[phase];
     if (cfg.speaker !== "user" || phase === "judging" || phase === "results" || phase === "prep") return;
 
     const SpeechRecognition = getSpeechRecognition();
@@ -463,7 +470,7 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
       // Don't restart if this effect was cleaned up, the mic was revoked, or
       // we've left a user turn.
       if (stopped || blocked) return;
-      if (PHASE_CONFIG[phaseRef.current].speaker !== "user") return;
+      if (phaseConfig[phaseRef.current].speaker !== "user") return;
       // Browsers need ~100 ms between stop() and start() to avoid InvalidStateError
       restartTimer = setTimeout(() => {
         if (stopped) return;
@@ -491,7 +498,7 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
 
   // ── Phase timer ───────────────────────────────────────────────────────────
   useEffect(() => {
-    const cfg = PHASE_CONFIG[phase];
+    const cfg = phaseConfig[phase];
     if (cfg.duration === 0) return;
 
     if (restoredFromStorageRef.current) {
@@ -525,7 +532,7 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
 
   // ── Sound: countdown ticks (3, 2, 1, 0) ──────────────────────────────────
   useEffect(() => {
-    if (secondsLeft <= 3 && secondsLeft >= 0 && PHASE_CONFIG[phase].duration > 0) {
+    if (secondsLeft <= 3 && secondsLeft >= 0 && phaseConfig[phase].duration > 0) {
       sfx.countdownTick(secondsLeft);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -536,7 +543,7 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
     if (phase === "judging") {
       sfx.judgingStart();
     } else if (phase !== "results" && phase !== "prep") {
-      sfx.phaseStart(PHASE_CONFIG[phase].speaker);
+      sfx.phaseStart(phaseConfig[phase].speaker);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
@@ -571,7 +578,7 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
 
     // If we're leaving a user turn, capture their transcript — and in PvP,
     // broadcast it as the `turn-end` signal both clients advance on.
-    if (PHASE_CONFIG[phase].speaker === "user" && phase !== "judging" && phase !== "results") {
+    if (phaseConfig[phase].speaker === "user" && phase !== "judging" && phase !== "results") {
       const combined = captureUserTurnTranscript();
       if (isPeer && peer) {
         const turn = turnNameOf(phase);
@@ -606,7 +613,7 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
   // by realtime broadcasts (debate-live for the streamed transcript, turn-end to
   // advance), so this AI-generation/TTS engine is skipped entirely.
   useEffect(() => {
-    const cfg = PHASE_CONFIG[phase];
+    const cfg = phaseConfig[phase];
     if (isPeer) return;
     if (cfg.speaker !== "ai" || phase === "judging" || phase === "results") return;
 
@@ -759,7 +766,7 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
       const autoAdvance = () => {
         // Only advance if we're still on this AI turn (not already moved on)
         if (aiAbortRef.current) return;
-        if (PHASE_CONFIG[phaseRef.current].speaker !== "ai") return;
+        if (phaseConfig[phaseRef.current].speaker !== "ai") return;
         if (phaseRef.current === "judging" || phaseRef.current === "results") return;
         // If the tab is hidden, defer until the user comes back.
         // SpeechSynthesis fires "onend" when Chrome pauses it on tab-hide — we must
@@ -1156,7 +1163,7 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
     // by re-transcribing the recorded audio instead.
     if (!speechSupported) return;
     const turn = turnNameOf(phase);
-    if (!turn || PHASE_CONFIG[phase].speaker !== "user") return; // only my speaking turns
+    if (!turn || phaseConfig[phase].speaker !== "user") return; // only my speaking turns
     const now = Date.now();
     if (now - lastLiveSentRef.current < 450) return; // throttle ~2/sec
     lastLiveSentRef.current = now;
@@ -1186,7 +1193,7 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
   useEffect(() => {
     if (speechSupported) return; // desktop streams Web Speech results instead
     const turn = turnNameOf(phase);
-    if (!turn || PHASE_CONFIG[phase].speaker !== "user") return; // only my speaking turn
+    if (!turn || phaseConfig[phase].speaker !== "user") return; // only my speaking turn
 
     let cancelled = false;
     let rec: MediaRecorder | null = null;
@@ -1374,18 +1381,18 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
     wasRecording.current = false;
     advancedFromRef.current = null; // allow the replay to advance the same phases again
     phaseStartRef.current = Date.now();
-    setSecondsLeft(PHASE_CONFIG[phaseOrder[0]].duration);
+    setSecondsLeft(phaseConfig[phaseOrder[0]].duration);
     aiAbortRef.current = false;
     setPhase(phaseOrder[0]);
   }, [phaseOrder]);
 
   // ─── RENDER ────────────────────────────────────────────────────────────────
-  const cfg = PHASE_CONFIG[phase];
+  const cfg = phaseConfig[phase];
   const isUserTurn = cfg.speaker === "user";
 
   // Turn order / labels come from the unit-tested helpers. `turnLabel` is derived
   // from the REAL order so AGAINST debates label their turns correctly (the
-  // static PHASE_CONFIG strings assumed the FOR sequence).
+  // static phaseConfig strings assumed the FOR sequence).
   const speakingSeq = speakingOrder(phaseOrder);
   const turnLabel = turnLabelOf(phase, phaseOrder, cfg.round);
   const userOpensFirst = userOpensFirstOf(phaseOrder);
@@ -1470,7 +1477,7 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
             </p>
             <div className="space-y-1.5">
               {speakingSeq.map((p, i) => {
-                const mine = PHASE_CONFIG[p].speaker === "user";
+                const mine = phaseConfig[p].speaker === "user";
                 const kind = p.startsWith("opening") ? "Opening" : "Rebuttal";
                 return (
                   <div
@@ -1926,7 +1933,7 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, onClose, on
               <p className="text-[10px] font-black uppercase tracking-[0.4em] text-primary/60 mb-1">Round 2</p>
               <p className="speak-serif text-3xl md:text-4xl italic leading-none">Rebuttals</p>
               <p className="text-[10px] font-black uppercase tracking-widest opacity-50 mt-3">
-                {PHASE_CONFIG[speakingOrder(phaseOrder)[2]].speaker === "user"
+                {phaseConfig[speakingOrder(phaseOrder)[2]].speaker === "user"
                   ? "You respond first"
                   : `${opponent.name} responds first`}
               </p>

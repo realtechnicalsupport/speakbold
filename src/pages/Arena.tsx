@@ -66,7 +66,7 @@ const Arena = () => {
 
   // Turn-based debate flow (replaces parallel debate in DuelDrill)
   const [debateSetupOpen, setDebateSetupOpen] = useState(false);
-  const [debateConfig, setDebateConfig] = useState<{ prompt: string; stand: "FOR" | "AGAINST"; opponent: any } | null>(() => {
+  const [debateConfig, setDebateConfig] = useState<{ prompt: string; stand: "FOR" | "AGAINST"; opponent: any; roundFormat: "standard" | "extended" } | null>(() => {
     try {
       const s = sessionStorage.getItem("arena_debate_config");
       return s ? JSON.parse(s) : null;
@@ -80,7 +80,9 @@ const Arena = () => {
 
   const [draftPrompt, setDraftPrompt] = useState("");
   const [draftStand, setDraftStand] = useState<"FOR" | "AGAINST">("FOR");
+  const [draftExtended, setDraftExtended] = useState(false);
   const [draftGenerating, setDraftGenerating] = useState(false);
+  const [challengeExtended, setChallengeExtended] = useState(false);
 
   const [matchmaking, setMatchmaking] = useState(false);
   const [matchFound, setMatchFound] = useState<Duel | null>(null);
@@ -198,6 +200,7 @@ const Arena = () => {
       // Debate stance chosen by the challenge sender (creator); accepter takes
       // the opposite. Carried on both the original request and the acceptance.
       stance: request.stance,
+      extendedRounds: request.extendedRounds ?? false,
     };
 
     if (request.isAcceptedChallenge) {
@@ -283,6 +286,7 @@ const Arena = () => {
       userStand: myStand,
       opponent: oppPlayer,
       opponentId: oppPlayer.id || "peer",
+      roundFormat: activeDrill.extendedRounds ? "extended" : "standard" as "standard" | "extended",
     };
   })();
 
@@ -1071,6 +1075,7 @@ const Arena = () => {
             userStand={debateConfig.stand}
             opponent={debateConfig.opponent}
             userElo={profile.elo}
+            roundFormat={debateConfig.roundFormat}
             onClose={() => {
               setDebateConfig(null);
               refreshArena(true);
@@ -1107,7 +1112,7 @@ const Arena = () => {
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 z-[110] bg-background/80 backdrop-blur-md flex items-center justify-center p-4"
-            onClick={() => setDebateSetupOpen(false)}
+            onClick={() => { setDebateSetupOpen(false); setDraftExtended(false); }}
           >
             <motion.div
               initial={{ scale: 0.95, y: 20, opacity: 0 }}
@@ -1118,7 +1123,7 @@ const Arena = () => {
               className="bg-card border border-border rounded-[2rem] p-6 md:p-10 max-w-2xl w-full shadow-2xl space-y-6 relative"
             >
               <button
-                onClick={() => setDebateSetupOpen(false)}
+                onClick={() => { setDebateSetupOpen(false); setDraftExtended(false); }}
                 className="absolute top-5 right-5 h-9 w-9 rounded-full border border-border/60 flex items-center justify-center opacity-40 hover:opacity-100 transition-opacity"
               >
                 <X className="h-4 w-4" />
@@ -1201,10 +1206,30 @@ const Arena = () => {
                 </div>
               </div>
 
+              {/* Round duration toggle */}
+              <div className="flex items-center justify-between p-4 rounded-2xl bg-muted/20 border border-border/40">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest">ROUND DURATION</p>
+                  <p className="text-[10px] opacity-40 mt-0.5">{draftExtended ? "90s opening · 60s rebuttal" : "45s opening · 30s rebuttal"}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDraftExtended(v => !v)}
+                  className={cn(
+                    "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all",
+                    draftExtended
+                      ? "bg-primary text-white border-primary shadow-glow"
+                      : "bg-background border-border opacity-50 hover:opacity-100"
+                  )}
+                >
+                  {draftExtended ? "EXTENDED" : "STANDARD"}
+                </button>
+              </div>
+
               {/* Format reminder */}
               <div className="grid grid-cols-2 gap-2 text-center text-[10px] font-black uppercase tracking-widest opacity-50">
-                <div className="p-2 rounded-xl bg-muted/20 border border-border/40">ROUND 1 · OPENING · 45s each</div>
-                <div className="p-2 rounded-xl bg-muted/20 border border-border/40">ROUND 2 · REBUTTAL · 30s each</div>
+                <div className="p-2 rounded-xl bg-muted/20 border border-border/40">ROUND 1 · OPENING · {draftExtended ? "90s" : "45s"} each</div>
+                <div className="p-2 rounded-xl bg-muted/20 border border-border/40">ROUND 2 · REBUTTAL · {draftExtended ? "60s" : "30s"} each</div>
               </div>
 
               <button
@@ -1222,7 +1247,7 @@ const Arena = () => {
                     score: null,
                     persona,
                   };
-                  setDebateConfig({ prompt: draftPrompt.trim(), stand: draftStand, opponent });
+                  setDebateConfig({ prompt: draftPrompt.trim(), stand: draftStand, opponent, roundFormat: draftExtended ? "extended" : "standard" });
                   setDebateSetupOpen(false);
                 }}
                 className="w-full py-5 bg-primary text-white rounded-2xl text-sm font-black uppercase tracking-wide hover:scale-[1.02] active:scale-95 transition-all shadow-glow disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center justify-center gap-3"
@@ -1249,6 +1274,7 @@ const Arena = () => {
             userStand={pvpDebateConfig.userStand}
             opponent={pvpDebateConfig.opponent}
             userElo={profile.elo}
+            roundFormat={pvpDebateConfig.roundFormat}
             onClose={() => { setActiveDrill(null); sessionStorage.removeItem("arena_active_drill"); refreshArena(true); }}
             onComplete={() => {
               setActiveDrill(null);
@@ -1455,6 +1481,26 @@ const Arena = () => {
                          </button>
                        </div>
                        <p className="text-[10px] opacity-40 mt-2">{challengeTarget.name} argues the opposite side.</p>
+
+                       {/* Round duration toggle */}
+                       <div className="flex items-center justify-between mt-4 p-3 rounded-xl bg-muted/20 border border-border/40">
+                         <div>
+                           <p className="text-[10px] font-black uppercase tracking-widest">ROUND DURATION</p>
+                           <p className="text-[10px] opacity-40 mt-0.5">{challengeExtended ? "90s opening · 60s rebuttal" : "45s opening · 30s rebuttal"}</p>
+                         </div>
+                         <button
+                           type="button"
+                           onClick={() => setChallengeExtended(v => !v)}
+                           className={cn(
+                             "px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border transition-all",
+                             challengeExtended
+                               ? "bg-primary text-white border-primary shadow-glow"
+                               : "bg-background border-border opacity-50 hover:opacity-100"
+                           )}
+                         >
+                           {challengeExtended ? "EXTENDED" : "STANDARD"}
+                         </button>
+                       </div>
                      </div>
                    )}
 
@@ -1502,11 +1548,12 @@ const Arena = () => {
                           }
                           setGeneratingPrompt(false);
                         }
-                        sendDuelRequest(challengeTarget.id, challengeMode, finalPrompt, challengeMode === "debate" ? challengeStand : undefined);
+                        sendDuelRequest(challengeTarget.id, challengeMode, finalPrompt, challengeMode === "debate" ? challengeStand : undefined, challengeMode === "debate" ? challengeExtended : false);
                         setChallengeTarget(null);
                         setChallengePrompt("");
                         setChallengeMode("standard");
                         setChallengeStand("FOR");
+                        setChallengeExtended(false);
                      }}
                      className="w-full py-4 bg-primary text-white rounded-xl text-sm font-black uppercase tracking-widest hover:scale-[1.02] active:scale-95 transition-all shadow-glow disabled:opacity-50 disabled:scale-100 disabled:cursor-not-allowed"
                      disabled={generatingPrompt || requestCooldown > 0}
