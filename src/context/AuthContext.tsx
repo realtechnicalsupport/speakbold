@@ -108,6 +108,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } else {
       setOnboardingDone(false);
       setTutorialDone(false);
+      setStatusLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.user?.id]);
