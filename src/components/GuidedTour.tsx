@@ -219,9 +219,14 @@ export const GuidedTour = () => {
     baseLeft = (vw - width) / 2;
     baseTop = Math.max(16, (vh - bubbleH) / 2);
   } else if (isMobile) {
-    // Dock near the bottom, above the mobile nav / home indicator.
     baseLeft = 16;
-    baseTop = Math.max(16, vh - bubbleH - 96);
+    if (hasSpotlight && rect!.top > vh * 0.5) {
+      // Target is in the lower half — place bubble above it so it doesn't cover it.
+      baseTop = Math.max(16, rect!.top - bubbleH - 20);
+    } else {
+      // Target is in the upper half or no spotlight — dock near bottom.
+      baseTop = Math.max(16, vh - bubbleH - 96);
+    }
   } else {
     const placeBelow = rect!.bottom + 12 + bubbleH < vh;
     baseTop = placeBelow ? rect!.bottom + 12 : Math.max(12, rect!.top - bubbleH - 12);

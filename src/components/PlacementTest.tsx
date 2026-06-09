@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Compass, Mic, MicOff, Sparkles, Play, ChevronRight, ArrowRight } from "lucide-react";
+import { Compass, Mic, MicOff, Sparkles, Play, ChevronRight, ArrowRight, ScanFace, MessageSquare, Swords } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { RecorderPanel } from "@/components/RecorderPanel";
 import { transcribeAudio, judgePathwayDrill } from "@/services/geminiService";
@@ -8,14 +8,39 @@ import { TIERS, type TierId } from "@/hooks/usePathway";
 import { toast } from "@/hooks/use-toast";
 import { setTimerActive } from "@/lib/timerState";
 
-const PLACEMENT_PROMPT = "Tell me about a challenge you faced recently and how you handled it.";
+// A warm, personal first prompt. The new user just picked a goal, so they
+// already have something to say — easy to talk about for 60s (no "perform under
+// pressure" freeze) while still giving the AI enough natural speech to band a
+// tier. This doubles as the gentle "first drill" before the curriculum.
+const PLACEMENT_PROMPT = "What brings you to SpeakBold — and what do you most want to get better at?";
 const PLACEMENT_SECONDS = 60;
+
+// Surfaced on the post-result reveal — the "here's what else you can do" beat,
+// fired at peak curiosity right after the AI-feedback aha. Body Language leads:
+// it's the strongest feature and the most under-discovered.
+const REVEAL_FEATURES = [
+  {
+    icon: ScanFace,
+    name: "Body Language Studio",
+    blurb: "Turn on your camera and get read like a coach is in the room — posture, gestures, eye contact, and presence, all scored live.",
+  },
+  {
+    icon: MessageSquare,
+    name: "Your AI coach, on tap",
+    blurb: "Not sure what to say or how to fix a habit? Ask your coach anything, anytime — it remembers how you've been doing.",
+  },
+  {
+    icon: Swords,
+    name: "The Arena",
+    blurb: "When you're ready, go head-to-head in live speaking battles and climb the leaderboard.",
+  },
+];
 
 /** Band a 0–100 speaking score into an entry tier. */
 const tierForScore = (score: number): TierId =>
   score >= 72 ? "orator" : score >= 55 ? "intermediate" : "beginner";
 
-type Phase = "offer" | "recording" | "analyzing" | "result";
+type Phase = "offer" | "recording" | "analyzing" | "result" | "reveal";
 
 export const PlacementTest = ({ userName, onPlace, onSkip, autoStart = false }: {
   userName: string;
@@ -30,6 +55,9 @@ export const PlacementTest = ({ userName, onPlace, onSkip, autoStart = false }: 
   const [seconds, setSeconds] = useState(PLACEMENT_SECONDS);
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<{ tier: TierId; feedback: string } | null>(null);
+  // Tier the user committed to on the result screen — carried into the reveal so
+  // its CTA can drop them at the right place.
+  const [chosenTier, setChosenTier] = useState<TierId | null>(null);
   const [micError, setMicError] = useState(false);
   const [micChecked, setMicChecked] = useState(false);
 
@@ -110,6 +138,13 @@ export const PlacementTest = ({ userName, onPlace, onSkip, autoStart = false }: 
     setPhase("result");
   };
 
+  // Result → reveal: remember the tier they committed to, then show the
+  // "here's what else you can do" beat before handing off to the pathway.
+  const goReveal = (tier: TierId) => {
+    setChosenTier(tier);
+    setPhase("reveal");
+  };
+
   const analyze = async (blob: Blob) => {
     setPhase("analyzing");
     if (blob.size < 100) {
@@ -129,7 +164,7 @@ export const PlacementTest = ({ userName, onPlace, onSkip, autoStart = false }: 
       const judged = await judgePathwayDrill(
         userName, transcript,
         "Placement Assessment",
-        "Speak clearly and persuasively about a real experience.",
+        "Speak naturally and clearly about your goals and what you want to improve.",
         // Neutral grading for placement — tier banding below depends on it, so
         // it must NOT use the lenient Beginner calibration.
         PLACEMENT_PROMPT, 60, "intermediate"
@@ -147,6 +182,7 @@ export const PlacementTest = ({ userName, onPlace, onSkip, autoStart = false }: 
   const secs = seconds % 60;
   const pct = (seconds / PLACEMENT_SECONDS) * 100;
   const tierMeta = result ? TIERS.find(t => t.id === result.tier) ?? null : null;
+  const chosenTierMeta = chosenTier ? TIERS.find(t => t.id === chosenTier) ?? null : null;
 
   return (
     <motion.div
@@ -254,7 +290,7 @@ export const PlacementTest = ({ userName, onPlace, onSkip, autoStart = false }: 
             <p className="text-sm opacity-40 max-w-md mx-auto italic">{tierMeta.tagline} {tierMeta.description}</p>
             <div className="flex flex-col gap-3 max-w-sm mx-auto pt-2">
               <button
-                onClick={() => onPlace(result.tier)}
+                onClick={() => goReveal(result.tier)}
                 className="button-pill w-full py-5 bg-primary text-white shadow-glow flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-100 transition-transform"
               >
                 <span className="text-sm font-black uppercase tracking-[0.2em]">Start at {tierMeta.name}</span>
@@ -262,13 +298,63 @@ export const PlacementTest = ({ userName, onPlace, onSkip, autoStart = false }: 
               </button>
               {result.tier !== "beginner" && (
                 <button
-                  onClick={() => onPlace("beginner")}
+                  onClick={() => goReveal("beginner")}
                   className="text-xs font-black uppercase tracking-[0.2em] opacity-40 hover:opacity-100 transition-opacity py-3 flex items-center justify-center gap-2"
                 >
                   Start from the beginning instead
                   <ChevronRight className="h-3 w-3" />
                 </button>
               )}
+            </div>
+          </motion.div>
+        )}
+
+        {/* PHASE: REVEAL — "here's what else you can do", at peak curiosity */}
+        {phase === "reveal" && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8 py-6">
+            <div className="text-center space-y-4">
+              <div className="flex items-center justify-center gap-3 text-[10px] md:text-xs font-black uppercase tracking-[0.5em] text-primary">
+                <Sparkles className="h-4 w-4" />
+                You're all set
+              </div>
+              <h1 className="speak-serif text-4xl md:text-6xl tracking-tighter leading-[0.95]">
+                That feedback? It's <span className="text-primary italic">everywhere.</span>
+              </h1>
+              <p className="text-base md:text-lg opacity-60 max-w-lg mx-auto leading-relaxed">
+                You just felt the AI read your speaking in seconds. Here's what else is waiting inside SpeakBold.
+              </p>
+            </div>
+
+            <div className="space-y-3 max-w-lg mx-auto">
+              {REVEAL_FEATURES.map((f, i) => (
+                <motion.div
+                  key={f.name}
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.15 + i * 0.12 }}
+                  className="flex items-start gap-4 p-5 rounded-3xl bg-white/[0.03] border border-white/10"
+                >
+                  <div className="h-12 w-12 rounded-2xl bg-primary/15 border border-primary/25 flex items-center justify-center shrink-0">
+                    <f.icon className="h-6 w-6 text-primary" />
+                  </div>
+                  <div className="space-y-1">
+                    <h3 className="speak-serif text-lg md:text-xl italic tracking-tight">{f.name}</h3>
+                    <p className="text-sm opacity-55 leading-relaxed">{f.blurb}</p>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+
+            <div className="max-w-sm mx-auto pt-2">
+              <button
+                onClick={() => chosenTier && onPlace(chosenTier)}
+                className="button-pill w-full py-5 bg-primary text-white shadow-glow flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-100 transition-transform"
+              >
+                <span className="text-sm font-black uppercase tracking-[0.2em]">
+                  {chosenTierMeta ? `Enter your pathway — ${chosenTierMeta.name}` : "Enter your pathway"}
+                </span>
+                <ArrowRight className="h-4 w-4" />
+              </button>
             </div>
           </motion.div>
         )}
