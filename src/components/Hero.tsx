@@ -57,7 +57,7 @@ export const Hero = () => {
                   animate={{ y: 0, opacity: 1 }}
                   transition={{ duration: 0.6, delay: 0.08 + i * 0.05, ease: [0.16, 1, 0.3, 1] }}
                   className="speak-serif leading-[0.85] text-foreground tracking-tighter inline-block"
-                  style={{ fontSize: "clamp(3.75rem, 17vw, 140px)" }}
+                  style={{ fontSize: "clamp(5rem, 24vw, 140px)" }}
                 >
                   {char}
                 </motion.span>
@@ -71,7 +71,7 @@ export const Hero = () => {
                 animate={{ scale: 1, opacity: 1 }}
                 transition={{ duration: 1, delay: 0.8, ease: "easeOut" }}
                 className="speak-serif leading-[0.75] relative text-primary block italic"
-                style={{ fontSize: "clamp(5rem, 22vw, 180px)" }}
+                style={{ fontSize: "clamp(6.5rem, 30vw, 180px)" }}
               >
                 Bold.
                 <motion.span
