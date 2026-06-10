@@ -236,7 +236,7 @@ export const AICoachChat = () => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ type: "spring", stiffness: 300, damping: 25 }}
-            className="fixed bottom-0 right-0 lg:bottom-8 lg:right-8 z-[100] w-full lg:w-[400px] h-[85vh] lg:h-[600px] flex flex-col glass border border-primary/20 rounded-t-[2rem] lg:rounded-[2rem] shadow-2xl overflow-hidden"
+            className="fixed bottom-0 right-0 lg:bottom-8 lg:right-8 z-[100] w-full lg:w-[400px] h-[85dvh] lg:h-[600px] flex flex-col glass border border-primary/20 rounded-t-[2rem] lg:rounded-[2rem] shadow-2xl overflow-hidden"
           >
             {/* Header */}
             <div className="p-4 border-b border-border/50 flex items-center justify-between bg-primary/5">

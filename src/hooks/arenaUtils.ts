@@ -52,13 +52,15 @@ export const FORFEIT_PENALTY = 30;
  * New signups now store `NULL` elo (genuinely unranked — see the
  * 20260601_elo_unranked_default migration) and only get a number after their
  * first completed battle. The legacy cohort was back-filled to exactly
- * `STARTING_ELO`, so we treat that value as unranked too. Such accounts are
- * "unranked" — the leaderboard hides them from the board (`.neq("elo", …)`,
- * which also drops NULLs) and the user's own standing card shows "Unranked"
- * instead of a fabricated rank. Centralised so every surface applies it alike.
+ * `STARTING_ELO`, so we treat that value as unranked too. `0` (the ELO_FLOOR /
+ * manual-reset sentinel) is excluded as well — it's junk/test data, not an
+ * earned rating. Such accounts are "unranked" — the leaderboard hides them
+ * from the board (`.neq("elo", …)` + `.gt("elo", 0)`, which also drops NULLs)
+ * and the user's own standing card shows "Unranked" instead of a fabricated
+ * rank. Centralised so every surface applies it alike.
  */
 export const isRankedElo = (elo: number | null | undefined): boolean =>
-  elo != null && elo !== STARTING_ELO;
+  elo != null && elo !== STARTING_ELO && elo > 0;
 
 /**
  * Keep an *earned* rating off the unranked sentinel. STARTING_ELO does double

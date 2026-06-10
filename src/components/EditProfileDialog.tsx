@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { validateDisplayName } from "@/lib/displayName";
 
 // Edit display name. Friendships are keyed on user UUIDs (friendships.user_a /
 // user_b), so a rename never breaks a friendship — we only need to write the
@@ -23,21 +24,33 @@ export const EditProfileDialog = ({ userId, currentName }: { userId: string; cur
   const handleSave = async () => {
     const trimmed = name.trim();
     if (!trimmed || trimmed === currentName) return;
+
+    // Guardrail: strip HTML/script payloads and reject junk before it reaches
+    // the DB (see lib/displayName). React escapes names on render, but this
+    // keeps friends lists + leaderboards clean and is defence in depth.
+    const check = validateDisplayName(name);
+    if (!check.ok) {
+      toast({ title: "Invalid name", description: check.error });
+      return;
+    }
+    const safe = check.value;
+    if (safe === currentName) return;
+
     setSaving(true);
     try {
       // 1. Auth metadata — fires USER_UPDATED so the session name refreshes app-wide.
-      const { error: authErr } = await supabase.auth.updateUser({ data: { display_name: trimmed } });
+      const { error: authErr } = await supabase.auth.updateUser({ data: { display_name: safe } });
       if (authErr) throw authErr;
 
       // 2. profiles.display_name — what FriendsContext + leaderboards read.
       const { error: profErr } = await supabase
         .from("profiles")
-        .update({ display_name: trimmed })
+        .update({ display_name: safe })
         .eq("id", userId);
       if (profErr) throw profErr;
 
       // 3. user_xp.display_name — best-effort (row may not exist yet).
-      await supabase.from("user_xp").update({ display_name: trimmed }).eq("user_id", userId);
+      await supabase.from("user_xp").update({ display_name: safe }).eq("user_id", userId);
 
       toast({ title: "Profile updated", description: "Your name is now visible to friends." });
       setOpen(false);

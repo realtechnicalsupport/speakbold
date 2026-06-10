@@ -13,7 +13,7 @@ import { toast } from "@/hooks/use-toast";
 import { motion, AnimatePresence, animate } from "framer-motion";
 import { cn } from "@/lib/utils";
 import {
-  Swords, Trophy, Zap, Flame, Sparkles, Loader2, Radar, Target, Mic, X, Users, Calendar, Lock, ArrowRight
+  Swords, Trophy, Zap, Flame, Sparkles, Loader2, Radar, Target, Mic, X, Users, Calendar, Lock, ArrowRight, HelpCircle
 } from "lucide-react";
 import { generateArenaPrompt } from "@/services/geminiService";
 import { useSoundEffects } from "@/hooks/useSoundEffects";
@@ -697,6 +697,18 @@ const Arena = () => {
                 Match with other learners, get AI-powered feedback, and grow your skills.
               </p>
 
+              {/* Opt-in tour entry — same walkthrough the CoachHub "Show me
+                  around" launches. Dispatches the event GuidedTour listens for;
+                  the tour routes between pages and spotlights each feature. */}
+              <button
+                onClick={() => window.dispatchEvent(new Event("speakbold:start-tour"))}
+                className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.2em] opacity-40 hover:opacity-100 hover:text-primary transition-all cursor-pointer"
+                title="Take a quick tour"
+              >
+                <HelpCircle className="h-3.5 w-3.5" />
+                Show me around
+              </button>
+
               {/* Real competitive stats */}
               <div className="hidden lg:grid grid-cols-3 gap-6 pt-8">
                  <motion.div
@@ -968,9 +980,17 @@ const Arena = () => {
                           <p className="text-[11px] font-black opacity-30">{u.ranked === false ? "Unranked" : `${u.elo} ELO`}</p>
                         </div>
                       </div>
-                      <button 
+                      <button
                         onClick={() => setChallengeTarget({ id: u.id, name: u.name })}
-                        className="px-4 py-2 rounded-xl bg-primary text-white text-sm font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all hover:scale-105 active:scale-95 shadow-glow"
+                        className={cn(
+                          "px-4 py-2 rounded-xl text-sm font-black uppercase tracking-widest cursor-pointer transition-all hover:scale-105 active:scale-95 shrink-0",
+                          // Mobile (no hover): always the solid CTA so it's tappable.
+                          "bg-primary text-white shadow-glow",
+                          // Desktop rest: a visible ghost-outline affordance (so users
+                          // know it's there) that lights up to the solid glow on hover.
+                          "lg:bg-primary/10 lg:text-primary lg:shadow-none lg:border lg:border-primary/30",
+                          "lg:group-hover:bg-primary lg:group-hover:text-white lg:group-hover:shadow-glow lg:group-hover:border-transparent"
+                        )}
                       >
                         INVITE
                       </button>
@@ -1120,7 +1140,7 @@ const Arena = () => {
               exit={{ scale: 0.95, y: 20, opacity: 0 }}
               transition={{ type: "spring", stiffness: 300, damping: 28 }}
               onClick={e => e.stopPropagation()}
-              className="bg-card border border-border rounded-[2rem] p-6 md:p-10 max-w-2xl w-full shadow-2xl space-y-6 relative"
+              className="bg-card border border-border rounded-[2rem] p-6 md:p-10 max-w-2xl w-full shadow-2xl space-y-6 relative max-h-[88dvh] overflow-y-auto"
             >
               <button
                 onClick={() => { setDebateSetupOpen(false); setDraftExtended(false); }}
@@ -1419,7 +1439,7 @@ const Arena = () => {
            >
              <motion.div 
                initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
-               className="bg-background border border-border rounded-3xl p-6 md:p-8 max-w-lg w-full shadow-2xl relative"
+               className="bg-background border border-border rounded-3xl p-6 md:p-8 max-w-lg w-full shadow-2xl relative max-h-[88dvh] overflow-y-auto"
              >
                 <button onClick={() => setChallengeTarget(null)} className="absolute top-6 right-6 text-foreground/40 hover:text-foreground">
                   <X className="h-5 w-5" />
@@ -1531,7 +1551,7 @@ const Arena = () => {
                        value={challengePrompt}
                        onChange={e => setChallengePrompt(e.target.value)}
                        placeholder="Leave blank for random prompt..."
-                       className="w-full bg-muted/30 border border-border rounded-xl p-3 text-sm resize-none h-24 focus:border-primary focus:outline-none transition-colors"
+                       className="w-full bg-muted/30 border border-border rounded-xl p-3 text-base md:text-sm resize-none h-24 focus:border-primary focus:outline-none transition-colors"
                      />
                    </div>
 

@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { track } from "@/lib/analytics";
+import { validateDisplayName } from "@/lib/displayName";
 import { motion, AnimatePresence } from "framer-motion";
 
 type AuthMode = "login" | "signup" | "forgot";
@@ -64,12 +65,20 @@ const Login = () => {
     setLoading(true);
     try {
       if (mode === "signup") {
+        // Guardrail: reject HTML/script payloads and junk before they ever
+        // reach auth metadata / profiles (see lib/displayName).
+        const nameCheck = validateDisplayName(name);
+        if (!nameCheck.ok) {
+          toast({ title: "Invalid name", description: nameCheck.error });
+          setLoading(false);
+          return;
+        }
         const { error } = await supabase.auth.signUp({
           email,
           password,
           options: {
             emailRedirectTo: `${window.location.origin}/`,
-            data: { display_name: name },
+            data: { display_name: nameCheck.value },
           },
         });
         if (error) throw error;
@@ -236,6 +245,7 @@ const Login = () => {
                       type="text"
                       autoComplete="name"
                       required
+                      maxLength={32}
                       placeholder="Your name"
                       value={name}
                       onChange={(e) => setName(e.target.value)}

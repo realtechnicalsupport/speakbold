@@ -496,49 +496,59 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return;
     }
 
-    try {
-      const opponent = isCreator ? duelObj.challenger : duelObj.creator;
-      const { newElo: serverElo, eloChange: serverDelta, oppNewElo, oppEloChange } = await submitBattleResult({
-        duelObj,
-        isAi,
-        isForfeit: isMe ? "self" : "opponent",
-        myScore: null,
-        oppScore: null,
-        opponent: {
-          id: opponent?.id,
-          name: opponent?.name,
-          avatar: opponent?.avatar,
-          elo: opponent?.elo,
-        },
-        feedback: isMe ? "Player forfeited the match." : "Opponent forfeited the match.",
-        fallbackNewElo: newElo,
-        fallbackEloChange: eloChange,
-      });
+    // Show the verdict overlay NOW. The forfeit delta is deterministic
+    // client-side (flat -FORFEIT_PENALTY for self), so there's nothing worth
+    // blocking the UI for — the edge function (multi-second cold starts) +
+    // history refetch used to run BEFORE this emit, which read as "forfeit
+    // hangs" to the user.
+    arenaEmitter.emit("elo:updated", { change: eloChange, newElo, outcome: isMe ? "loss" : "win" });
 
-      if (serverElo !== newElo) {
-        setProfile(prev => ({ ...prev, elo: serverElo }));
-      }
-
-      await refresh(true);
-      arenaEmitter.emit("elo:updated", { change: serverDelta, newElo: serverElo, outcome: isMe ? "loss" : "win" });
-
-      // PvP self-forfeit: the server also rated the surviving opponent.
-      // Push their new ELO so their client animates without writing a second row.
-      if (isMe && isPvp && typeof oppNewElo === "number" && typeof oppEloChange === "number" && arenaChannel.current) {
-        arenaChannel.current.send({
-          type: "broadcast",
-          event: "elo-sync",
-          payload: {
-            targetUserId: oppId,
-            newElo: oppNewElo,
-            change: oppEloChange,
-            outcome: "win",
+    // Record server-side in the background; reconcile silently if the
+    // authoritative value differs (no second overlay pop).
+    void (async () => {
+      try {
+        const opponent = isCreator ? duelObj.challenger : duelObj.creator;
+        const { newElo: serverElo, oppNewElo, oppEloChange } = await submitBattleResult({
+          duelObj,
+          isAi,
+          isForfeit: isMe ? "self" : "opponent",
+          myScore: null,
+          oppScore: null,
+          opponent: {
+            id: opponent?.id,
+            name: opponent?.name,
+            avatar: opponent?.avatar,
+            elo: opponent?.elo,
           },
+          feedback: isMe ? "Player forfeited the match." : "Opponent forfeited the match.",
+          fallbackNewElo: newElo,
+          fallbackEloChange: eloChange,
         });
+
+        if (serverElo !== newElo) {
+          setProfile(prev => ({ ...prev, elo: serverElo }));
+        }
+
+        await refresh(true);
+
+        // PvP self-forfeit: the server also rated the surviving opponent.
+        // Push their new ELO so their client animates without writing a second row.
+        if (isMe && isPvp && typeof oppNewElo === "number" && typeof oppEloChange === "number" && arenaChannel.current) {
+          arenaChannel.current.send({
+            type: "broadcast",
+            event: "elo-sync",
+            payload: {
+              targetUserId: oppId,
+              newElo: oppNewElo,
+              change: oppEloChange,
+              outcome: "win",
+            },
+          });
+        }
+      } catch (e) {
+        console.error("[ArenaContext] handleForfeit background record failed:", e);
       }
-    } catch (e) {
-      console.error("[ArenaContext] handleForfeit failed:", e);
-    }
+    })();
   };
 
   const completeDuel = async (duelId: string, challengerName: string, creatorScore: number, challengerScore: number, feedback: string, duelObj: Duel, explicitWinner?: string, details?: { strengths?: string, oppStrengths?: string, oppFeedback?: string, exampleSpeech?: string }) => {

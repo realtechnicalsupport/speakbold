@@ -27,14 +27,14 @@ export const useLeaderboard = (limit = 50) => {
   const fetchLeaderboard = useCallback(async () => {
     try {
       setLoading(true);
-      // Filter out accounts still at the default 1000 ELO. These are either
-      // pre-revamp legacy users (back-filled to 1000 by the v2 migration) or
-      // accounts that have never finished a battle — neither has earned a
-      // spot on the board.
+      // Filter out accounts still at the default 1000 ELO, and accounts at 0
+      // (junk/test data or a manual reset). Neither has earned a spot on the
+      // board.
       const { data: eloData, error: eloError } = await supabase
         .from("profiles")
         .select("id, display_name, elo")
         .neq("elo", STARTING_ELO)
+        .gt("elo", 0)
         .order("elo", { ascending: false })
         .limit(limit);
 

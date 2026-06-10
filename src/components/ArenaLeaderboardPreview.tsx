@@ -25,11 +25,13 @@ export const ArenaLeaderboardPreview = () => {
   const fetchLeaderboard = useCallback(async () => {
     if (!user) return;
     try {
-      // Top 5 — exclude default-ELO accounts (legacy + never-played).
+      // Top 5 — exclude default-ELO accounts (legacy + never-played) and 0-ELO
+      // (junk/test data or a manual reset).
       const { data: topData } = await supabase
         .from("profiles")
         .select("id, display_name, elo")
         .neq("elo", STARTING_ELO)
+        .gt("elo", 0)
         .order("elo", { ascending: false })
         .limit(5);
 
@@ -40,11 +42,12 @@ export const ArenaLeaderboardPreview = () => {
         .eq("id", user.id)
         .maybeSingle();
 
-      // Total ranked players (excludes default-ELO accounts).
+      // Total ranked players (excludes default-ELO and 0-ELO accounts).
       const { count: total } = await supabase
         .from("profiles")
         .select("id", { count: "exact", head: true })
-        .neq("elo", STARTING_ELO);
+        .neq("elo", STARTING_ELO)
+        .gt("elo", 0);
 
       setTop(
         (topData || []).map((r: any) => ({
