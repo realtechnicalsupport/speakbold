@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useArena, type Duel, type Gamemode, GAMEMODES, getRankColor, getRankFromElo, AI_PERSONAS } from "@/hooks/useArena";
+import { useArena, type Duel, type Gamemode, GAMEMODES, getRankColor, getRankFromElo, pickPersonaByElo } from "@/hooks/useArena";
 import { useLocalStorageState } from "@/hooks/useLocalStorageState";
 import { isInPlacement, getMatchesPlayed, getSeasonInfo, estimateEloAtStake, getNextRankInfo, ELO_FLOOR } from "@/hooks/arenaUtils";
 import { SiteHeader } from "@/components/SiteHeader";
@@ -942,7 +942,7 @@ const Arena = () => {
                    }}
                    className="btn-tactile btn-tactile-surface w-full py-6 rounded-2xl text-sm font-black uppercase tracking-wide flex items-center justify-center gap-3"
                  >
-                   <Zap className="h-4 w-4" /> NEW SESSION
+                   <Zap className="h-4 w-4" /> CUSTOM PROMPT
                  </button>
               </div>
             </div>
@@ -1258,9 +1258,12 @@ const Arena = () => {
               <button
                 disabled={!draftPrompt.trim() || draftGenerating}
                 onClick={() => {
-                  // Pick a random AI persona for variety
-                  const personas = AI_PERSONAS;
-                  const persona = personas[Math.floor(Math.random() * personas.length)];
+                  // Scale the AI opponent to the user's rank: pickPersonaByElo
+                  // weights persona skill by ELO (Bronze → Echo/Beginner …
+                  // Diamond → NeuroJudge/Expert), the same matchmaking the arena
+                  // duels use — so the debate is a fair, beatable challenge
+                  // instead of a random Beginner-or-Expert coin flip.
+                  const persona = pickPersonaByElo(profile.elo);
                   const opponent = {
                     id: "ai",
                     name: `${persona.name} (AI)`,

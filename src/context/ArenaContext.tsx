@@ -69,6 +69,38 @@ export const AI_PERSONAS = [
   { name: "NeuroJudge", avatar: "🧠", personality: "Philosophical and nuanced.", skill: "Expert", eloOffset: 400, strengths: "Nuance", weaknesses: "Too wordy" }
 ];
 
+/**
+ * Pick an AI persona whose skill scales with the user's ELO/rank, so the
+ * opponent is a fair-but-beatable match: Bronze mostly meets Echo (Beginner),
+ * Diamond mostly meets NeuroJudge (Expert). Shared by arena matchmaking AND the
+ * debate hall, so both scale difficulty the same way. The randomness inside each
+ * band keeps opponents varied without breaking the difficulty fit.
+ */
+export const pickPersonaByElo = (userElo: number) => {
+  // Bronze <600: ALWAYS Echo (Beginner) — the easiest opponent. Bronze speakers
+  // are brand-new, so they get the gentlest, most beatable debater every time
+  // (no chance of drawing the tougher Intermediate persona).
+  if (userElo < 600) {
+    return AI_PERSONAS[0]; // Echo (Beginner)
+  }
+  // Silver 600–1199: LogicBot primary, slight chance of Echo or Persuado
+  if (userElo < 1200) {
+    const r = Math.random();
+    if (r < 0.20) return AI_PERSONAS[0]; // Echo
+    if (r < 0.75) return AI_PERSONAS[1]; // LogicBot
+    return AI_PERSONAS[2];               // Persuado
+  }
+  // Gold 1200–1799: Persuado primary, some LogicBot and NeuroJudge
+  if (userElo < 1800) {
+    const r = Math.random();
+    if (r < 0.10) return AI_PERSONAS[1]; // LogicBot
+    if (r < 0.70) return AI_PERSONAS[2]; // Persuado
+    return AI_PERSONAS[3];               // NeuroJudge
+  }
+  // Platinum+ 1800+: NeuroJudge dominant
+  return Math.random() < 0.30 ? AI_PERSONAS[2] : AI_PERSONAS[3];
+};
+
 // ELO change is now computed by `computeEloChange` in arenaUtils.
 // It takes scores, mode, AI flag, Bo3, placement state — see arenaUtils.ts for full rules.
 
@@ -727,29 +759,6 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     } catch (e) {
       console.error("[ArenaContext] completeDuel failed:", e);
     }
-  };
-
-  const pickPersonaByElo = (userElo: number) => {
-    // Bronze <600: mostly Echo, occasionally LogicBot
-    if (userElo < 600) {
-      return Math.random() < 0.7 ? AI_PERSONAS[0] : AI_PERSONAS[1];
-    }
-    // Silver 600–1199: LogicBot primary, slight chance of Echo or Persuado
-    if (userElo < 1200) {
-      const r = Math.random();
-      if (r < 0.20) return AI_PERSONAS[0]; // Echo
-      if (r < 0.75) return AI_PERSONAS[1]; // LogicBot
-      return AI_PERSONAS[2];               // Persuado
-    }
-    // Gold 1200–1799: Persuado primary, some LogicBot and NeuroJudge
-    if (userElo < 1800) {
-      const r = Math.random();
-      if (r < 0.10) return AI_PERSONAS[1]; // LogicBot
-      if (r < 0.70) return AI_PERSONAS[2]; // Persuado
-      return AI_PERSONAS[3];               // NeuroJudge
-    }
-    // Platinum+ 1800+: NeuroJudge dominant
-    return Math.random() < 0.30 ? AI_PERSONAS[2] : AI_PERSONAS[3];
   };
 
   const findMatch = async (mode: Gamemode): Promise<any> => {

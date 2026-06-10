@@ -1,9 +1,16 @@
 // supabase/functions/ai-text/index.ts
 // Server-side proxy for AI text generation. API keys never reach the browser.
 // Provider chain (fastest first):  Cerebras → Groq → Gemini → OpenRouter
+//
+// Each provider supports BACKUP KEYS. When the primary key fails (429 / quota /
+// auth), we rotate to the provider's next key BEFORE dropping to the next
+// provider — so a rate-limited key on a busy day doesn't take a provider down.
+//
 // Deploy: supabase functions deploy ai-text
 // Secrets needed (supabase secrets set KEY=value):
 //   OPENROUTER_API_KEY, CEREBRAS_API_KEY, GEMINI_API_KEY, GROQ_API_KEY
+// Optional backups (tried in order, before the next provider):
+//   <PROVIDER>_API_KEY_2, _3, _4  e.g. GEMINI_API_KEY_2, GROQ_API_KEY_2
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
@@ -62,7 +69,28 @@ async function fetchWithTimeout(input: string, init: RequestInit, ms: number): P
   }
 }
 
-interface Keys { OR: string; CER: string; GEM: string; GROQ: string }
+interface Keys { OR: string[]; CER: string[]; GEM: string[]; GROQ: string[] }
+
+// Collect a provider's API keys from env: BASE, then BASE_2 / BASE_3 / BASE_4 as
+// optional backups. Only after ALL of a provider's keys fail do we move on.
+function envKeys(base: string): string[] {
+  return ["", "_2", "_3", "_4"]
+    .map((suffix) => Deno.env.get(base + suffix) ?? "")
+    .filter((v) => v.length > 0);
+}
+
+// Try each of a provider's keys in turn. `withKey` returns the text on success,
+// or null to fall through to the next key. Returns null when every key failed.
+async function tryKeys(
+  keys: string[],
+  withKey: (key: string) => Promise<string | null>,
+): Promise<string | null> {
+  for (const key of keys) {
+    const text = await withKey(key);
+    if (text) return text;
+  }
+  return null;
+}
 
 // Recursive fallback chain — geminiDead is request-scoped, not module-level.
 async function callAI(
@@ -75,17 +103,16 @@ async function callAI(
   const safeTemp = Math.min(temp, 1.0);
 
   // ── 1. Cerebras (fastest) ────────────────────────────────────────────────────
-  if (attempt < CER_END && keys.CER) {
+  if (attempt < CER_END && keys.CER.length) {
     const model = CER_MODELS[attempt];
-    try {
-      const res = await fetchWithTimeout("https://api.cerebras.ai/v1/chat/completions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${keys.CER}` },
-        body: JSON.stringify({ model, messages: [{ role: "user", content: prompt }], temperature: safeTemp }),
-      }, PROVIDER_TIMEOUT_MS);
-      if (res === "timeout") {
-        console.warn(`[ai-text] Cerebras ${model} timed out (${PROVIDER_TIMEOUT_MS}ms)`);
-      } else {
+    const got = await tryKeys(keys.CER, async (key) => {
+      try {
+        const res = await fetchWithTimeout("https://api.cerebras.ai/v1/chat/completions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${key}` },
+          body: JSON.stringify({ model, messages: [{ role: "user", content: prompt }], temperature: safeTemp }),
+        }, PROVIDER_TIMEOUT_MS);
+        if (res === "timeout") { console.warn(`[ai-text] Cerebras ${model} timed out (${PROVIDER_TIMEOUT_MS}ms)`); return null; }
         const raw = await res.text();
         if (res.ok) {
           try {
@@ -94,104 +121,120 @@ async function callAI(
             const text = (msg?.content || msg?.reasoning || "").trim();
             if (text) { console.log(`[ai-text] ✓ Cerebras ${model}`); return text; }
           } catch { /* non-JSON */ }
-        } else console.warn(`[ai-text] Cerebras ${model} → ${res.status}`);
-      }
-    } catch (e) { console.error(`[ai-text] Cerebras ${model} network error:`, e); }
+          return null;
+        }
+        console.warn(`[ai-text] Cerebras ${model} → ${res.status}`);
+        return null;
+      } catch (e) { console.error(`[ai-text] Cerebras ${model} network error:`, e); return null; }
+    });
+    if (got) return got;
     return callAI(prompt, attempt + 1, temp, geminiDead, keys);
   }
 
   // ── 2. Groq (also blazing fast) ──────────────────────────────────────────────
-  if (attempt < GROQ_END && keys.GROQ) {
+  if (attempt < GROQ_END && keys.GROQ.length) {
     const model = GROQ_MODELS[attempt - CER_END];
-    try {
-      const res = await fetchWithTimeout("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${keys.GROQ}` },
-        body: JSON.stringify({ model, messages: [{ role: "user", content: prompt }], temperature: safeTemp }),
-      }, PROVIDER_TIMEOUT_MS);
-      if (res === "timeout") {
-        console.warn(`[ai-text] Groq ${model} timed out (${PROVIDER_TIMEOUT_MS}ms)`);
-      } else {
+    const got = await tryKeys(keys.GROQ, async (key) => {
+      try {
+        const res = await fetchWithTimeout("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${key}` },
+          body: JSON.stringify({ model, messages: [{ role: "user", content: prompt }], temperature: safeTemp }),
+        }, PROVIDER_TIMEOUT_MS);
+        if (res === "timeout") { console.warn(`[ai-text] Groq ${model} timed out (${PROVIDER_TIMEOUT_MS}ms)`); return null; }
         const raw = await res.text();
         if (res.ok) {
           try {
             const text = (JSON.parse(raw).choices?.[0]?.message?.content || "").trim();
             if (text) { console.log(`[ai-text] ✓ Groq ${model}`); return text; }
           } catch { /* non-JSON */ }
-        } else {
-          console.warn(`[ai-text] Groq ${model} → ${res.status}`);
-          // Rate-limited — brief pause before falling through to next model.
-          if (res.status === 429) await sleep(500);
+          return null;
         }
-      }
-    } catch (e) { console.error(`[ai-text] Groq ${model} network error:`, e); }
+        console.warn(`[ai-text] Groq ${model} → ${res.status}`);
+        // Rate-limited — brief pause before trying the next key / model.
+        if (res.status === 429) await sleep(500);
+        return null;
+      } catch (e) { console.error(`[ai-text] Groq ${model} network error:`, e); return null; }
+    });
+    if (got) return got;
     return callAI(prompt, attempt + 1, temp, geminiDead, keys);
   }
 
   // ── 3. Gemini ─────────────────────────────────────────────────────────────────
-  if (attempt < GEM_END && keys.GEM) {
+  if (attempt < GEM_END && keys.GEM.length) {
     if (geminiDead) {
       console.warn("[ai-text] Gemini skipped (DNS dead) → OpenRouter");
       return callAI(prompt, GEM_END, temp, geminiDead, keys);
     }
     const model = GEM_MODELS[attempt - GROQ_END];
-    try {
-      const res = await fetchWithTimeout(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${keys.GEM}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { temperature: safeTemp },
-          }),
-        },
-        PROVIDER_TIMEOUT_MS,
-      );
-      if (res === "timeout") {
-        console.warn(`[ai-text] Gemini ${model} timed out (${PROVIDER_TIMEOUT_MS}ms)`);
-      } else {
+    let dnsDead = false;
+    const got = await tryKeys(keys.GEM, async (key) => {
+      try {
+        const res = await fetchWithTimeout(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: { temperature: safeTemp },
+            }),
+          },
+          PROVIDER_TIMEOUT_MS,
+        );
+        if (res === "timeout") { console.warn(`[ai-text] Gemini ${model} timed out (${PROVIDER_TIMEOUT_MS}ms)`); return null; }
         const raw = await res.text();
         if (res.ok) {
           try {
             const text = (JSON.parse(raw).candidates?.[0]?.content?.parts?.[0]?.text || "").trim();
             if (text) { console.log(`[ai-text] ✓ Gemini ${model}`); return text; }
           } catch { /* non-JSON */ }
-        } else console.warn(`[ai-text] Gemini ${model} → ${res.status}`);
+          return null;
+        }
+        console.warn(`[ai-text] Gemini ${model} → ${res.status}`);
+        return null;
+      } catch (e) {
+        // Network/DNS failure is host-level, not key-level — every Gemini key
+        // hits the same wall, so mark it dead and skip the rest of the chain.
+        console.warn("[ai-text] Gemini DNS error — skipping remaining Gemini slots:", e);
+        dnsDead = true;
+        return null;
       }
-    } catch (e) {
-      console.warn("[ai-text] Gemini DNS error — skipping remaining Gemini slots:", e);
-      return callAI(prompt, GEM_END, temp, true, keys);
-    }
+    });
+    if (got) return got;
+    if (dnsDead) return callAI(prompt, GEM_END, temp, true, keys);
     return callAI(prompt, attempt + 1, temp, geminiDead, keys);
   }
 
   // ── 4. OpenRouter (last resort, free tier — slow + flaky) ───────────────────
-  if (attempt < OR_END && keys.OR) {
+  if (attempt < OR_END && keys.OR.length) {
     const model = OR_MODELS[attempt - GEM_END];
-    try {
-      const res = await fetchWithTimeout("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${keys.OR}`,
-          "HTTP-Referer": "https://speakbold.app",
-          "X-Title": "SpeakBold",
-        },
-        body: JSON.stringify({ model, messages: [{ role: "user", content: prompt }], temperature: safeTemp }),
-      }, PROVIDER_TIMEOUT_MS);
-      if (res === "timeout") {
-        console.warn(`[ai-text] OpenRouter ${model} timed out (${PROVIDER_TIMEOUT_MS}ms)`);
-      } else {
+    const got = await tryKeys(keys.OR, async (key) => {
+      try {
+        const res = await fetchWithTimeout("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${key}`,
+            "HTTP-Referer": "https://speakbold.app",
+            "X-Title": "SpeakBold",
+          },
+          body: JSON.stringify({ model, messages: [{ role: "user", content: prompt }], temperature: safeTemp }),
+        }, PROVIDER_TIMEOUT_MS);
+        if (res === "timeout") { console.warn(`[ai-text] OpenRouter ${model} timed out (${PROVIDER_TIMEOUT_MS}ms)`); return null; }
         const raw = await res.text();
         if (res.ok) {
           try {
             const text = (JSON.parse(raw).choices?.[0]?.message?.content || "").trim();
             if (text) { console.log(`[ai-text] ✓ OpenRouter ${model}`); return text; }
           } catch { /* non-JSON */ }
-        } else console.warn(`[ai-text] OpenRouter ${model} → ${res.status}`);
-      }
-    } catch (e) { console.error(`[ai-text] OpenRouter ${model} network error:`, e); }
+          return null;
+        }
+        console.warn(`[ai-text] OpenRouter ${model} → ${res.status}`);
+        return null;
+      } catch (e) { console.error(`[ai-text] OpenRouter ${model} network error:`, e); return null; }
+    });
+    if (got) return got;
     return callAI(prompt, attempt + 1, temp, geminiDead, keys);
   }
 
@@ -219,12 +262,12 @@ Deno.serve(async (req) => {
     const { prompt, attempt = 0, temperature = 0.7 } = await req.json();
     if (!prompt?.trim()) return json({ error: "prompt is required" }, 400);
 
-    // ── Keys ────────────────────────────────────────────────────────────────────
+    // ── Keys (each provider: primary + optional _2/_3/_4 backups) ───────────────
     const keys: Keys = {
-      OR:   Deno.env.get("OPENROUTER_API_KEY")   ?? "",
-      CER:  Deno.env.get("CEREBRAS_API_KEY")     ?? "",
-      GEM:  Deno.env.get("GEMINI_API_KEY")       ?? "",
-      GROQ: Deno.env.get("GROQ_API_KEY")         ?? "",
+      OR:   envKeys("OPENROUTER_API_KEY"),
+      CER:  envKeys("CEREBRAS_API_KEY"),
+      GEM:  envKeys("GEMINI_API_KEY"),
+      GROQ: envKeys("GROQ_API_KEY"),
     };
 
     const text = await callAI(prompt, attempt, temperature, false, keys);
