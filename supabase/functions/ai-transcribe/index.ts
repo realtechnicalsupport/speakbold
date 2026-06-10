@@ -81,10 +81,14 @@ Deno.serve(async (req) => {
         if (res.ok) {
           const data = await res.json();
           const transcript = data.results?.channels?.[0]?.alternatives?.[0]?.transcript ?? "";
-          console.log(`[ai-transcribe] ✓ Deepgram (${transcript.length} chars)`);
-          return json({ transcript });
+          if (transcript.trim()) {
+            console.log(`[ai-transcribe] ✓ Deepgram (${transcript.length} chars)`);
+            return json({ transcript });
+          }
+          console.warn("[ai-transcribe] Deepgram → 200 but empty transcript, trying next provider");
+        } else {
+          console.warn(`[ai-transcribe] Deepgram → ${res.status}`);
         }
-        console.warn(`[ai-transcribe] Deepgram → ${res.status}`);
       } catch (e) { console.error("[ai-transcribe] Deepgram error:", e); }
     }
 
@@ -101,10 +105,15 @@ Deno.serve(async (req) => {
         });
         if (res.ok) {
           const data = await res.json();
-          console.log("[ai-transcribe] ✓ Groq Whisper");
-          return json({ transcript: data.text ?? "" });
+          const transcript = data.text ?? "";
+          if (transcript.trim()) {
+            console.log("[ai-transcribe] ✓ Groq Whisper");
+            return json({ transcript });
+          }
+          console.warn("[ai-transcribe] Groq Whisper → 200 but empty transcript, trying next provider");
+        } else {
+          console.warn(`[ai-transcribe] Groq Whisper → ${res.status}`);
         }
-        console.warn(`[ai-transcribe] Groq Whisper → ${res.status}`);
       } catch (e) { console.error("[ai-transcribe] Groq Whisper error:", e); }
     }
 
@@ -121,14 +130,19 @@ Deno.serve(async (req) => {
         );
         if (res.ok) {
           const data = await res.json();
-          console.log("[ai-transcribe] ✓ HuggingFace Whisper");
-          return json({ transcript: data.text ?? "" });
+          const transcript = data.text ?? "";
+          if (transcript.trim()) {
+            console.log("[ai-transcribe] ✓ HuggingFace Whisper");
+            return json({ transcript });
+          }
+          console.warn("[ai-transcribe] HuggingFace → 200 but empty transcript, trying next provider");
+        } else {
+          if (res.status === 503) {
+            // Model cold-starting — wait once then fall through to Gemini
+            await sleep(3000);
+          }
+          console.warn(`[ai-transcribe] HuggingFace → ${res.status}`);
         }
-        if (res.status === 503) {
-          // Model cold-starting — wait once then fall through to Gemini
-          await sleep(3000);
-        }
-        console.warn(`[ai-transcribe] HuggingFace → ${res.status}`);
       } catch (e) { console.error("[ai-transcribe] HuggingFace error:", e); }
     }
 
@@ -154,14 +168,19 @@ Deno.serve(async (req) => {
         if (res.ok) {
           const data = await res.json();
           const transcript = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-          console.log("[ai-transcribe] ✓ Gemini multimodal");
-          return json({ transcript });
+          if (transcript.trim()) {
+            console.log("[ai-transcribe] ✓ Gemini multimodal");
+            return json({ transcript });
+          }
+          const blockReason = data.promptFeedback?.blockReason || data.candidates?.[0]?.finishReason;
+          console.warn(`[ai-transcribe] Gemini → 200 but empty transcript${blockReason ? ` (${blockReason})` : ""}`);
+        } else {
+          console.warn(`[ai-transcribe] Gemini → ${res.status}`);
         }
-        console.warn(`[ai-transcribe] Gemini → ${res.status}`);
       } catch (e) { console.error("[ai-transcribe] Gemini error:", e); }
     }
 
-    throw new Error("All transcription providers failed");
+    throw new Error("All transcription providers failed or returned an empty transcript");
 
   } catch (e) {
     console.error("[ai-transcribe] unhandled:", e);
