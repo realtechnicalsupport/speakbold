@@ -298,6 +298,7 @@ Deno.serve(async (req) => {
     const gamemode: Gamemode = body?.gamemode;
     const prompt: string = String(body?.prompt ?? "");
     const seat: "creator" | "joiner" = body?.seat === "joiner" ? "joiner" : "creator";
+    const opponentId: string = String(body?.opponentId ?? "");
     const payload: SidePayload = body?.payload ?? {};
     if (!duelId || !gamemode || !(gamemode in MODE_MULTIPLIERS)) {
       return json({ error: "duelId and a valid gamemode are required" }, 400);
@@ -315,15 +316,42 @@ Deno.serve(async (req) => {
     if (existing?.status === "done") return json(orientVerdict(existing, userId));
     if (existing && existing.status === "judging") return json({ status: "judging" });
 
-    // 3. Need both sides to judge.
+    // 3. Judge once both sides are in. If only one side ever submits, the other
+    //    player abandoned (e.g. tabbed out and never came back) — after a grace
+    //    window we judge the present player SOLO and score the absent side 0, so
+    //    the match always resolves instead of hanging on "waiting" forever.
+    //    ELO is deliberately NOT moved in this case (see skipElo below): the
+    //    absent player's id is client-supplied and unverifiable, so awarding or
+    //    deducting rating off it would be a grief/farm vector.
+    const ABANDON_MS = 18_000;
     const { data: sides } = await admin
       .from("pvp_match_sides").select("*").eq("duel_id", duelId);
-    const creatorRow = sides?.find((s) => s.seat === "creator");
-    const joinerRow = sides?.find((s) => s.seat === "joiner");
-    if (!creatorRow || !joinerRow) return json({ status: "waiting" });
+    let creatorRow = sides?.find((s) => s.seat === "creator");
+    let joinerRow = sides?.find((s) => s.seat === "joiner");
+    let abandonedSeat: "creator" | "joiner" | null = null;
 
-    const creatorId = creatorRow.user_id as string;
-    const joinerId = joinerRow.user_id as string;
+    if (!creatorRow || !joinerRow) {
+      const present = creatorRow ?? joinerRow;
+      // Neither side yet — shouldn't happen since we just upserted ours — wait.
+      if (!present) return json({ status: "waiting" });
+      const waitedMs = Date.now() - new Date(present.created_at as string).getTime();
+      // Hold for the grace window; need a real, distinct opponent id to fill in.
+      if (waitedMs < ABANDON_MS || !opponentId || opponentId === present.user_id) {
+        return json({ status: "waiting" });
+      }
+      // Synthesize the absent side as empty so the both-present path below runs.
+      abandonedSeat = present.seat === "creator" ? "joiner" : "creator";
+      const absentRow = {
+        duel_id: duelId, user_id: opponentId, seat: abandonedSeat,
+        gamemode, prompt: present.prompt || prompt, payload: {},
+        created_at: new Date().toISOString(),
+      };
+      if (abandonedSeat === "creator") creatorRow = absentRow;
+      else joinerRow = absentRow;
+    }
+
+    const creatorId = creatorRow!.user_id as string;
+    const joinerId = joinerRow!.user_id as string;
 
     // 4. Claim the duel exactly once via insert. A unique-violation means another
     //    invocation is already judging — tell the client to keep polling.
@@ -353,6 +381,18 @@ Deno.serve(async (req) => {
       return json({ error: "judging failed", detail: e instanceof Error ? e.message : String(e) }, 502);
     }
 
+    // Abandoned opponent: hard-zero the absent side (regardless of what the judge
+    // inferred from the empty transcript) so the present player always wins.
+    if (abandonedSeat === "creator") {
+      v.score = 0;
+      v.feedback = "You left the match, so your side was scored 0.";
+      v.strengths = "—";
+    } else if (abandonedSeat === "joiner") {
+      v.oppScore = 0;
+      v.oppFeedback = "Your opponent left the match, so they were scored 0.";
+      v.oppStrengths = "—";
+    }
+
     const winnerId = v.score > v.oppScore ? creatorId : v.oppScore > v.score ? joinerId : null;
 
     // 6. ELO for both, from DB-read ratings (never trust client).
@@ -373,15 +413,18 @@ Deno.serve(async (req) => {
     // Without this guard, computeEloChange applies the full expected-score penalty
     // to the higher-rated player (up to MAX_SINGLE_LOSS=-40) even on equal scores.
     const isTie = winnerId === null;
+    // Skip rating movement on a tie OR an abandonment (the absent side's identity
+    // is unverifiable — moving ELO off it would be a grief/farm vector).
+    const skipElo = isTie || abandonedSeat !== null;
 
-    const cDelta = isTie ? 0 : computeEloChange({ myElo: cElo, oppElo: jElo, myScore: v.score, oppScore: v.oppScore, matchesPlayed: cMatches ?? 0, mode: gamemode });
-    const jDelta = isTie ? 0 : computeEloChange({ myElo: jElo, oppElo: cElo, myScore: v.oppScore, oppScore: v.score, matchesPlayed: jMatches ?? 0, mode: gamemode });
-    const cNewElo = (!isTie && cUnranked) ? computePlacementElo(jElo, v.score, v.oppScore) : nudgeOffSentinel(Math.max(ELO_FLOOR, cElo + cDelta));
-    const jNewElo = (!isTie && jUnranked) ? computePlacementElo(cElo, v.oppScore, v.score) : nudgeOffSentinel(Math.max(ELO_FLOOR, jElo + jDelta));
-    // For the verdict row: unranked players who tied stay unranked (null), so the
-    // client doesn't display a phantom rating.
-    const cVerdictElo = (isTie && cUnranked) ? null : cNewElo;
-    const jVerdictElo = (isTie && jUnranked) ? null : jNewElo;
+    const cDelta = skipElo ? 0 : computeEloChange({ myElo: cElo, oppElo: jElo, myScore: v.score, oppScore: v.oppScore, matchesPlayed: cMatches ?? 0, mode: gamemode });
+    const jDelta = skipElo ? 0 : computeEloChange({ myElo: jElo, oppElo: cElo, myScore: v.oppScore, oppScore: v.score, matchesPlayed: jMatches ?? 0, mode: gamemode });
+    const cNewElo = (!skipElo && cUnranked) ? computePlacementElo(jElo, v.score, v.oppScore) : nudgeOffSentinel(Math.max(ELO_FLOOR, cElo + cDelta));
+    const jNewElo = (!skipElo && jUnranked) ? computePlacementElo(cElo, v.oppScore, v.score) : nudgeOffSentinel(Math.max(ELO_FLOOR, jElo + jDelta));
+    // For the verdict row: unranked players who didn't move (tie/abandon) stay
+    // unranked (null), so the client doesn't display a phantom rating.
+    const cVerdictElo = (skipElo && cUnranked) ? null : cNewElo;
+    const jVerdictElo = (skipElo && jUnranked) ? null : jNewElo;
 
     // 7. Persist: arena_battles row (creator-oriented), both profiles, verdict.
     await admin.from("arena_battles").insert({
@@ -391,7 +434,7 @@ Deno.serve(async (req) => {
       opp_strengths: v.oppStrengths?.slice(0, 2000) ?? null, opp_feedback: v.oppFeedback?.slice(0, 4000) ?? null,
       example_speech: v.exampleSpeech?.slice(0, 4000) ?? null, winner_id: winnerId,
     });
-    if (!isTie) {
+    if (!skipElo) {
       await Promise.all([
         admin.from("profiles").update({ elo: cNewElo }).eq("id", creatorId),
         admin.from("profiles").update({ elo: jNewElo }).eq("id", joinerId),

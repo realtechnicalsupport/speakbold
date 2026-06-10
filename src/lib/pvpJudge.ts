@@ -27,6 +27,10 @@ export interface SubmitForJudgingArgs {
   /** True if this client is the duel CREATOR (seat). Both clients derive this
    *  from the same shared duel object, so they always agree. */
   isCreator: boolean;
+  /** The OTHER player's user id. Lets the server resolve + score the absent side
+   *  if the opponent abandons (tabs out and never submits) — see the abandonment
+   *  path in the judge-match edge function. */
+  opponentId?: string;
   /** Mode-specific content the server judges. Debate → { opening, rebuttal,
    *  stand }; others → { transcript, wpm, fillers }. Plus name/elo/avatar. */
   payload: Record<string, unknown>;
@@ -58,6 +62,7 @@ export async function submitForJudging(
     gamemode: args.gamemode,
     prompt: args.prompt,
     seat: args.isCreator ? "creator" : "joiner",
+    opponentId: args.opponentId,
     payload: args.payload,
   });
 

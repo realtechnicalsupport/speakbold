@@ -96,11 +96,14 @@ const Arena = () => {
   }, []);
 
   // Global ELO update listener for the lobby.
-  // Buffer the update whenever a battle overlay (drill OR debate) is open
-  // so the animation fires on the lobby page after the overlay closes.
+  // Buffer the update whenever a battle overlay is open — a duel/PvP-debate
+  // (activeDrill), the PvE Debate Hall (debateConfig), OR a custom "new session"
+  // (isCreating, which has no activeDrill) — so the animation fires on the lobby
+  // page AFTER the overlay closes instead of behind it (the custom case used to
+  // pop invisibly under the full-screen drill).
   useEffect(() => {
     const handleEloUpdate = ({ change, newElo, outcome }: ArenaEvents["elo:updated"]) => {
-      if (activeDrill || debateConfig) {
+      if (activeDrill || debateConfig || isCreating) {
         pendingUpdate.current = { change, newElo, outcome };
       } else {
         setEloUpdate({ change, newElo, outcome });
@@ -109,7 +112,7 @@ const Arena = () => {
     };
     arenaEmitter.on("elo:updated", handleEloUpdate);
     return () => arenaEmitter.off("elo:updated", handleEloUpdate);
-  }, [activeDrill, debateConfig]);
+  }, [activeDrill, debateConfig, isCreating]);
 
   // ── Sound: ELO gain / loss when the banner appears ───────────────────────
   useEffect(() => {

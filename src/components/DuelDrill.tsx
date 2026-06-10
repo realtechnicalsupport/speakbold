@@ -416,6 +416,7 @@ export const DuelDrill = ({
       // path below is now PvE/solo only.
       if (isPvp && duel) {
         const isCreator = duel.creator.id === user?.id;
+        const opponentId = isCreator ? duel.challenger?.id : duel.creator.id;
         const myWords = myTranscript.split(/\s+/).filter(Boolean).length;
         const recSecs = lastRecording?.durationMs ? lastRecording.durationMs / 1000 : duration;
         const wpm = recSecs > 3 ? Math.round((myWords / recSecs) * 60) : 0;
@@ -427,6 +428,7 @@ export const DuelDrill = ({
             gamemode: (mode || duel.gamemode || "standard") as PvpGamemode,
             prompt: promptToUse,
             isCreator,
+            opponentId,
             payload: { transcript: myTranscript, wpm, fillers, name: userName, elo: userElo, avatar: "👤" },
           }, { onWaiting: () => setAnalyzeText("WAITING FOR YOUR OPPONENT TO FINISH…") });
           setVerdictResult({

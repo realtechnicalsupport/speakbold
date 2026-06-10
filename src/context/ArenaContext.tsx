@@ -554,8 +554,12 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const completeDuel = async (duelId: string, challengerName: string, creatorScore: number, challengerScore: number, feedback: string, duelObj: Duel, explicitWinner?: string, details?: { strengths?: string, oppStrengths?: string, oppFeedback?: string, exampleSpeech?: string }) => {
     if (!user) return;
     const isChallenger = duelObj.challenger?.id === user?.id;
-    const isAI = duelId.includes("ai");
+    // Custom "new session" drills are played against the AI Debater, so they
+    // count as an AI battle for rating (awarded / tied / penalised like any PvE
+    // match) — previously they were ELO-neutral practice. isCustom is kept only
+    // to label the result toast; it no longer exempts the match from rating.
     const isCustom = duelId.includes("custom");
+    const isAI = duelId.includes("ai") || isCustom;
     const myScore = isChallenger ? challengerScore : creatorScore;
     const oppScore = isChallenger ? creatorScore : challengerScore;
 
@@ -567,11 +571,16 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
 
     const myElo = profile.elo ?? STARTING_ELO;
-    const oppElo = isChallenger ? (duelObj.creator.elo ?? STARTING_ELO) : (duelObj.challenger?.elo ?? STARTING_ELO);
+    let oppElo = isChallenger ? (duelObj.creator.elo ?? STARTING_ELO) : (duelObj.challenger?.elo ?? STARTING_ELO);
+    // The custom "new session" AI opponent is created with elo 0; anchor it to a
+    // real rating so placement/ELO match the server (which falls back to
+    // STARTING_ELO for an AI opponent without a set rating). Real PvE personas
+    // carry a proper elo (>0) and are unaffected.
+    if (isAI && oppElo <= 0) oppElo = STARTING_ELO;
 
-    // Custom solo sessions and ties don't move ELO.
-    // Ties are "not counted" — no W/L change and no rating movement.
-    const eloChange = (isCustom || tie) ? 0 : computeEloChange({
+    // Only ties are "not counted" (no W/L change, no rating movement). Custom
+    // sessions now move ELO like any AI battle (awarded / penalised).
+    const eloChange = tie ? 0 : computeEloChange({
       myElo,
       oppElo,
       myScore,
@@ -583,19 +592,17 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
 
     // First rated battle for an unranked account → PLACE them from the result
-    // (optimistic mirror of the server's authoritative placement). Ties/custom
-    // sessions never place: they stay unranked until a real, decisive match.
-    const isPlacement = !profile.ranked && !isCustom && !tie;
-    const newElo = isCustom
-      ? myElo
-      : isPlacement
-        ? computePlacementElo({ oppElo, myScore, oppScore, isAi: isAI })
-        : nudgeOffSentinel(Math.max(ELO_FLOOR, myElo + eloChange));
+    // (optimistic mirror of the server's authoritative placement) — including a
+    // LOSS, which still earns a (lower) starting rank. Only ties skip placement.
+    const isPlacement = !profile.ranked && !tie;
+    const newElo = isPlacement
+      ? computePlacementElo({ oppElo, myScore, oppScore, isAi: isAI })
+      : nudgeOffSentinel(Math.max(ELO_FLOOR, myElo + eloChange));
 
     // Feed this battle into the AI Coach (opponent-weighted so a hard matchup
     // doesn't misleadingly tank the skill radar). Real battles only — custom
     // solo sessions aren't a competitive skill signal.
-    if (!isCustom && myScore > 0) {
+    if (myScore > 0) {
       logSkillEvent({
         userId: user.id,
         source: "arena",
@@ -610,10 +617,10 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       // UI moves instantly; server-authoritative values reconcile below.
       setProfile(prev => ({
         ...prev,
-        elo:    isCustom ? prev.elo : newElo,
-        // A decisive (non-tie, non-custom) battle earns the account its first
-        // real rating — flip ranked so the Arena/leaderboard stop hiding it.
-        ranked: prev.ranked || (!isCustom && !tie),
+        elo:    newElo,
+        // Any decisive (non-tie) battle earns the account its first real rating —
+        // flip ranked so the Arena/leaderboard stop hiding it.
+        ranked: prev.ranked || !tie,
         wins:   won  ? prev.wins   + 1 : prev.wins,
         losses: (!won && !tie) ? prev.losses + 1 : prev.losses,
       }));
@@ -661,7 +668,9 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         duelObj,
         isAi: isAI,
         isTie: tie,
-        isCustom,
+        // Custom sessions are rated as AI battles now — never tell the server to
+        // skip ELO for them.
+        isCustom: false,
         myScore,
         oppScore,
         opponent: {
@@ -700,7 +709,7 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
 
       // Reconcile with the server-authoritative ELO if it differs
-      if (!isCustom && serverElo !== newElo) {
+      if (serverElo !== newElo) {
         setProfile(prev => ({ ...prev, elo: serverElo }));
       }
       const persistedElo = serverElo;

@@ -950,6 +950,7 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, roundFormat
           gamemode: "debate",
           prompt,
           isCreator: peer.isHost,
+          opponentId: peer.opponentId,
           payload: { opening: t.userOpening, rebuttal: t.userRebuttal, stand: userStand, name: userName, elo: userElo, avatar: "👤" },
         }, { onWaiting: () => setAnalyzeText("WAITING FOR YOUR OPPONENT…") });
         setVerdict({
