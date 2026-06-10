@@ -282,6 +282,17 @@ const IMPROMPTU_FRAMEWORKS = [
   { name: "Problem-Solution-Benefit", steps: ["Problem - Identify the issue", "Solution - Propose your solution", "Benefit - Explain the positive outcome"] },
 ];
 
+// Many users are NOT fluent English speakers (the app is used in a multilingual
+// region). A topic they can't quickly read is a topic they can't speak to — the
+// #1 reported friction. Every generated speaking prompt must clear this bar.
+// Reused across the topic generators so the rule stays consistent.
+const PLAIN_ENGLISH_RULES = `WRITE FOR A NON-NATIVE ENGLISH SPEAKER (about CEFR A2–B1 level):
+- Use short, common, everyday words. No academic, abstract, formal, or rare vocabulary.
+- ONE short sentence. Aim for 8–12 words; never exceed 14.
+- Keep it concrete and about everyday life, so anyone can start talking right away.
+- No idioms, metaphors, wordplay, double negatives, or "clever" phrasing.
+- If a 12-year-old couldn't read it once and instantly know what to say, make it simpler.`;
+
 export async function generateInterviewQuestions(category: string, difficulty: string, count: number = 3): Promise<InterviewQuestion[]> {
   const difficultyDescription: Record<string, string> = {
     warmup: "easy, friendly opener questions to build confidence",
@@ -302,7 +313,9 @@ Return ONLY a valid JSON array with this exact structure, no markdown or extra t
   }
 ]
 
-Make the questions realistic and commonly asked in professional interviews. Key points should be actionable tips for answering well.`;
+Make the questions realistic and commonly asked in professional interviews. Key points should be actionable tips for answering well.
+
+Write for non-native English speakers: use simple, clear, everyday words and keep each question to one short sentence. No idioms, slang, or complex vocabulary.`;
   const response = await callAI(prompt, 0, 0.8);
   const jsonMatch = response.match(/\[[\s\S]*\]/);
   if (!jsonMatch) throw new Error("Invalid response format from AI");
@@ -327,7 +340,11 @@ Return ONLY a valid JSON array with this exact structure, no markdown or extra t
   }
 ]
 
-Make drills practical and focused on real-world speaking scenarios. Duration should be 60, 90, or 120 seconds.`;
+Make drills practical and focused on everyday speaking situations. Duration should be 60, 90, or 120 seconds.
+
+IMPORTANT — write for non-native English speakers. The "prompt" must follow these rules:
+${PLAIN_ENGLISH_RULES}
+Keep "objective" and each "step" to one short, simple sentence using everyday words too.`;
   const response = await callAI(prompt, 0, 0.8);
   const jsonMatch = response.match(/\[[\s\S]*\]/);
   if (!jsonMatch) throw new Error("Invalid response format from AI");
@@ -348,7 +365,11 @@ Return ONLY a valid JSON array with this exact structure, no markdown or extra t
   }
 ]
 
-Topics should be thought-provoking and suitable for 60-90 second impromptu speeches. Each must be a complete, instantly-understandable question or phrase in plain English — challenging in idea, never cryptic, vague, or riddle-like in wording. Keep it concise (max 12 words).`;
+Topics should be interesting but EASY to speak about for 60-90 seconds.
+
+${PLAIN_ENGLISH_RULES}
+
+Each topic is a single clear question or phrase the speaker can react to immediately.`;
   const response = await callAI(prompt, 0, 0.8);
   const jsonMatch = response.match(/\[[\s\S]*\]/);
   if (!jsonMatch) throw new Error("Invalid response format from AI");
@@ -395,26 +416,25 @@ Format by gamemode:
 - pitch:    Start with "Pitch a product or service that..." solving a specific, relatable problem.
 - standard: A clear, thought-provoking question with real stakes.
 
-DIFFICULTY: Keep it intellectually challenging — it should be hard to argue or answer *well* and reward a sharp thinker. The challenge must come from the IDEA, never from confusing wording.
-
 CLARITY (most important):
-- Write ONE complete, grammatically correct sentence in plain English.
-- A listener must understand exactly what they're being asked within 2 seconds.
-- Be specific and concrete. No riddles, no cryptic metaphors, no abstract word-salad.
+${PLAIN_ENGLISH_RULES}
+
+The topic can be fun or interesting, but the WORDS must stay simple and the sentence short — the challenge is in having an OPINION, not in decoding the question.
 - Avoid clichés (no climate change, AI ethics, leadership, failure, social media addiction, school uniforms).
-- Use the topic inspiration and angle for flavour only — they must never make the sentence confusing.
+- Use the topic inspiration and angle for flavour only — they must never make the sentence longer or harder to read.
 
-GOOD examples (clear yet challenging):
+GOOD examples (simple, short, easy to answer):
+- "Would you rather always be 10 minutes early or 10 minutes late?"
+- "What is one thing schools should stop teaching?"
+- "Is it better to have a few close friends or many friends?"
+- "Pitch a product that helps people wake up on time."
+- "This House believes homework should be banned."
+
+BAD examples (too long, abstract, or cryptic — never write anything like these):
 - "This House believes ambition does more harm than good."
-- "Should people be allowed to know the exact date of their death?"
-- "Is it better to be a big fish in a small pond, or a small fish in a big one?"
-- "Pitch a product or service that helps people end conversations politely."
-
-BAD examples (vague/cryptic — never write anything like these):
 - "If your doppelganger lives a better life, who wins?"
-- "If Zeus swapped souls with a barista, who orders the lightning?"
 
-Return ONLY the prompt text. No quotes. Maximum 20 words.`;
+Return ONLY the prompt text. No quotes. Maximum 14 words.`;
 
   return callAI(systemPrompt, 0, 0.9); // varied but coherent — temp 1.2 produced cryptic word-salad
 }

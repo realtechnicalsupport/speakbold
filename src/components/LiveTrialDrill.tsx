@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mic, X, Lock, ArrowRight, RotateCcw, Gauge, Hash, AudioWaveform, AlertTriangle, Loader2 } from "lucide-react";
-import { getRandomTopic, TARGET_WPM, type ImpromptuTopic } from "@/data/impromptuTopics";
+import { getRandomTrialTopic, TARGET_WPM, type ImpromptuTopic } from "@/data/impromptuTopics";
 import { speechRecognitionSupported } from "@/lib/speechRecognition";
 import { track } from "@/lib/analytics";
 import { transcribeAudio } from "@/services/geminiService";
@@ -100,7 +100,7 @@ interface Props {
 
 export const LiveTrialDrill = ({ open, onClose }: Props) => {
   const [phase, setPhase] = useState<Phase>("intro");
-  const [topic, setTopic] = useState<ImpromptuTopic>(() => getRandomTopic("Easy"));
+  const [topic, setTopic] = useState<ImpromptuTopic>(() => getRandomTrialTopic());
   const [secondsLeft, setSecondsLeft] = useState(TRIAL_SECONDS);
   const [transcript, setTranscript] = useState("");
   const [interim, setInterim] = useState("");
@@ -327,7 +327,7 @@ export const LiveTrialDrill = ({ open, onClose }: Props) => {
     setTranscript("");
     setInterim("");
     setSecondsLeft(TRIAL_SECONDS);
-    if (newTopic) setTopic(getRandomTopic("Easy"));
+    if (newTopic) setTopic(getRandomTrialTopic());
     setPhase(supported ? "intro" : "unsupported");
   }, [teardownAll, supported]);
 
@@ -336,7 +336,7 @@ export const LiveTrialDrill = ({ open, onClose }: Props) => {
     if (open) {
       setPhase(supported ? "intro" : "unsupported");
       setMetrics(null);
-      setTopic(getRandomTopic("Easy"));
+      setTopic(getRandomTrialTopic());
     } else {
       teardownAll();
     }

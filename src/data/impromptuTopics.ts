@@ -548,6 +548,42 @@ export const TOPIC_BANK: ImpromptuTopic[] = [
   },
 ];
 
+// ── Trial prompts ────────────────────────────────────────────────────────────
+// Shown to anonymous visitors in the 30-second landing-page trial — often the
+// app's very first impression, and often a non-native English speaker. These
+// are deliberately the SIMPLEST prompts in the app: short, concrete, everyday,
+// answerable in one breath. Kept separate from the signed-in "Easy" pool (which
+// runs longer and more abstract) so the trial never opens with a wall of text.
+const TRIAL_PROMPTS: string[] = [
+  "What is your favorite food, and why?",
+  "Talk about your best friend.",
+  "What did you do last weekend?",
+  "Describe your favorite place to relax.",
+  "What is your favorite hobby?",
+  "Talk about a movie or show you like.",
+  "What is one thing that makes you happy?",
+  "Describe your morning routine.",
+  "What is your dream job?",
+  "Talk about a place you want to visit.",
+  "What is your favorite season, and why?",
+  "Describe a gift you were happy to receive.",
+];
+
+export const TRIAL_TOPICS: ImpromptuTopic[] = TRIAL_PROMPTS.map((text, i) => ({
+  id: `trial-${i + 1}`,
+  text,
+  category: "Personal",
+  difficulty: "Easy",
+  framework: "PREP",
+  hints: [],
+  curveballs: [],
+}));
+
+/** A short, simple prompt for the anonymous landing-page trial. */
+export function getRandomTrialTopic(): ImpromptuTopic {
+  return TRIAL_TOPICS[Math.floor(Math.random() * TRIAL_TOPICS.length)];
+}
+
 export function getRandomTopic(difficulty: Difficulty): ImpromptuTopic {
   const pool = TOPIC_BANK.filter(t => t.difficulty === difficulty);
   return pool[Math.floor(Math.random() * pool.length)];
