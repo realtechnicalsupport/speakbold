@@ -10,6 +10,8 @@ import { setRecordingActive, getActiveStream } from "@/lib/recordingState";
 import { setTimerActive } from "@/lib/timerState";
 import { speechRecognitionSupported } from "@/lib/speechRecognition";
 import { submitForJudging } from "@/lib/pvpJudge";
+import { computeRemaining } from "@/lib/battleClock";
+import { useOpponentForfeit, buildForfeitWinDuel } from "@/lib/battleForfeit";
 import { MicrophoneBorder } from "@/components/MicrophoneBorder";
 import { RecorderPanel } from "@/components/RecorderPanel";
 import { SpamButton } from "@/components/SpamButton";
@@ -202,8 +204,7 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, roundFormat
 
   const [secondsLeft, setSecondsLeft] = useState<number>(() => {
     if (_validSavedPhase && _savedPhaseStart) {
-      const elapsed = (Date.now() - parseInt(_savedPhaseStart, 10)) / 1000;
-      return Math.max(0, Math.ceil(phaseConfig[_savedPhaseRaw as DebatePhase].duration - elapsed));
+      return computeRemaining(parseInt(_savedPhaseStart, 10), phaseConfig[_savedPhaseRaw as DebatePhase].duration);
     }
     return phaseConfig[phaseOrder[0]].duration;
   });
@@ -361,8 +362,7 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, roundFormat
       const cur = phaseRef.current;
       const curCfg = phaseConfig[cur];
       if (curCfg.duration > 0 && cur !== "judging" && cur !== "results" && cur !== "prep") {
-        const elapsed = (Date.now() - phaseStartRef.current) / 1000;
-        const remaining = Math.max(0, Math.ceil(curCfg.duration - elapsed));
+        const remaining = computeRemaining(phaseStartRef.current, curCfg.duration);
         setSecondsLeft(remaining);
         if (remaining <= 0) { advancePhaseRef.current(); return; }
       }
@@ -517,8 +517,7 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, roundFormat
     sfx.resetCountdown();
 
     const id = window.setInterval(() => {
-      const elapsed = (Date.now() - phaseStartRef.current) / 1000;
-      const remaining = Math.max(0, Math.ceil(cfg.duration - elapsed));
+      const remaining = computeRemaining(phaseStartRef.current, cfg.duration);
       setSecondsLeft(remaining);
       if (remaining <= 0) {
         clearInterval(id);
@@ -1268,17 +1267,15 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, roundFormat
   // so the old battle-result mirror listener is gone.)
 
   // ── PvP: opponent forfeited (left the debate) → I win ─────────────────────
-  useEffect(() => {
-    if (!isPeer || !peer) return;
-    const onForfeit = (p: ArenaEvents["arena:battle-forfeit"]) => {
-      if (p.duelId !== peer.duelId || p.userId !== peer.opponentId) return;
+  // Shared handshake (same module DuelDrill uses). Fires once.
+  useOpponentForfeit({
+    enabled: isPeer,
+    duelId: peer?.duelId,
+    selfId: user?.id,
+    opponentId: peer?.opponentId,
+    onForfeit: () => {
       aiAbortRef.current = true;
-
-      // Show victory UI immediately
-      toast({
-        title: "Opponent left",
-        description: "You win by forfeit! ELO has been awarded.",
-      });
+      toast({ title: "Opponent left", description: "You win by forfeit! ELO has been awarded." });
       setVerdict({
         score: 100, oppScore: 0, won: true, byForfeit: true,
         feedback: `${opponent.name} left the debate. You win by forfeit.`,
@@ -1287,43 +1284,20 @@ export const DebateBattle = ({ prompt, userStand, opponent, userElo, roundFormat
       sfx.win();
       setPhase("results");
 
-      // Persist the win and award ELO — previously missing, causing the
-      // remaining player to be stuck with no outcome recorded.
-      if (handleForfeit) {
-        const userName = user?.email?.split("@")[0] || "You";
-        const synthDuel: Duel = {
-          id: peer.duelId,
-          prompt,
+      // Persist the win + award ELO. buildForfeitWinDuel shapes the synthetic
+      // duel the way ArenaContext.handleForfeit expects (creator = me).
+      if (handleForfeit && peer) {
+        handleForfeit(peer.duelId, false, buildForfeitWinDuel({
+          duelId: peer.duelId,
           gamemode: "debate",
-          creator: {
-            id: user?.id,
-            name: userName,
-            avatar: "👤",
-            elo: userElo,
-            rank: getRankFromElo(userElo),
-            score: 100,
-          },
-          challenger: {
-            id: peer.opponentId,
-            name: opponent.name,
-            avatar: opponent.avatar,
-            elo: opponent.elo,
-            rank: opponent.rank,
-            score: 0,
-          },
-          status: "completed",
-          winner: user?.id ?? null,
+          prompt,
+          me: { id: user?.id, name: user?.email?.split("@")[0] || "You", elo: userElo, rank: getRankFromElo(userElo) },
+          opponent: { id: peer.opponentId, name: opponent.name, avatar: opponent.avatar, elo: opponent.elo, rank: opponent.rank },
           feedback: `${opponent.name} left the debate. You win by forfeit.`,
-          timestamp: Date.now(),
-        };
-        // isMe = false → opponent forfeited → I get the win ELO
-        handleForfeit(peer.duelId, false, synthDuel);
+        }));
       }
-    };
-    arenaEmitter.on("arena:battle-forfeit", onForfeit);
-    return () => arenaEmitter.off("arena:battle-forfeit", onForfeit);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPeer, peer]);
+    },
+  });
 
   // ── Round-transition banner ───────────────────────────────────────────────
   // Announce the start of Round 2 (rebuttals) with a short, non-blocking beat

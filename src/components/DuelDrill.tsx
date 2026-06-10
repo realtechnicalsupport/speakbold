@@ -19,6 +19,9 @@ import { ModelSpeech } from "@/components/ModelSpeech";
 import { arenaEmitter, type ArenaEvents } from "@/lib/events";
 import { setTimerActive } from "@/lib/timerState";
 import { submitForJudging, type PvpGamemode } from "@/lib/pvpJudge";
+import { useWallClockCountdown } from "@/lib/battleClock";
+import { useOpponentForfeit } from "@/lib/battleForfeit";
+import { useReadySync } from "@/hooks/useReadySync";
 
 // A real PvP match has two human players — both creator and challenger carry
 // auth UUIDs. Solo/AI duels never do (the AI side is "ai"), so this cleanly
@@ -71,22 +74,46 @@ export const DuelDrill = ({
 
   const [finished, setFinished] = useState(() => sessionStorage.getItem("arena_finished") === "true");
   const [running, setRunning] = useState(() => sessionStorage.getItem("arena_running") === "true");
-  const [seconds, setSeconds] = useState(() => {
-    const saved = sessionStorage.getItem("arena_seconds");
-    const startTime = sessionStorage.getItem("arena_start_time");
-    if (saved && startTime && sessionStorage.getItem("arena_running") === "true") {
-      const elapsed = (Date.now() - parseInt(startTime)) / 1000;
-      const remaining = Math.max(0, duration - elapsed);
-      return Math.floor(remaining);
-    }
-    return saved ? parseInt(saved) : duration;
+  // Wall-clock anchor (epoch ms) for the countdown. Restored from storage when a
+  // running drill resumes after a tab-discard; otherwise set the instant the
+  // drill goes live. The shared useWallClockCountdown hook (below) derives the
+  // displayed seconds from this, so the timer never drifts and keeps running
+  // through tab-outs / screen locks.
+  const [startAt, setStartAt] = useState<number | null>(() => {
+    const st = sessionStorage.getItem("arena_start_time");
+    return sessionStorage.getItem("arena_running") === "true" && st ? parseInt(st, 10) : null;
   });
   const [recordEnabled, setRecordEnabled] = useState(true);
-  const idRef = useRef<number | null>(null);
   const recorderStartRef = useRef<() => void>();
   const recorderStopRef = useRef<() => void>();
   const wasRecording = useRef(false);
   const hasFiredCount = useRef(sessionStorage.getItem("arena_has_fired_count") === "true");
+
+  // Shared timer (single source of truth with DebateBattle's clock). onExpire
+  // fires once when time's up: end the drill + stop the recorder, which triggers
+  // transcription and the verdict flow via the `finished` effect below.
+  const seconds = useWallClockCountdown({
+    startAt,
+    durationSec: duration,
+    active: running && !finished,
+    onExpire: () => {
+      setRunning(false);
+      setFinished(true);
+      if (recordEnabled) {
+        setTimeout(() => { recorderStopRef.current?.(); wasRecording.current = false; refresh(); }, 100);
+      }
+    },
+  });
+
+  // Anchor the wall clock the moment the drill goes live (and persist it so a
+  // tab-discard mid-drill resumes on the same timeline).
+  useEffect(() => {
+    if (running && startAt == null) {
+      const now = Date.now();
+      setStartAt(now);
+      try { sessionStorage.setItem("arena_start_time", String(now)); } catch { /* private mode */ }
+    }
+  }, [running, startAt]);
 
   const [customPrompt, setCustomPrompt] = useState("");
   const [debateStand, setDebateStand] = useState<"FOR" | "AGAINST">("FOR");
@@ -126,6 +153,10 @@ export const DuelDrill = ({
     ? duel?.challenger
     : duel?.creator || (isCreating ? { name: "AI Debater", avatar: "🤖", rank: { name: "Adaptive", tier: "AI" } } : null);
 
+  // AI persona, synthetic AI duel, or custom-solo session → no human peer to
+  // sync with. Drives both the ready-up fake-ready fallback and the AI start path.
+  const isAIOpponent = isCreating || !!duel?.id?.startsWith("ai-") || !!opponent?.name?.includes("(AI)");
+
   const [phase, setPhase] = useState<"drilling" | "analyzing" | "results">("drilling");
   const [verdictResult, setVerdictResult] = useState<{ score: number, oppScore?: number, feedback: string, won: boolean, tie?: boolean, strengths: string, oppStrengths: string, exampleSpeech?: string, byForfeit?: boolean } | null>(null);
   // Once a forfeit verdict is shown, ignore late AI-result broadcasts so the
@@ -148,8 +179,17 @@ export const DuelDrill = ({
     if (!isCreating) return true;
     return sessionStorage.getItem("arena_drafting_done") === "true";
   });
-  const [userReady, setUserReady] = useState(() => sessionStorage.getItem("arena_user_ready") === "true");
-  const [opponentReady, setOpponentReady] = useState(() => sessionStorage.getItem("arena_opponent_ready") === "true");
+  // Shared ready-up handshake. Re-broadcasts my ready until the peer acks (beats
+  // the late-mount race that used to kick the inviter), and only ever fakes the
+  // opponent's readiness for AI/custom — never a real PvP peer.
+  const { userReady, opponentReady, markReady } = useReadySync({
+    duelId: duel?.id,
+    selfId: user?.id,
+    isAiOpponent: isAIOpponent,
+    sendReadyStatus,
+    initialUserReady: sessionStorage.getItem("arena_user_ready") === "true",
+    initialOpponentReady: sessionStorage.getItem("arena_opponent_ready") === "true",
+  });
 
   // Sound: win / loss when verdict arrives
   useEffect(() => {
@@ -169,9 +209,8 @@ export const DuelDrill = ({
       sessionStorage.setItem("arena_running", running.toString());
       sessionStorage.setItem("arena_finished", finished.toString());
       sessionStorage.setItem("arena_seconds", seconds.toString());
-      if (running && !sessionStorage.getItem("arena_start_time")) {
-        sessionStorage.setItem("arena_start_time", (Date.now() - (duration - seconds) * 1000).toString());
-      }
+      // arena_start_time is the authoritative wall-clock anchor; it's written by
+      // the anchor effect the moment the drill goes live (see above).
     }
   }, [isCreating, duel, draftingDone, userReady, opponentReady, running, finished, seconds, duration]);
 
@@ -214,47 +253,39 @@ export const DuelDrill = ({
       }
     };
 
-    const handleOpponentForfeit = ({ duelId, userId }: ArenaEvents["arena:battle-forfeit"]) => {
-      if (duel && duelId === duel.id && userId !== user?.id) {
-        forfeitedRef.current = true;
-        handleForfeit(duel.id, false, duel);
-        toast({ title: "Opponent Forfeited", description: "You win by default! (+ELO awarded)", variant: "default" });
-        // Show a victory-by-forfeit verdict screen instead of closing
-        setVerdictResult({
-          score: 0,
-          oppScore: 0,
-          feedback: `${opponent?.name ?? "Your opponent"} forfeited the match. You win by default.`,
-          won: true,
-          strengths: "Victory by forfeit",
-          oppStrengths: "—",
-          byForfeit: true,
-        });
-        setPhase("results");
-      }
-    };
-
     arenaEmitter.on("arena:battle-result", handleResult);
     arenaEmitter.on("arena:battle-analyzing", handleAnalyzing);
     arenaEmitter.on("arena:battle-transcript", handleTranscript);
-    arenaEmitter.on("arena:battle-forfeit", handleOpponentForfeit);
     return () => {
       arenaEmitter.off("arena:battle-result", handleResult);
       arenaEmitter.off("arena:battle-analyzing", handleAnalyzing);
       arenaEmitter.off("arena:battle-transcript", handleTranscript);
-      arenaEmitter.off("arena:battle-forfeit", handleOpponentForfeit);
     };
   }, [duel, isCreating, user?.id, phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Sync ready status from opponent
-  useEffect(() => {
-    const handleReady = ({ duelId, userId, isReady }: ArenaEvents["arena:ready-status"]) => {
-      if (duelId === duel?.id && userId !== user?.id) {
-        setOpponentReady(isReady);
-      }
-    };
-    arenaEmitter.on("arena:ready-status", handleReady);
-    return () => arenaEmitter.off("arena:ready-status", handleReady);
-  }, [duel?.id, user?.id]);
+  // Opponent forfeited → I win by default (shared handshake). Ready-status sync
+  // is handled inside useReadySync above.
+  useOpponentForfeit({
+    enabled: !!duel,
+    duelId: duel?.id,
+    selfId: user?.id,
+    onForfeit: () => {
+      if (!duel) return;
+      forfeitedRef.current = true;
+      handleForfeit(duel.id, false, duel);
+      toast({ title: "Opponent Forfeited", description: "You win by default! (+ELO awarded)", variant: "default" });
+      setVerdictResult({
+        score: 0,
+        oppScore: 0,
+        feedback: `${opponent?.name ?? "Your opponent"} forfeited the match. You win by default.`,
+        won: true,
+        strengths: "Victory by forfeit",
+        oppStrengths: "—",
+        byForfeit: true,
+      });
+      setPhase("results");
+    },
+  });
 
   const [micError, setMicError] = useState(false);
 
@@ -278,15 +309,6 @@ export const DuelDrill = ({
     return () => setTimerActive(false);
   }, []);
 
-  useEffect(() => {
-    if (userReady && !opponentReady) {
-      const isAI = opponent?.name.includes("(AI)") || isCreating;
-      const delay = isAI ? 500 : 4000;
-      const timer = setTimeout(() => setOpponentReady(true), delay);
-      return () => clearTimeout(timer);
-    }
-  }, [userReady, opponentReady, opponent]); // eslint-disable-line react-hooks/exhaustive-deps
-
   // Ready-up countdown
   useEffect(() => {
     if (phase !== "drilling" || (userReady && opponentReady)) return;
@@ -306,8 +328,6 @@ export const DuelDrill = ({
     const timer = setInterval(() => setReadyTimer(prev => prev - 1), 1000);
     return () => clearInterval(timer);
   }, [readyTimer, userReady, opponentReady, phase, onClose, isCreating, duel?.id, draftingDone]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const isAIOpponent = duel?.id.startsWith("ai-") || isCreating;
 
   useEffect(() => {
     if (userReady && opponentReady && isAIOpponent && phase === "drilling"
@@ -552,58 +572,8 @@ export const DuelDrill = ({
     if (finished && lastRecording && phase === "drilling") generateVerdict();
   }, [finished, lastRecording, phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const startTimeRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    if (!running || finished) {
-      startTimeRef.current = null;
-      if (idRef.current) clearInterval(idRef.current);
-      return;
-    }
-
-    if (!startTimeRef.current) {
-      startTimeRef.current = Date.now() - ((duration - seconds) * 1000);
-    }
-
-    idRef.current = window.setInterval(() => {
-      const elapsed = Math.floor((Date.now() - startTimeRef.current!) / 1000);
-      const remaining = Math.max(0, duration - elapsed);
-      setSeconds(remaining);
-      if (remaining <= 0) {
-        setRunning(false);
-        setFinished(true);
-        if (recordEnabled) {
-          setTimeout(() => { recorderStopRef.current?.(); wasRecording.current = false; refresh(); }, 100);
-        }
-      }
-    }, 100);
-
-    return () => { if (idRef.current) clearInterval(idRef.current); };
-  }, [running, finished, recordEnabled, refresh, duration]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Keep the duel running across tab-outs / app-switches / screen-locks ─────
-  // The timer is wall-clock (startTimeRef), so it never drifts — but while the
-  // tab is hidden the browser throttles, then freezes, the interval. On return
-  // we recompute from the wall clock immediately so the countdown never looks
-  // paused, and a turn whose time fully elapsed while we were away finishes at
-  // once instead of resuming on a stale value. Works for PvP and PvE alike.
-  useEffect(() => {
-    const onVisible = () => {
-      if (document.hidden || !running || finished || !startTimeRef.current) return;
-      const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
-      const remaining = Math.max(0, duration - elapsed);
-      setSeconds(remaining);
-      if (remaining <= 0) {
-        setRunning(false);
-        setFinished(true);
-        if (recordEnabled) {
-          setTimeout(() => { recorderStopRef.current?.(); wasRecording.current = false; refresh(); }, 100);
-        }
-      }
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [running, finished, duration, recordEnabled, refresh]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The countdown itself (tick, wall-clock catch-up on tab-return, single-fire
+  // expiry) lives in useWallClockCountdown at the top of the component now.
 
   useEffect(() => {
     if (!recordEnabled) return;
@@ -819,10 +789,7 @@ export const DuelDrill = ({
                 !userReady && (!isCreating || draftingDone) ? (
                   <SpamButton
                     disabled={isCreating && !customPrompt.trim()}
-                    onClick={() => {
-                      setUserReady(true);
-                      if (duel) sendReadyStatus(duel.id, true);
-                    }}
+                    onClick={markReady}
                     className="button-pill w-full py-6 bg-primary text-white shadow-glow group flex items-center justify-center gap-4"
                   >
                     <span className="text-sm font-black uppercase tracking-wide">READY UP ({readyTimer}s)</span>
