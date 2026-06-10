@@ -701,7 +701,7 @@ const Arena = () => {
                   around" launches. Dispatches the event GuidedTour listens for;
                   the tour routes between pages and spotlights each feature. */}
               <button
-                onClick={() => window.dispatchEvent(new Event("speakbold:start-tour"))}
+                onClick={() => window.dispatchEvent(new CustomEvent("speakbold:start-tour", { detail: { tour: "arena" } }))}
                 className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.2em] opacity-40 hover:opacity-100 hover:text-primary transition-all cursor-pointer"
                 title="Take a quick tour"
               >

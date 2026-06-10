@@ -5,10 +5,12 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useTimerActive } from "@/lib/timerState";
-import { TOUR } from "@/lib/tourSteps";
+import { TOURS, DEFAULT_TOUR_ID, type TourId } from "@/lib/tourSteps";
 import { seedGrowthDemo } from "@/lib/seedGrowthDemo";
 
-const LS_INDEX = (uid: string) => `speakbold_tour_index_${uid}`;
+// Per-tour index key so the lab and arena walkthroughs track progress
+// independently (resuming one never jumps you into the middle of the other).
+const LS_INDEX = (uid: string, tour: TourId) => `speakbold_tour_${tour}_index_${uid}`;
 const PAD = 8;     // spotlight padding around the target
 const BW = 300;    // approx bubble width (desktop)
 const BH = 188;    // fallback bubble height before the real one is measured
@@ -20,6 +22,7 @@ export const GuidedTour = () => {
   const timerActive = useTimerActive();
 
   const [active, setActive] = useState(false);
+  const [tourId, setTourId] = useState<TourId>(DEFAULT_TOUR_ID);
   const [index, setIndex] = useState(0);
   const [rect, setRect] = useState<DOMRect | null>(null);
   const [located, setLocated] = useState(false);
@@ -30,7 +33,8 @@ export const GuidedTour = () => {
   const refreshRef = useRef(refreshUserStatus);
   useEffect(() => { refreshRef.current = refreshUserStatus; }, [refreshUserStatus]);
 
-  const step = TOUR[index];
+  const steps = TOURS[tourId];
+  const step = steps[index];
   const uid = user?.id;
 
   // ── Opt-in visibility ─────────────────────────────────────────────────────
@@ -41,42 +45,51 @@ export const GuidedTour = () => {
   // window.startTutorial() (the dev command advertised in App.tsx).
   useEffect(() => {
     if (!uid) { setActive(false); return; }
-    const w = window as Window & { startTutorial?: () => void };
-    const start = () => {
-      const saved = Number(localStorage.getItem(LS_INDEX(uid)) || 0);
-      setIndex(Number.isFinite(saved) && saved >= 0 && saved < TOUR.length ? saved : 0);
+    const w = window as Window & { startTutorial?: (tour?: TourId) => void };
+    // `restart` true → always begin at step 0 (the "Replay tutorial" button +
+    // dev console). false → resume from the saved step (the "Show me around"
+    // buttons), so a half-finished tour picks up where you left off.
+    const launch = (which: TourId | undefined, restart: boolean) => {
+      const tour = which && which in TOURS ? which : DEFAULT_TOUR_ID;
+      const saved = restart ? 0 : Number(localStorage.getItem(LS_INDEX(uid, tour)) || 0);
+      if (restart) try { localStorage.removeItem(LS_INDEX(uid, tour)); } catch { /* private mode */ }
+      setTourId(tour);
+      setIndex(Number.isFinite(saved) && saved >= 0 && saved < TOURS[tour].length ? saved : 0);
       setActive(true);
     };
-    w.addEventListener("speakbold:start-tour", start);
-    w.startTutorial = start;
+    // Buttons dispatch CustomEvent("speakbold:start-tour", { detail: { tour } }).
+    // A plain Event (no detail) falls back to the default tour.
+    const onStart = (e: Event) => launch((e as CustomEvent<{ tour?: TourId }>).detail?.tour, false);
+    w.addEventListener("speakbold:start-tour", onStart);
+    w.startTutorial = (tour?: TourId) => launch(tour, true);
     return () => {
-      w.removeEventListener("speakbold:start-tour", start);
-      if (w.startTutorial === start) delete w.startTutorial;
+      w.removeEventListener("speakbold:start-tour", onStart);
+      delete w.startTutorial;
     };
   }, [uid]);
 
   const persist = useCallback((i: number) => {
-    if (uid) try { localStorage.setItem(LS_INDEX(uid), String(i)); } catch { /* private mode */ }
-  }, [uid]);
+    if (uid) try { localStorage.setItem(LS_INDEX(uid, tourId), String(i)); } catch { /* private mode */ }
+  }, [uid, tourId]);
 
   const finish = useCallback(async () => {
     setActive(false);
     if (!uid) return;
-    try { localStorage.removeItem(LS_INDEX(uid)); } catch { /* noop */ }
+    try { localStorage.removeItem(LS_INDEX(uid, tourId)); } catch { /* noop */ }
     try {
       await supabase.from("profiles").update({ tutorial_done: true }).eq("id", uid);
       await refreshRef.current();
     } catch (e) { console.error("[GuidedTour] save failed", e); }
-  }, [uid]);
+  }, [uid, tourId]);
 
   const next = useCallback(() => {
     setIndex(i => {
       const n = i + 1;
-      if (n >= TOUR.length) { finish(); return i; }
+      if (n >= steps.length) { finish(); return i; }
       persist(n);
       return n;
     });
-  }, [finish, persist]);
+  }, [finish, persist, steps.length]);
 
   const back = useCallback(() => setIndex(i => Math.max(0, i - 1)), []);
 
@@ -175,13 +188,9 @@ export const GuidedTour = () => {
   }, [active, index]);
 
   // ── Dev / console utilities (kept here so they survive the overlay swap) ──
+  // Note: window.startTutorial(tour?) is defined in the launch effect above
+  // (it force-restarts the given tour); don't redefine it here.
   useEffect(() => {
-    (window as any).startTutorial = () => {
-      if (!uid) { console.error("Must be logged in."); return; }
-      try { localStorage.removeItem(LS_INDEX(uid)); } catch { /* noop */ }
-      setIndex(0);
-      setActive(true);
-    };
     (window as any).resetOnboarding = async () => {
       if (!uid) { console.error("Must be logged in to reset."); return; }
       if (!confirm("Reset all onboarding and tutorial progress?")) return;
@@ -196,7 +205,6 @@ export const GuidedTour = () => {
     };
     (window as any).seedGrowthDemo = () => seedGrowthDemo();
     return () => {
-      delete (window as any).startTutorial;
       delete (window as any).resetOnboarding;
       delete (window as any).seedGrowthDemo;
     };
@@ -205,7 +213,7 @@ export const GuidedTour = () => {
   // Hide entirely during live drills so we never cover a recording.
   if (!active || !step || timerActive) return null;
 
-  const isLast = index === TOUR.length - 1;
+  const isLast = index === steps.length - 1;
   const vw = typeof window !== "undefined" ? window.innerWidth : 1024;
   const vh = typeof window !== "undefined" ? window.innerHeight : 768;
   const isMobile = vw < 768;
@@ -283,7 +291,7 @@ export const GuidedTour = () => {
               <Sparkles className="h-3.5 w-3.5" />
             </div>
             <span className="text-[10px] font-black uppercase tracking-[0.3em] text-primary tabular-nums">
-              {index + 1} / {TOUR.length}
+              {index + 1} / {steps.length}
             </span>
           </div>
           <button onClick={finish} aria-label="Skip tour" className="text-[10px] font-black uppercase tracking-widest opacity-40 hover:opacity-100 transition-opacity">

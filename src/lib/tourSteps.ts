@@ -1,14 +1,13 @@
-// Guided-tour script. Each step optionally navigates to a route, spotlights a
+// Guided-tour scripts. Each step optionally navigates to a route, spotlights a
 // real element (by CSS selector), and explains it. Every step also offers
 // Next/Skip so the tour can never trap the user.
 //
-// Kept SHORT and with ONE route transition (3 steps on /lab → 3 on /arena) so it
-// never feels like the old 9-step version that hopped /lab → /pathway → /arena →
-// /profile and back. The /lab steps answer a first-timer's core questions (what
-// is this, how do I practise, where's help); the /arena steps showcase the
-// Practice Lounge — added so the "Show me around" button there walks the user
-// through the competitive features, not just the coach. We deliberately end ON
-// /arena (no hop back) to keep it a single, forward-moving journey.
+// There are now TWO independent tours, each launched by its own "Show me around"
+// button and run on its own page — no cross-page hopping:
+//   • "lab"   — the Lab/coach hub: what this is, how to practise, where's help.
+//   • "arena" — the Practice Lounge: formats, finding an opponent, live battles.
+// Keeping them separate means each button teaches only the page you're on, and
+// neither tour drags the user off to a different part of the app.
 
 export interface TourStep {
   id: string;
@@ -26,7 +25,7 @@ export interface TourStep {
   advanceClickSelector?: string;
 }
 
-export const TOUR: TourStep[] = [
+const LAB_TOUR: TourStep[] = [
   {
     id: "welcome",
     route: "/lab",
@@ -46,14 +45,17 @@ export const TOUR: TourStep[] = [
     route: "/lab",
     target: "#coach-chat-trigger",
     title: "Stuck? Just ask",
-    body: "Your coach is one tap away — ask for tips, get feedback, or just say “give me a drill.” Now let's see where you put it all to the test.",
+    body: "Your coach is one tap away — ask for tips, get feedback, or just say “give me a drill.” That's it — you're ready to go.",
   },
+];
+
+const ARENA_TOUR: TourStep[] = [
   {
     id: "arena-modes",
     route: "/arena",
     target: "#arena-gamemodes",
     title: "Pick your format",
-    body: "This is the Practice Lounge. Four ways to spar — a 30-second Blitz, a Standard round, a Speed Pitch, or a full Debate. Each one trains a different gear.",
+    body: "Welcome to the Practice Lounge. Four ways to spar — a 30-second Blitz, a Standard round, a Speed Pitch, or a full Debate. Each one trains a different gear.",
   },
   {
     id: "arena-find",
@@ -70,3 +72,14 @@ export const TOUR: TourStep[] = [
     body: "Anyone online shows up here — hit Invite to start a live, head-to-head battle and climb the leaderboard. That's the tour. Go get 'em.",
   },
 ];
+
+/** Every tour, keyed by the id passed in the `speakbold:start-tour` event. */
+export const TOURS = {
+  lab: LAB_TOUR,
+  arena: ARENA_TOUR,
+} as const;
+
+export type TourId = keyof typeof TOURS;
+
+/** Fallback when a tour is started without specifying which one. */
+export const DEFAULT_TOUR_ID: TourId = "lab";

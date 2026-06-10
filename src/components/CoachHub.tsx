@@ -104,7 +104,7 @@ export const CoachHub = () => {
               first-time user can always find it. Dispatches the event GuidedTour
               listens for; the tour itself routes here and spotlights the page. */}
           <button
-            onClick={() => window.dispatchEvent(new Event("speakbold:start-tour"))}
+            onClick={() => window.dispatchEvent(new CustomEvent("speakbold:start-tour", { detail: { tour: "lab" } }))}
             className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] opacity-40 hover:opacity-100 hover:text-primary transition-all"
             title="Take a quick tour"
           >
