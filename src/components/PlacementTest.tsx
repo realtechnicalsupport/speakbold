@@ -36,9 +36,14 @@ const REVEAL_FEATURES = [
   },
 ];
 
-/** Band a 0–100 speaking score into an entry tier. */
+/** Band a 0–100 speaking score into an entry tier.
+ *  Orator is the top tier and should mean "already a strong speaker" — the old
+ *  ≥72 cutoff let most competent 60s answers clear it, so nearly everyone landed
+ *  in Orator. Raised to ≥82 so it's earned, with Intermediate nudged to ≥60.
+ *  (Tuned to be more selective without being punishing — most solid speakers
+ *  now place Intermediate, which is the intended "middle of the curriculum".) */
 const tierForScore = (score: number): TierId =>
-  score >= 72 ? "orator" : score >= 55 ? "intermediate" : "beginner";
+  score >= 82 ? "orator" : score >= 60 ? "intermediate" : "beginner";
 
 type Phase = "offer" | "recording" | "analyzing" | "result" | "reveal";
 
