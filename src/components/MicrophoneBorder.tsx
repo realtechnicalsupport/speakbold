@@ -45,12 +45,14 @@ export function MicrophoneBorder() {
           smoothRef.current = smoothRef.current * 0.4 + avg * 0.6;
           const v = smoothRef.current;
 
-          const size = 10 + v * 100;
-          const op = 0.2 + v * 0.8;
-
-          el.style.boxShadow =
-            `inset 0 0 ${size}px ${size / 2}px hsla(14, 88%, 62%, ${op}), ` +
-            `inset 0 0 ${size * 2}px ${size}px hsla(14, 88%, 62%, ${op * 0.3})`;
+          // Animate OPACITY ONLY. The glow's box-shadow is painted once (in the
+          // element's static style below); rewriting box-shadow every frame — as
+          // this used to — forces the compositor to repaint a full-viewport
+          // blurred layer at 60fps, which tears the screen on tablets (large
+          // display + mobile GPU). Opacity is GPU-composited, so the glow still
+          // reacts to the voice with zero per-frame repaint.
+          const op = Math.min(1, 0.15 + v * 0.85);
+          el.style.opacity = op.toFixed(2);
 
           rafRef.current = requestAnimationFrame(loop);
         };
@@ -80,7 +82,14 @@ export function MicrophoneBorder() {
       className="fixed inset-0 pointer-events-none"
       style={{
         zIndex: 9999,
-        boxShadow: "inset 0 0 5px 2px hsla(14 88% 62% / 0.1)",
+        // Painted ONCE. The analyser loop above only animates `opacity`, so this
+        // blurred glow lives on its own compositor layer and never repaints —
+        // killing the per-frame full-screen repaint that tore tablets.
+        boxShadow:
+          "inset 0 0 70px 35px hsla(14, 88%, 62%, 0.9), inset 0 0 150px 75px hsla(14, 88%, 62%, 0.3)",
+        opacity: 0.15,
+        willChange: "opacity",
+        transform: "translateZ(0)",
       }}
     />
   );

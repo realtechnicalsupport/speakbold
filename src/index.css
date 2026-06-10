@@ -399,3 +399,16 @@
     display: none !important;
   }
 }
+
+/* Tablets sit ABOVE the 768px phone breakpoint, so they otherwise run the
+   full-screen animated grain overlay at full strength on a mobile-class GPU —
+   a per-step full-viewport repaint that contributes to screen tearing during
+   recording/debate. Disable just the grain on any touch device (coarse pointer,
+   no hover). Left intact: the large background glows, so the landing hero still
+   looks right on a tablet. */
+@media (hover: none) and (pointer: coarse) {
+  .grain {
+    animation: none !important;
+    display: none !important;
+  }
+}
