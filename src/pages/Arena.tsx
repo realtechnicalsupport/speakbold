@@ -19,6 +19,12 @@ import { generateArenaPrompt } from "@/services/geminiService";
 import { useSoundEffects } from "@/hooks/useSoundEffects";
 import { arenaEmitter, type ArenaEvents } from "@/lib/events";
 
+// Cap how many "Active learners" cards render at once. Presence can list
+// dozens of concurrent users (e.g. many devices testing at once); without a
+// cap this grid grows without bound and pushes Practice History off-screen
+// on mobile. Extras are summarized in a "+N more online" card instead.
+const MAX_VISIBLE_ONLINE = 8;
+
 /* ── Animated Number — smoothly tweens between values ─── */
 const AnimatedNumber = ({ value, duration = 0.45 }: { value: number; duration?: number }) => {
   const [display, setDisplay] = useState(value);
@@ -967,38 +973,47 @@ const Arena = () => {
                     <p className="text-sm font-black uppercase tracking-widest italic">Awaiting Peers...</p>
                   </div>
                 ) : (
-                  onlineUsers.map((u) => (
-                    <motion.div 
-                      key={u.id}
-                      initial={{ opacity: 0, scale: 0.95 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      className="p-4 rounded-3xl bg-muted/20 border border-border flex items-center justify-between group hover:border-primary/40 transition-all"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className={cn("h-10 w-10 rounded-full flex items-center justify-center text-xl border", getRankColor(u.rank))}>
-                          {u.avatar}
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold truncate max-w-[80px]">{u.name}</p>
-                          <p className="text-[11px] font-black opacity-30">{u.ranked === false ? "Unranked" : `${u.elo} ELO`}</p>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => setChallengeTarget({ id: u.id, name: u.name })}
-                        className={cn(
-                          "px-4 py-2 rounded-xl text-sm font-black uppercase tracking-widest cursor-pointer transition-all hover:scale-105 active:scale-95 shrink-0",
-                          // Mobile (no hover): always the solid CTA so it's tappable.
-                          "bg-primary text-white shadow-glow",
-                          // Desktop rest: a visible ghost-outline affordance (so users
-                          // know it's there) that lights up to the solid glow on hover.
-                          "lg:bg-primary/10 lg:text-primary lg:shadow-none lg:border lg:border-primary/30",
-                          "lg:group-hover:bg-primary lg:group-hover:text-white lg:group-hover:shadow-glow lg:group-hover:border-transparent"
-                        )}
+                  <>
+                    {onlineUsers.slice(0, MAX_VISIBLE_ONLINE).map((u) => (
+                      <motion.div
+                        key={u.id}
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="p-4 rounded-3xl bg-muted/20 border border-border flex items-center justify-between group hover:border-primary/40 transition-all"
                       >
-                        INVITE
-                      </button>
-                    </motion.div>
-                  ))
+                        <div className="flex items-center gap-3">
+                          <div className={cn("h-10 w-10 rounded-full flex items-center justify-center text-xl border", getRankColor(u.rank))}>
+                            {u.avatar}
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold truncate max-w-[80px]">{u.name}</p>
+                            <p className="text-[11px] font-black opacity-30">{u.ranked === false ? "Unranked" : `${u.elo} ELO`}</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => setChallengeTarget({ id: u.id, name: u.name })}
+                          className={cn(
+                            "px-4 py-2 rounded-xl text-sm font-black uppercase tracking-widest cursor-pointer transition-all hover:scale-105 active:scale-95 shrink-0",
+                            // Mobile (no hover): always the solid CTA so it's tappable.
+                            "bg-primary text-white shadow-glow",
+                            // Desktop rest: a visible ghost-outline affordance (so users
+                            // know it's there) that lights up to the solid glow on hover.
+                            "lg:bg-primary/10 lg:text-primary lg:shadow-none lg:border lg:border-primary/30",
+                            "lg:group-hover:bg-primary lg:group-hover:text-white lg:group-hover:shadow-glow lg:group-hover:border-transparent"
+                          )}
+                        >
+                          INVITE
+                        </button>
+                      </motion.div>
+                    ))}
+                    {onlineUsers.length > MAX_VISIBLE_ONLINE && (
+                      <div className="col-span-full p-4 rounded-3xl border border-dashed border-border/60 text-center opacity-40">
+                        <p className="text-xs font-black uppercase tracking-widest">
+                          +{onlineUsers.length - MAX_VISIBLE_ONLINE} more online
+                        </p>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
