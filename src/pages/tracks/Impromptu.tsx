@@ -8,6 +8,7 @@ import { ImpromptuSetup } from "@/components/impromptu/ImpromptuSetup";
 import { ImpromptuPrep } from "@/components/impromptu/ImpromptuPrep";
 import { ImpromptuStage } from "@/components/impromptu/ImpromptuStage";
 import { ImpromptuReview } from "@/components/impromptu/ImpromptuReview";
+import { ImpromptuCoachExport } from "@/components/impromptu/ImpromptuCoachExport";
 
 const Impromptu = () => {
   const { user } = useAuth();
@@ -22,9 +23,12 @@ const Impromptu = () => {
     curveballEnabled,
     recordEnabled,
     challengeMode,
+    exportMode,
     drillMode,
     openingLine,
     setOpeningLine,
+    prepNotes,
+    setPrepNotes,
     prepSecondsLeft,
     prepTotal,
     speakSecondsLeft,
@@ -55,6 +59,7 @@ const Impromptu = () => {
     setDifficulty,
     setDuration,
     setPrepTime,
+    setExportMode,
     setCurveballEnabled,
     setRecordEnabled,
     setChallengeMode,
@@ -119,6 +124,7 @@ const Impromptu = () => {
                 curveballEnabled={curveballEnabled}
                 recordEnabled={recordEnabled}
                 challengeMode={challengeMode}
+                exportMode={exportMode}
                 stats={stats}
                 recentHistory={history}
                 hasUser={!!user}
@@ -130,6 +136,7 @@ const Impromptu = () => {
                 onSetCurveball={setCurveballEnabled}
                 onSetRecord={setRecordEnabled}
                 onSetChallenge={setChallengeMode}
+                onSetExport={setExportMode}
               />
             </motion.div>
           )}
@@ -141,26 +148,44 @@ const Impromptu = () => {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
             >
-              <ImpromptuReview
-                topic={topic}
-                duration={duration}
-                liveTranscript={liveTranscript}
-                wpm={reviewWpm}
-                totalWords={totalWords}
-                fillerCount={fillerCount}
-                fillerTimes={fillerTimes}
-                elapsedSecs={elapsedSecs}
-                coachReport={coachReport}
-                loadingCoach={loadingCoach}
-                stats={stats}
-                recordingBlobUrl={recordingBlobUrl}
-                recordingDurationMs={recordingDurationMs}
-                curveballText={curveballText}
-                drillMode={drillMode}
-                onGoAgain={goAgain}
-                onNewTopic={() => newTopic()}
-                onDrillCurveball={drillCurveball}
-              />
+              {exportMode ? (
+                <ImpromptuCoachExport
+                  topic={topic}
+                  liveTranscript={liveTranscript}
+                  wpm={reviewWpm}
+                  totalWords={totalWords}
+                  elapsedSecs={elapsedSecs}
+                  duration={duration}
+                  prepNotes={prepNotes}
+                  openingLine={openingLine}
+                  recordingBlobUrl={recordingBlobUrl}
+                  recordingDurationMs={recordingDurationMs}
+                  processing={loadingCoach}
+                  onGoAgain={goAgain}
+                  onNewTopic={() => newTopic()}
+                />
+              ) : (
+                <ImpromptuReview
+                  topic={topic}
+                  duration={duration}
+                  liveTranscript={liveTranscript}
+                  wpm={reviewWpm}
+                  totalWords={totalWords}
+                  fillerCount={fillerCount}
+                  fillerTimes={fillerTimes}
+                  elapsedSecs={elapsedSecs}
+                  coachReport={coachReport}
+                  loadingCoach={loadingCoach}
+                  stats={stats}
+                  recordingBlobUrl={recordingBlobUrl}
+                  recordingDurationMs={recordingDurationMs}
+                  curveballText={curveballText}
+                  drillMode={drillMode}
+                  onGoAgain={goAgain}
+                  onNewTopic={() => newTopic()}
+                  onDrillCurveball={drillCurveball}
+                />
+              )}
             </motion.div>
           )}
         </AnimatePresence>
@@ -195,6 +220,8 @@ const Impromptu = () => {
                     challengeMode={challengeMode}
                     openingLine={openingLine}
                     onSetOpeningLine={setOpeningLine}
+                    prepNotes={prepNotes}
+                    onSetPrepNotes={exportMode ? setPrepNotes : undefined}
                     onSkip={skipPrep}
                   />
                 </motion.div>

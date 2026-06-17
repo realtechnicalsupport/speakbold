@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { Shuffle, Mic, MicOff, Zap, Lock, Eye, X, ArrowRight, ArrowLeft, Check, Calendar, Target } from "lucide-react";
+import { Shuffle, Mic, MicOff, Zap, Lock, Eye, X, ArrowRight, ArrowLeft, Check, Calendar, Target, ClipboardList } from "lucide-react";
 import { getTodayPlan } from "@/lib/impromptuPlan";
 import { Switch } from "@/components/ui/switch";
 import { motion, AnimatePresence } from "framer-motion";
@@ -18,6 +18,7 @@ interface Props {
   curveballEnabled: boolean;
   recordEnabled: boolean;
   challengeMode: boolean;
+  exportMode: boolean;
   stats: ImpromptuStats;
   recentHistory: ImpromptuSessionRecord[];
   hasUser: boolean;
@@ -29,6 +30,7 @@ interface Props {
   onSetCurveball: (v: boolean) => void;
   onSetRecord: (v: boolean) => void;
   onSetChallenge: (v: boolean) => void;
+  onSetExport: (v: boolean) => void;
 }
 
 const DIFFICULTIES: { level: Difficulty; color: string; dots: number; label: string }[] = [
@@ -247,6 +249,7 @@ export const ImpromptuSetup = ({
   curveballEnabled,
   recordEnabled,
   challengeMode,
+  exportMode,
   stats,
   hasUser,
   onBegin,
@@ -257,6 +260,7 @@ export const ImpromptuSetup = ({
   onSetCurveball,
   onSetRecord,
   onSetChallenge,
+  onSetExport,
 }: Props) => {
   const framework = FRAMEWORKS[topic.framework];
   const diff = DIFFICULTIES.find(d => d.level === difficulty)!;
@@ -633,6 +637,17 @@ export const ImpromptuSetup = ({
                     toggle: onSetRecord,
                     value: recordEnabled,
                     disabled: !hasUser,
+                  },
+                  {
+                    key: "export",
+                    icon: <ClipboardList className="h-3.5 w-3.5" />,
+                    label: "COACH EXPORT",
+                    sub: exportMode ? "Capture data — no AI feedback" : "Off — app gives AI feedback",
+                    active: exportMode,
+                    activeColor: "text-primary border-primary/30 bg-primary/8",
+                    toggle: onSetExport,
+                    value: exportMode,
+                    disabled: false,
                   },
                 ].map(item => (
                   <div key={item.key} className="flex items-center justify-between py-4 first:pt-0 last:pb-0">

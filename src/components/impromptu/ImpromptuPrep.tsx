@@ -14,10 +14,13 @@ interface Props {
   /** The committed opening line (controlled). */
   openingLine?: string;
   onSetOpeningLine?: (v: string) => void;
+  /** Free-text outline jotted during prep (controlled). */
+  prepNotes?: string;
+  onSetPrepNotes?: (v: string) => void;
   onSkip: () => void;
 }
 
-export const ImpromptuPrep = ({ topic, secondsLeft, totalPrep, challengeMode, openingLine, onSetOpeningLine, onSkip }: Props) => {
+export const ImpromptuPrep = ({ topic, secondsLeft, totalPrep, challengeMode, openingLine, onSetOpeningLine, prepNotes, onSetPrepNotes, onSkip }: Props) => {
   const framework = FRAMEWORKS[topic.framework];
   const resolvedTotal = totalPrep && totalPrep > 0 ? totalPrep : (PREP_TIME[topic.difficulty] ?? 10);
   const pct = resolvedTotal > 0 ? secondsLeft / resolvedTotal : 0;
@@ -136,6 +139,20 @@ export const ImpromptuPrep = ({ topic, secondsLeft, totalPrep, challengeMode, op
             <p className="text-[10px] font-medium opacity-25 leading-relaxed">
               A strong open is a sentence you've already decided — not one you find mid-breath.
             </p>
+          </div>
+        )}
+
+        {/* Prep notes — jot your outline / framework. Captured into the export. */}
+        {onSetPrepNotes && (
+          <div className="rounded-[2rem] border border-border/30 bg-muted/4 p-5 space-y-3">
+            <p className="text-[9px] font-black uppercase tracking-[0.5em] opacity-30">PREP NOTES / OUTLINE</p>
+            <textarea
+              value={prepNotes ?? ""}
+              onChange={e => onSetPrepNotes(e.target.value)}
+              rows={4}
+              placeholder={"Jot your structure — e.g.\nClaim → Pillar 1 → Pillar 2 → Pillar 3 → Close"}
+              className="w-full bg-transparent border border-border/30 rounded-xl p-3 text-sm leading-relaxed placeholder:opacity-25 outline-none focus:border-primary/40 transition-colors resize-none"
+            />
           </div>
         )}
 

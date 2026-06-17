@@ -62,6 +62,10 @@ export function useImpromptuSession() {
   const [curveballEnabled, setCurveballEnabledState] = useLocalStorageState<boolean>("speakbold:impromptu:curveball", false);
   const [recordEnabled, setRecordEnabledState] = useLocalStorageState<boolean>("speakbold:record-attempts", true);
   const [challengeMode, setChallengeModeState] = useLocalStorageState<boolean>("speakbold:impromptu:challenge", false);
+  // Coach Export mode: capture transcript + fillers + duration for review by a
+  // human coach (paste into another chat) instead of generating in-app AI
+  // feedback. Defaults ON — this build is set up as a personal capture tool.
+  const [exportMode, setExportModeState] = useLocalStorageState<boolean>("speakbold:impromptu:export", true);
   const [topic, setTopicState] = useState<ImpromptuTopic>(() => getRandomTopic(difficulty));
 
   /** Last duration set explicitly by the user — restored when drill mode ends */
@@ -83,6 +87,10 @@ export function useImpromptuSession() {
   /** The first sentence the speaker commits to during prep. Surfaced briefly on
    *  the stage at the start of the speech to train a confident, planned open. */
   const [openingLine, setOpeningLine] = useState("");
+
+  // ── Prep notes ───────────────────────────────────────────────────────────────
+  /** Free-text outline jotted during prep. Captured into the coach export. */
+  const [prepNotes, setPrepNotes] = useState("");
 
   // ── Timers ─────────────────────────────────────────────────────────────────
   const [prepSecondsLeft, setPrepSecondsLeft] = useState(0);
@@ -148,7 +156,9 @@ export function useImpromptuSession() {
   const curveballEnabledRef = useRef(curveballEnabled);
   const recordEnabledRef = useRef(recordEnabled);
   const prepTimeRef = useRef(prepTime);
+  const exportModeRef = useRef(exportMode);
 
+  useEffect(() => { exportModeRef.current = exportMode; }, [exportMode]);
   useEffect(() => { topicRef.current = topic; }, [topic]);
   useEffect(() => { prepTimeRef.current = prepTime; }, [prepTime]);
   useEffect(() => { durationRef.current = duration; }, [duration]);
@@ -238,6 +248,14 @@ export function useImpromptuSession() {
       } else {
         setCoachReport(null);
       }
+      return;
+    }
+
+    // Coach Export mode: transcript + metrics are captured; we deliberately do
+    // NOT run AI feedback or record a score. The export review reads the
+    // transcript/fillers/duration directly.
+    if (exportModeRef.current) {
+      setLoadingCoach(false);
       return;
     }
 
@@ -464,6 +482,7 @@ export function useImpromptuSession() {
     setSpeakingExpired(false);
     awaitingRecordingTranscriptRef.current = false;
     setOpeningLine("");
+    setPrepNotes("");
     if (fallbackTimeoutRef.current) { clearTimeout(fallbackTimeoutRef.current); fallbackTimeoutRef.current = null; }
 
     if (curveballEnabledRef.current && topicRef.current.curveballs.length > 0) {
@@ -585,6 +604,7 @@ export function useImpromptuSession() {
     setAutoFeedbackId(null);
     awaitingRecordingTranscriptRef.current = false;
     setOpeningLine("");
+    setPrepNotes("");
     if (fallbackTimeoutRef.current) { clearTimeout(fallbackTimeoutRef.current); fallbackTimeoutRef.current = null; }
 
     // Restore the user's chosen duration when exiting drill mode
@@ -642,6 +662,10 @@ export function useImpromptuSession() {
   const setCurveballEnabled = useCallback((v: boolean) => setCurveballEnabledState(v), []);
   const setRecordEnabled = useCallback((v: boolean) => setRecordEnabledState(v), []);
   const setChallengeMode = useCallback((v: boolean) => setChallengeModeState(v), []);
+  const setExportMode = useCallback((v: boolean) => {
+    exportModeRef.current = v;
+    setExportModeState(v);
+  }, []);
 
   // Called by RecorderPanel after recording stops
   const onRecordingComplete = useCallback(
@@ -677,27 +701,30 @@ export function useImpromptuSession() {
             const fbWpm = secs > 3 ? Math.round((words / secs) * 60) : 0;
             setReviewWpm(fbWpm);
 
-            const report = await coachImpromptu(
-              topicRef.current,
-              serverTranscript,
-              durationRef.current,
-              fillers,
-              fbWpm
-            );
-            setCoachReport(report);
-            addSession({
-              topicText: topicRef.current.text,
-              topicId: topicRef.current.id,
-              difficulty: topicRef.current.difficulty,
-              framework: topicRef.current.framework,
-              duration: durationRef.current,
-              score: report.score,
-              wpm: fbWpm,
-              fillerCount: fillers,
-              totalWords: words,
-              verdict: report.verdict,
-            });
-            logImpromptuSkill(report, fbWpm, fillers, words);
+            // Export mode stops here: transcript is captured, no AI scoring.
+            if (!exportModeRef.current) {
+              const report = await coachImpromptu(
+                topicRef.current,
+                serverTranscript,
+                durationRef.current,
+                fillers,
+                fbWpm
+              );
+              setCoachReport(report);
+              addSession({
+                topicText: topicRef.current.text,
+                topicId: topicRef.current.id,
+                difficulty: topicRef.current.difficulty,
+                framework: topicRef.current.framework,
+                duration: durationRef.current,
+                score: report.score,
+                wpm: fbWpm,
+                fillerCount: fillers,
+                totalWords: words,
+                verdict: report.verdict,
+              });
+              logImpromptuSkill(report, fbWpm, fillers, words);
+            }
           } else {
             setCoachReport(null);
           }
@@ -708,7 +735,9 @@ export function useImpromptuSession() {
         }
       }
 
-      if (!user) return;
+      // In export mode we don't upload — the audio stays local, and we never
+      // trigger the server-side auto-feedback (the whole point is no app AI).
+      if (!user || exportModeRef.current) return;
       try {
         const result = await uploadRecording(blob, {
           promptText: `Impromptu: ${topicRef.current.text}`,
@@ -735,9 +764,12 @@ export function useImpromptuSession() {
     curveballEnabled,
     recordEnabled,
     challengeMode,
+    exportMode,
     drillMode,
     openingLine,
     setOpeningLine,
+    prepNotes,
+    setPrepNotes,
 
     // Timers
     prepSecondsLeft,
@@ -790,6 +822,7 @@ export function useImpromptuSession() {
     setCurveballEnabled,
     setRecordEnabled,
     setChallengeMode,
+    setExportMode,
 
     // History
     history,
