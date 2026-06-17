@@ -55,6 +55,10 @@ export function useImpromptuSession() {
   // on next visit. Topic stays ephemeral — we still randomise per session.
   const [difficulty, setDifficultyState] = useLocalStorageState<Difficulty>("speakbold:impromptu:difficulty", "Medium");
   const [duration, setDurationState] = useLocalStorageState<number>("speakbold:impromptu:duration", 60);
+  // Prep length. 0 = "auto" (derive from difficulty via PREP_TIME). A positive
+  // value overrides it — used by the Competition 3+3 preset to give a full
+  // 3-minute structured prep instead of the quick 5–15s warm-up.
+  const [prepTime, setPrepTimeState] = useLocalStorageState<number>("speakbold:impromptu:preptime", 0);
   const [curveballEnabled, setCurveballEnabledState] = useLocalStorageState<boolean>("speakbold:impromptu:curveball", false);
   const [recordEnabled, setRecordEnabledState] = useLocalStorageState<boolean>("speakbold:record-attempts", true);
   const [challengeMode, setChallengeModeState] = useLocalStorageState<boolean>("speakbold:impromptu:challenge", false);
@@ -75,8 +79,16 @@ export function useImpromptuSession() {
   /** True when in a 30-second curveball drill (not a full session) */
   const [drillMode, setDrillMode] = useState(false);
 
+  // ── Opening line ─────────────────────────────────────────────────────────────
+  /** The first sentence the speaker commits to during prep. Surfaced briefly on
+   *  the stage at the start of the speech to train a confident, planned open. */
+  const [openingLine, setOpeningLine] = useState("");
+
   // ── Timers ─────────────────────────────────────────────────────────────────
   const [prepSecondsLeft, setPrepSecondsLeft] = useState(0);
+  /** Total prep length for the current session (so the prep ring fills correctly
+   *  whether prep came from difficulty or the competition override). */
+  const [prepTotal, setPrepTotal] = useState(0);
   const [speakSecondsLeft, setSpeakSecondsLeft] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const isPausedRef = useRef(false);
@@ -135,8 +147,10 @@ export function useImpromptuSession() {
   const difficultyRef = useRef(difficulty);
   const curveballEnabledRef = useRef(curveballEnabled);
   const recordEnabledRef = useRef(recordEnabled);
+  const prepTimeRef = useRef(prepTime);
 
   useEffect(() => { topicRef.current = topic; }, [topic]);
+  useEffect(() => { prepTimeRef.current = prepTime; }, [prepTime]);
   useEffect(() => { durationRef.current = duration; }, [duration]);
   useEffect(() => { difficultyRef.current = difficulty; }, [difficulty]);
   useEffect(() => { curveballEnabledRef.current = curveballEnabled; }, [curveballEnabled]);
@@ -449,6 +463,7 @@ export function useImpromptuSession() {
     wasRecordingRef.current = false;
     setSpeakingExpired(false);
     awaitingRecordingTranscriptRef.current = false;
+    setOpeningLine("");
     if (fallbackTimeoutRef.current) { clearTimeout(fallbackTimeoutRef.current); fallbackTimeoutRef.current = null; }
 
     if (curveballEnabledRef.current && topicRef.current.curveballs.length > 0) {
@@ -461,7 +476,9 @@ export function useImpromptuSession() {
       curveballTextRef.current = null;
     }
 
-    setPrepSecondsLeft(PREP_TIME[difficultyRef.current]);
+    const prep = prepTimeRef.current > 0 ? prepTimeRef.current : PREP_TIME[difficultyRef.current];
+    setPrepTotal(prep);
+    setPrepSecondsLeft(prep);
     setPhase("prep");
   }, [setPhase]);
 
@@ -567,6 +584,7 @@ export function useImpromptuSession() {
     wasRecordingRef.current = false;
     setAutoFeedbackId(null);
     awaitingRecordingTranscriptRef.current = false;
+    setOpeningLine("");
     if (fallbackTimeoutRef.current) { clearTimeout(fallbackTimeoutRef.current); fallbackTimeoutRef.current = null; }
 
     // Restore the user's chosen duration when exiting drill mode
@@ -616,6 +634,10 @@ export function useImpromptuSession() {
   const setDuration = useCallback((d: number) => {
     userDurationRef.current = d;
     setDurationState(d);
+  }, []);
+  const setPrepTime = useCallback((s: number) => {
+    prepTimeRef.current = s;
+    setPrepTimeState(s);
   }, []);
   const setCurveballEnabled = useCallback((v: boolean) => setCurveballEnabledState(v), []);
   const setRecordEnabled = useCallback((v: boolean) => setRecordEnabledState(v), []);
@@ -709,13 +731,17 @@ export function useImpromptuSession() {
     topic,
     difficulty,
     duration,
+    prepTime,
     curveballEnabled,
     recordEnabled,
     challengeMode,
     drillMode,
+    openingLine,
+    setOpeningLine,
 
     // Timers
     prepSecondsLeft,
+    prepTotal,
     speakSecondsLeft,
     isPaused,
 
@@ -760,6 +786,7 @@ export function useImpromptuSession() {
     setTopic,
     setDifficulty,
     setDuration,
+    setPrepTime,
     setCurveballEnabled,
     setRecordEnabled,
     setChallengeMode,

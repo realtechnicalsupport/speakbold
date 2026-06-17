@@ -1,10 +1,11 @@
 import { useEffect, useState, useCallback } from "react";
-import { Shuffle, Mic, MicOff, Zap, Lock, Eye, X, ArrowRight, ArrowLeft, Check } from "lucide-react";
+import { Shuffle, Mic, MicOff, Zap, Lock, Eye, X, ArrowRight, ArrowLeft, Check, Calendar, Target } from "lucide-react";
+import { getTodayPlan } from "@/lib/impromptuPlan";
 import { Switch } from "@/components/ui/switch";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import type { Difficulty, ImpromptuTopic } from "@/data/impromptuTopics";
-import { FRAMEWORKS } from "@/data/impromptuTopics";
+import { FRAMEWORKS, COMPETITION_PREP_SECONDS, COMPETITION_SPEAK_SECONDS } from "@/data/impromptuTopics";
 import type { ImpromptuStats } from "@/lib/impromptuHistory";
 import type { ImpromptuSessionRecord } from "@/lib/impromptuHistory";
 
@@ -12,6 +13,8 @@ interface Props {
   topic: ImpromptuTopic;
   difficulty: Difficulty;
   duration: number;
+  /** Prep-time override in seconds; 0 = auto (difficulty default). */
+  prepTime: number;
   curveballEnabled: boolean;
   recordEnabled: boolean;
   challengeMode: boolean;
@@ -22,6 +25,7 @@ interface Props {
   onShuffle: () => void;
   onSetDifficulty: (d: Difficulty) => void;
   onSetDuration: (d: number) => void;
+  onSetPrepTime: (s: number) => void;
   onSetCurveball: (v: boolean) => void;
   onSetRecord: (v: boolean) => void;
   onSetChallenge: (v: boolean) => void;
@@ -73,7 +77,14 @@ const DIFF_STYLE: Record<string, {
   },
 };
 
-const DURATIONS = [30, 60, 90, 120];
+const DURATIONS = [30, 60, 120, 180];
+// Prep-length choices. 0 = auto (derive from difficulty). 180 = competition prep.
+const PREP_CHOICES: { value: number; label: string }[] = [
+  { value: 0, label: "Auto" },
+  { value: 60, label: "1:00" },
+  { value: 120, label: "2:00" },
+  { value: 180, label: "3:00" },
+];
 
 const SEEN_KEY = "speakbold:impromptu:seen";
 const FW_SEEN_PREFIX = "speakbold:impromptu:fw-seen:";
@@ -131,6 +142,15 @@ const FRAMEWORK_EXAMPLES: Record<string, { steps: { label: string; example: stri
       { label: "Conflict", example: "\"I'd built it alone — no backup, no one to call.\"" },
       { label: "Turning point", example: "\"I opened Slack and typed: 'I need help.' Three people responded in minutes.\"" },
       { label: "Lesson", example: "\"The best people I know aren't the ones who never get stuck. They're the ones who ask first.\"" },
+    ],
+  },
+  "Three Pillars": {
+    steps: [
+      { label: "Claim", example: "\"Cities should make public transport free — it's the highest-leverage thing they can do.\"" },
+      { label: "Pillar 1 — Money", example: "\"It puts cash back in the pockets of the people who need it most, every single day.\"" },
+      { label: "Pillar 2 — Roads", example: "\"Fewer cars means less congestion — even drivers win.\"" },
+      { label: "Pillar 3 — Climate", example: "\"And it's the fastest emissions cut a mayor can actually deliver.\"" },
+      { label: "Close", example: "\"Money, roads, climate — free transit isn't a cost, it's the smartest investment a city can make.\"" },
     ],
   },
 };
@@ -223,6 +243,7 @@ export const ImpromptuSetup = ({
   topic,
   difficulty,
   duration,
+  prepTime,
   curveballEnabled,
   recordEnabled,
   challengeMode,
@@ -232,12 +253,20 @@ export const ImpromptuSetup = ({
   onShuffle,
   onSetDifficulty,
   onSetDuration,
+  onSetPrepTime,
   onSetCurveball,
   onSetRecord,
   onSetChallenge,
 }: Props) => {
   const framework = FRAMEWORKS[topic.framework];
   const diff = DIFFICULTIES.find(d => d.level === difficulty)!;
+
+  // "Competition 3+3" is on when both prep and speak match the contest format.
+  const isCompetition = prepTime === COMPETITION_PREP_SECONDS && duration === COMPETITION_SPEAK_SECONDS;
+  const setCompetition = useCallback(() => {
+    onSetPrepTime(COMPETITION_PREP_SECONDS);
+    onSetDuration(COMPETITION_SPEAK_SECONDS);
+  }, [onSetPrepTime, onSetDuration]);
 
   const [seenTopics, setSeenTopics] = useState<Set<string>>(() => loadSeenTopics());
   const [showTutorial, setShowTutorial] = useState(false);
@@ -281,6 +310,21 @@ export const ImpromptuSetup = ({
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const goNext = useCallback(() => setStep(s => (s < 3 ? ((s + 1) as 1 | 2 | 3) : s)), []);
   const goBack = useCallback(() => setStep(s => (s > 1 ? ((s - 1) as 1 | 2 | 3) : s)), []);
+
+  // ── Training plan ────────────────────────────────────────────────────────
+  // The countdown program to the competition. Applying it sets every relevant
+  // control to this week's recommended drill and jumps straight to "Ready".
+  const plan = getTodayPlan();
+  const applyTodayPlan = useCallback(() => {
+    const r = plan.current?.recommended;
+    if (!r) return;
+    onSetDifficulty(r.difficulty);   // also re-rolls the topic to this difficulty
+    onSetDuration(r.duration);
+    onSetPrepTime(r.prepTime);
+    onSetChallenge(r.challengeMode);
+    onSetCurveball(r.curveballEnabled);
+    setStep(3);
+  }, [plan, onSetDifficulty, onSetDuration, onSetPrepTime, onSetChallenge, onSetCurveball]);
 
   // Enter advances through the steps, then launches on the final one.
   useEffect(() => {
@@ -356,9 +400,42 @@ export const ImpromptuSetup = ({
               transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
               className="space-y-5 md:space-y-7"
             >
+              {/* ── Today's training plan — the countdown to competition day ── */}
+              {plan.current && (
+                <div className="rounded-[1.75rem] border border-primary/25 bg-gradient-to-br from-primary/8 to-transparent p-5 space-y-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-[10px] font-black uppercase tracking-[0.35em] text-primary flex items-center gap-2">
+                      <Calendar className="h-3.5 w-3.5" />
+                      {plan.isCompetitionDay ? "Competition day" : `Week ${plan.weekIndex} of ${plan.totalWeeks}`}
+                    </p>
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em] tabular-nums opacity-50">
+                      {plan.isCompetitionDay ? "today" : `${plan.daysUntil} day${plan.daysUntil === 1 ? "" : "s"} left`}
+                    </span>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <p className="text-base font-black">{plan.current.phase}</p>
+                    <p className="text-xs opacity-60 font-medium leading-relaxed">{plan.current.focus}</p>
+                  </div>
+
+                  <div className="flex items-start gap-2 rounded-xl bg-muted/10 border border-border/30 p-3">
+                    <Target className="h-3.5 w-3.5 text-primary/70 shrink-0 mt-0.5" />
+                    <p className="text-[11px] opacity-50 leading-relaxed">{plan.current.tip}</p>
+                  </div>
+
+                  <button
+                    onClick={applyTodayPlan}
+                    className="w-full h-12 rounded-[1.25rem] bg-primary text-white flex items-center justify-center gap-2 shadow-glow group"
+                  >
+                    <span className="text-xs font-black uppercase tracking-[0.3em]">Set up today's drill</span>
+                    <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-1 transition-transform" />
+                  </button>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <h2 className="speak-serif text-3xl md:text-4xl tracking-tighter leading-tight">
-                  How hard do you <span className="text-primary italic">want it?</span>
+                  {plan.current ? <>Or pick your <span className="text-primary italic">own.</span></> : <>How hard do you <span className="text-primary italic">want it?</span></>}
                 </h2>
                 <p className="text-sm opacity-60 font-medium">Pick a challenge level — you can shuffle the topic later.</p>
               </div>
@@ -447,9 +524,62 @@ export const ImpromptuSetup = ({
                 <p className="text-sm opacity-60 font-medium">How long you speak, and the optional twists.</p>
               </div>
 
+              {/* Competition 3+3 preset — one tap sets a 3-min prep + 3-min speech,
+                  matching the real contest format. Tapping again is a no-op; pick
+                  any manual prep/duration below to leave the preset. */}
+              <button
+                onClick={setCompetition}
+                className={cn(
+                  "w-full rounded-[1.75rem] border-2 p-5 text-left transition-all duration-300 group",
+                  isCompetition
+                    ? "border-primary/60 bg-primary/8 shadow-[0_0_24px_rgba(139,92,246,0.12)]"
+                    : "border-dashed border-border/50 bg-muted/3 hover:border-primary/40"
+                )}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className={cn(
+                      "text-[10px] font-black uppercase tracking-[0.35em] flex items-center gap-2",
+                      isCompetition ? "text-primary" : "opacity-50"
+                    )}>
+                      <Zap className="h-3.5 w-3.5" /> Competition 3 + 3
+                    </p>
+                    <p className="text-[10px] font-medium opacity-30 mt-1">
+                      3-minute prep, then a 3-minute speech — the real contest format.
+                    </p>
+                  </div>
+                  {isCompetition && (
+                    <span className="shrink-0 h-6 w-6 rounded-full bg-primary text-white flex items-center justify-center">
+                      <Check className="h-3.5 w-3.5" />
+                    </span>
+                  )}
+                </div>
+              </button>
+
+              {/* Prep length */}
+              <div className="rounded-[1.75rem] border border-border/40 bg-muted/3 p-5 space-y-4">
+                <p className="text-[9px] font-black uppercase tracking-[0.5em] opacity-30">PREP TIME</p>
+                <div className="grid grid-cols-4 gap-2">
+                  {PREP_CHOICES.map(p => (
+                    <button
+                      key={p.value}
+                      onClick={() => onSetPrepTime(p.value)}
+                      className={cn(
+                        "py-3 rounded-xl text-xs font-black tracking-widest border transition-all duration-200",
+                        prepTime === p.value
+                          ? "bg-primary text-white border-primary shadow-glow"
+                          : "border-border/40 opacity-40 hover:opacity-80"
+                      )}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Duration */}
               <div className="rounded-[1.75rem] border border-border/40 bg-muted/3 p-5 space-y-4">
-                <p className="text-[9px] font-black uppercase tracking-[0.5em] opacity-30">DURATION</p>
+                <p className="text-[9px] font-black uppercase tracking-[0.5em] opacity-30">SPEAK FOR</p>
                 <div className="grid grid-cols-4 gap-2">
                   {DURATIONS.map(d => (
                     <button
@@ -462,7 +592,7 @@ export const ImpromptuSetup = ({
                           : "border-border/40 opacity-40 hover:opacity-80"
                       )}
                     >
-                      {d}s
+                      {d >= 60 ? `${d / 60}m` : `${d}s`}
                     </button>
                   ))}
                 </div>
@@ -611,7 +741,16 @@ export const ImpromptuSetup = ({
               {/* Config recap chips */}
               <div className="flex items-center justify-center gap-2 flex-wrap text-[10px] font-black uppercase tracking-widest">
                 <span className="px-3 py-1.5 rounded-full border border-border/50 bg-muted/5">{difficulty}</span>
-                <span className="px-3 py-1.5 rounded-full border border-border/50 bg-muted/5">{duration}s</span>
+                {isCompetition ? (
+                  <span className="px-3 py-1.5 rounded-full border border-primary/40 bg-primary/8 text-primary flex items-center gap-1.5">
+                    <Zap className="h-3 w-3" /> Competition 3 + 3
+                  </span>
+                ) : (
+                  <span className="px-3 py-1.5 rounded-full border border-border/50 bg-muted/5">
+                    {prepTime > 0 ? `${Math.round(prepTime / 60 * 10) / 10}m prep · ` : ""}
+                    {duration >= 60 ? `${duration / 60}m` : `${duration}s`} speak
+                  </span>
+                )}
                 <span className="px-3 py-1.5 rounded-full border border-border/50 bg-muted/5 opacity-60">{toggleSummary}</span>
               </div>
             </motion.div>

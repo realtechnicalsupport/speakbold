@@ -18,10 +18,52 @@ interface Props {
   speechSupported: boolean;
   curveballText: string | null;
   curveballVisible: boolean;
+  /** The opening line the speaker committed to in prep — surfaced briefly at the
+   *  start of the speech so they actually deliver the open they planned. */
+  openingLine?: string;
   onPause: () => void;
   onResume: () => void;
   onStop: () => void;
 }
+
+// Where the speech "should" be by now, sized to the duration. Opening = first
+// 15%, Close = last 15%, Body in between. Purely time-driven, so it works on
+// mobile too (no transcript needed). Trains pacing/structure: the speaker can
+// see whether they're lingering in the open or coasting toward an early finish.
+const PacingBar = ({ elapsedSecs, duration }: { elapsedSecs: number; duration: number }) => {
+  const pct = duration > 0 ? Math.min(1, elapsedSecs / duration) : 0;
+  const section = pct < 0.15 ? "OPENING" : pct < 0.85 ? "BODY" : "CLOSE";
+  const hint =
+    section === "OPENING" ? "Own your first line" :
+    section === "BODY" ? "Build your points" :
+    "Land it — wrap up";
+  const sectionColor =
+    section === "OPENING" ? "text-sky-400" :
+    section === "BODY" ? "text-primary" :
+    "text-amber-400";
+
+  return (
+    <div className="w-full space-y-2">
+      <div className="relative h-2 rounded-full bg-foreground/8 overflow-hidden">
+        {/* zone dividers at 15% and 85% */}
+        <div className="absolute inset-y-0 left-[15%] w-px bg-foreground/15" />
+        <div className="absolute inset-y-0 left-[85%] w-px bg-foreground/15" />
+        {/* elapsed fill */}
+        <div
+          className={cn(
+            "absolute inset-y-0 left-0 rounded-full transition-all duration-1000 ease-linear",
+            section === "CLOSE" ? "bg-amber-400" : "bg-primary"
+          )}
+          style={{ width: `${pct * 100}%` }}
+        />
+      </div>
+      <div className="flex items-center justify-between">
+        <span className={cn("text-[9px] font-black uppercase tracking-[0.4em]", sectionColor)}>{section}</span>
+        <span className="text-[9px] font-black uppercase tracking-[0.3em] opacity-30">{hint}</span>
+      </div>
+    </div>
+  );
+};
 
 // Animated voice-activity bars
 const VoiceBars = ({ active }: { active: boolean }) => (
@@ -58,6 +100,7 @@ export const ImpromptuStage = ({
   speechSupported,
   curveballText,
   curveballVisible,
+  openingLine,
   onPause,
   onResume,
   onStop,
@@ -67,6 +110,13 @@ export const ImpromptuStage = ({
   const pct = duration > 0 ? secondsLeft / duration : 0;
   const isLow = secondsLeft > 0 && secondsLeft <= 10;
   const isActive = !isPaused && secondsLeft > 0;
+
+  // Pacing only earns its space on longer speeches; for a 30s drill it's noise.
+  const showPacing = duration >= 90;
+  // The opening window — surface the planned first line here (weakness: starting
+  // confidently). Sized so it's meaningful on a 1–3 min speech, gone by the time
+  // the speaker is into their body.
+  const inOpening = !isPaused && elapsedSecs < 15 && duration >= 60;
 
   // Mobile skips live Web Speech (recorded audio is transcribed server-side after
   // the turn), so there's no live transcript to drive WPM/word metrics here. Hide
@@ -152,6 +202,24 @@ export const ImpromptuStage = ({
         )}
       </AnimatePresence>
 
+      {/* Opening-line reminder — deliver the open you planned in prep */}
+      <AnimatePresence>
+        {inOpening && openingLine && openingLine.trim() && (
+          <motion.div
+            initial={{ opacity: 0, y: -16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.3 }}
+            className="absolute top-24 inset-x-4 z-30 max-w-lg mx-auto"
+          >
+            <div className="rounded-[1.5rem] border border-sky-500/40 bg-sky-500/10 backdrop-blur-md p-4 text-center">
+              <p className="text-[9px] font-black uppercase tracking-[0.5em] text-sky-400/80 mb-1.5">YOUR OPENING</p>
+              <p className="text-sm font-bold leading-snug">"{openingLine}"</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ── TIMER — the centerpiece ──────────────────────────────────────── */}
       <div className="relative z-10 flex flex-col items-center gap-8">
         <div className="relative w-[280px] h-[280px] flex items-center justify-center">
@@ -224,6 +292,13 @@ export const ImpromptuStage = ({
               fillerCount={fillerCount}
               elapsedSecs={elapsedSecs}
             />
+          </div>
+        )}
+
+        {/* Pacing bar — open / body / close guide (time-driven, mobile too) */}
+        {showPacing && (
+          <div className="w-full max-w-[300px]">
+            <PacingBar elapsedSecs={elapsedSecs} duration={duration} />
           </div>
         )}
 

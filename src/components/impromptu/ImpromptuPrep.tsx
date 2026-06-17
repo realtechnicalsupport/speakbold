@@ -7,14 +7,20 @@ import { FRAMEWORKS, PREP_TIME } from "@/data/impromptuTopics";
 interface Props {
   topic: ImpromptuTopic;
   secondsLeft: number;
+  /** Total prep length for this session (may be the competition 3-min override,
+   *  not just the difficulty default). Falls back to the difficulty value. */
+  totalPrep?: number;
   challengeMode: boolean;
+  /** The committed opening line (controlled). */
+  openingLine?: string;
+  onSetOpeningLine?: (v: string) => void;
   onSkip: () => void;
 }
 
-export const ImpromptuPrep = ({ topic, secondsLeft, challengeMode, onSkip }: Props) => {
+export const ImpromptuPrep = ({ topic, secondsLeft, totalPrep, challengeMode, openingLine, onSetOpeningLine, onSkip }: Props) => {
   const framework = FRAMEWORKS[topic.framework];
-  const totalPrep = PREP_TIME[topic.difficulty] ?? 10;
-  const pct = totalPrep > 0 ? secondsLeft / totalPrep : 0;
+  const resolvedTotal = totalPrep && totalPrep > 0 ? totalPrep : (PREP_TIME[topic.difficulty] ?? 10);
+  const pct = resolvedTotal > 0 ? secondsLeft / resolvedTotal : 0;
 
   // SVG ring
   const r = 88;
@@ -75,16 +81,21 @@ export const ImpromptuPrep = ({ topic, secondsLeft, challengeMode, onSkip }: Pro
             transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
           />
 
-          {/* Number */}
+          {/* Number — m:ss for long (competition) preps, bare seconds for short. */}
           <div className="relative z-10 text-center">
             <AnimatePresence mode="wait">
               <motion.span
                 key={secondsLeft}
                 initial={{ opacity: 0.4, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="speak-serif text-[7rem] font-bold leading-none text-amber-400 tabular-nums block"
+                className={cn(
+                  "speak-serif font-bold leading-none text-amber-400 tabular-nums block",
+                  resolvedTotal >= 60 ? "text-[5rem]" : "text-[7rem]"
+                )}
               >
-                {secondsLeft}
+                {resolvedTotal >= 60
+                  ? `${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, "0")}`
+                  : secondsLeft}
               </motion.span>
             </AnimatePresence>
           </div>
@@ -105,6 +116,28 @@ export const ImpromptuPrep = ({ topic, secondsLeft, challengeMode, onSkip }: Pro
             "{topic.text}"
           </p>
         </div>
+
+        {/* Lock your first line — trains a confident, planned open. The text is
+            shown back to you for the first seconds of the speech so you deliver
+            the open you planned instead of improvising the riskiest moment. */}
+        {onSetOpeningLine && (
+          <div className="rounded-[2rem] border border-sky-500/20 bg-sky-500/4 p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-[9px] font-black uppercase tracking-[0.5em] text-sky-400/70">LOCK YOUR FIRST LINE</p>
+              <p className="text-[9px] font-medium opacity-25">optional</p>
+            </div>
+            <input
+              value={openingLine ?? ""}
+              onChange={e => onSetOpeningLine(e.target.value)}
+              maxLength={140}
+              placeholder="Type the exact sentence you'll open with…"
+              className="w-full bg-transparent border-b border-sky-500/20 focus:border-sky-400/60 outline-none py-2 text-sm md:text-base placeholder:opacity-25 transition-colors"
+            />
+            <p className="text-[10px] font-medium opacity-25 leading-relaxed">
+              A strong open is a sentence you've already decided — not one you find mid-breath.
+            </p>
+          </div>
+        )}
 
         {/* Framework scaffold */}
         <AnimatePresence mode="wait">

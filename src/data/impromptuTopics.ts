@@ -38,6 +38,11 @@ export const FRAMEWORKS: Record<string, Framework> = {
     expanded: "Setting · Conflict · Turning point · Lesson",
     description: "Best for personal anecdotes — pulls the listener in fast.",
   },
+  "Three Pillars": {
+    name: "Three Pillars",
+    expanded: "One claim · Three supports · One close",
+    description: "The workhorse for filling a long answer: open with your stance, defend it with three distinct angles, then land it. Each pillar is its own mini-point, so you never run dry mid-speech.",
+  },
 };
 
 export const PREP_TIME: Record<Difficulty, number> = {
@@ -46,6 +51,12 @@ export const PREP_TIME: Record<Difficulty, number> = {
   Hard: 5,
   News: 10,
 };
+
+// Real-competition format (e.g. inter-school impromptu): a long structured prep
+// followed by an equally long delivery. Kept as named constants so the setup
+// screen's "Competition" preset and the prep/pacing UI stay in agreement.
+export const COMPETITION_PREP_SECONDS = 180;   // 3-minute prep
+export const COMPETITION_SPEAK_SECONDS = 180;  // 3-minute speech
 
 export const TARGET_WPM = { min: 120, max: 160 };
 

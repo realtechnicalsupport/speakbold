@@ -18,11 +18,15 @@ const Impromptu = () => {
     topic,
     difficulty,
     duration,
+    prepTime,
     curveballEnabled,
     recordEnabled,
     challengeMode,
     drillMode,
+    openingLine,
+    setOpeningLine,
     prepSecondsLeft,
+    prepTotal,
     speakSecondsLeft,
     isPaused,
     liveTranscript,
@@ -50,6 +54,7 @@ const Impromptu = () => {
     shuffleTopic,
     setDifficulty,
     setDuration,
+    setPrepTime,
     setCurveballEnabled,
     setRecordEnabled,
     setChallengeMode,
@@ -110,6 +115,7 @@ const Impromptu = () => {
                 topic={topic}
                 difficulty={difficulty}
                 duration={duration}
+                prepTime={prepTime}
                 curveballEnabled={curveballEnabled}
                 recordEnabled={recordEnabled}
                 challengeMode={challengeMode}
@@ -120,6 +126,7 @@ const Impromptu = () => {
                 onShuffle={shuffleTopic}
                 onSetDifficulty={setDifficulty}
                 onSetDuration={setDuration}
+                onSetPrepTime={setPrepTime}
                 onSetCurveball={setCurveballEnabled}
                 onSetRecord={setRecordEnabled}
                 onSetChallenge={setChallengeMode}
@@ -184,7 +191,10 @@ const Impromptu = () => {
                   <ImpromptuPrep
                     topic={topic}
                     secondsLeft={prepSecondsLeft}
+                    totalPrep={prepTotal}
                     challengeMode={challengeMode}
+                    openingLine={openingLine}
+                    onSetOpeningLine={setOpeningLine}
                     onSkip={skipPrep}
                   />
                 </motion.div>
@@ -211,6 +221,7 @@ const Impromptu = () => {
                     speechSupported={speechSupported}
                     curveballText={curveballText}
                     curveballVisible={curveballVisible}
+                    openingLine={openingLine}
                     onPause={pause}
                     onResume={resume}
                     onStop={stopEarly}
