@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { Shuffle, Mic, MicOff, Zap, Lock, Eye, X, ArrowRight, ArrowLeft, Check, Calendar, Target, ClipboardList } from "lucide-react";
+import { Shuffle, Mic, MicOff, Zap, Lock, Eye, X, ArrowRight, ArrowLeft, Check, Calendar, Target, ClipboardList, Sparkles, Loader2 } from "lucide-react";
 import { getTodayPlan } from "@/lib/impromptuPlan";
 import { Switch } from "@/components/ui/switch";
 import { motion, AnimatePresence } from "framer-motion";
@@ -24,6 +24,8 @@ interface Props {
   hasUser: boolean;
   onBegin: () => void;
   onShuffle: () => void;
+  onFreshTopic: () => void;
+  loadingTopic: boolean;
   onSetDifficulty: (d: Difficulty) => void;
   onSetDuration: (d: number) => void;
   onSetPrepTime: (s: number) => void;
@@ -254,6 +256,8 @@ export const ImpromptuSetup = ({
   hasUser,
   onBegin,
   onShuffle,
+  onFreshTopic,
+  loadingTopic,
   onSetDifficulty,
   onSetDuration,
   onSetPrepTime,
@@ -752,6 +756,19 @@ export const ImpromptuSetup = ({
                   </div>
                 </motion.div>
               </AnimatePresence>
+
+              {/* Surprise me — pull a genuinely fresh, AI-generated topic in a
+                  random style. Falls back to a fresh bank topic if AI is down. */}
+              <button
+                onClick={onFreshTopic}
+                disabled={loadingTopic}
+                className="w-full h-12 rounded-[1.25rem] border border-primary/30 bg-primary/5 text-primary flex items-center justify-center gap-2 hover:bg-primary/10 transition-all disabled:opacity-60"
+              >
+                {loadingTopic ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                <span className="text-xs font-black uppercase tracking-[0.3em]">
+                  {loadingTopic ? "Conjuring…" : "Surprise me — fresh AI topic"}
+                </span>
+              </button>
 
               {/* Config recap chips */}
               <div className="flex items-center justify-center gap-2 flex-wrap text-[10px] font-black uppercase tracking-widest">

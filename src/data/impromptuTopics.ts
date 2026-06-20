@@ -1,5 +1,8 @@
 export type Difficulty = "Easy" | "Medium" | "Hard" | "News";
-export type Category = "Personal" | "Opinion" | "Creative" | "Business" | "Philosophical" | "Current Affairs";
+export type Category =
+  | "Personal" | "Opinion" | "Creative" | "Business" | "Philosophical" | "Current Affairs"
+  // Newer, more varied prompt styles — the kind real impromptu rounds throw at you.
+  | "Abstract" | "Quotation" | "Debate" | "Scenario" | "Object" | "Wildcard";
 
 export interface ImpromptuTopic {
   id: string;
@@ -557,6 +560,256 @@ export const TOPIC_BANK: ImpromptuTopic[] = [
     hints: ["Your claim — don't hedge", "What the evidence from places that have tried it actually shows", "What happens to the fifth day — and why that matters as much as the cut", "The strongest objection and your answer to it"],
     curveballs: ["A parent says: 'this is just about saving money, dressed up as pedagogy.' Respond.", "Now argue that school hours are irrelevant — the real variable is what happens inside them."],
   },
+
+  // ════════════════════════════════════════════════════════════════════════════
+  //  VARIED-STYLE PROMPTS — objects, wildcards, scenarios, debate motions,
+  //  quotations, and abstract nouns. These deliberately break the "opinion essay"
+  //  mould so practice feels different every time and trains genuine adaptability.
+  // ════════════════════════════════════════════════════════════════════════════
+
+  // ── Easy — Object / Wildcard / Scenario (concrete, playful, low-abstraction) ──
+  {
+    id: "ob1",
+    text: "Pick up the nearest object you can see and make it the most interesting thing in the room.",
+    category: "Object", difficulty: "Easy", framework: "Story Arc",
+    hints: ["Name it and describe it like we can't see it", "One surprising thing about it or its history", "Why it deserves a moment of attention"],
+    curveballs: ["Now argue this object is secretly useless and should be thrown out.", "This object can talk. What's the first thing it says about you?"],
+  },
+  {
+    id: "ob2",
+    text: "A single key. Whose is it, what does it open, and why does it matter?",
+    category: "Object", difficulty: "Easy", framework: "Story Arc",
+    hints: ["Set the scene — where is this key found?", "Build the mystery of what it opens", "Land on why it matters to someone"],
+    curveballs: ["The lock it fits was changed years ago. Now what?", "Make the case that some doors should stay locked forever."],
+  },
+  {
+    id: "wc1",
+    text: "Convince us, with total conviction, that pineapple absolutely belongs on pizza.",
+    category: "Wildcard", difficulty: "Easy", framework: "PREP",
+    hints: ["State your stance like it's obvious", "One genuinely persuasive reason", "A closing line that dares us to disagree"],
+    curveballs: ["Now argue the exact opposite, just as passionately.", "A chef in the room is personally offended. Win them over."],
+  },
+  {
+    id: "wc2",
+    text: "You've just been elected President of the Internet. What's your first new rule?",
+    category: "Wildcard", difficulty: "Easy", framework: "What · So What · Now What",
+    hints: ["Announce the rule clearly", "Why the internet needs it", "What changes the day it takes effect"],
+    curveballs: ["Your rule is impossible to enforce. Defend it anyway.", "Now repeal a rule everyone loves — and justify it."],
+  },
+  {
+    id: "sc1",
+    text: "You dig up a time capsule you buried as a kid. Tell us what's inside.",
+    category: "Scenario", difficulty: "Easy", framework: "Story Arc",
+    hints: ["Open it slowly — what's on top?", "The one object that stops you cold", "What the kid who buried it would think of you now"],
+    curveballs: ["One item doesn't belong — you never put it there. Explain.", "Now bury a new capsule. What goes in for the next 20 years?"],
+  },
+  {
+    id: "wc3",
+    text: "Make the case that Mondays are secretly the best day of the week.",
+    category: "Wildcard", difficulty: "Easy", framework: "PREP",
+    hints: ["Commit to the claim — no winking", "The reason nobody appreciates", "Reframe the whole week around it"],
+    curveballs: ["Now defend the most boring day instead.", "Convince someone who genuinely dreads Mondays."],
+  },
+  {
+    id: "ob3",
+    text: "Describe your phone as if it were a person you live with.",
+    category: "Object", difficulty: "Easy", framework: "Story Arc",
+    hints: ["Give it a personality fast", "A typical day in your shared life", "Is this a healthy relationship?"],
+    curveballs: ["You're breaking up with it. Give the speech.", "Now defend it against everyone who says it's a bad influence."],
+  },
+  {
+    id: "wc4",
+    text: "Teach us how to do something completely useless — with the confidence of a world expert.",
+    category: "Wildcard", difficulty: "Easy", framework: "What · So What · Now What",
+    hints: ["Pick something gloriously pointless", "Walk us through the 'technique'", "Why mastering it secretly matters"],
+    curveballs: ["A skeptic says it's a waste of time. Defend its deep value.", "Now teach the advanced version in 15 seconds."],
+  },
+  {
+    id: "sc2",
+    text: "A stranger presses a folded map into your hand and walks away. Where does it lead?",
+    category: "Scenario", difficulty: "Easy", framework: "Story Arc",
+    hints: ["Describe the map and the moment", "The journey it sends you on", "What you find — or what you decide"],
+    curveballs: ["The map leads back to where you started. Make that meaningful.", "You choose not to follow it. Justify that."],
+  },
+  {
+    id: "wc5",
+    text: "Argue that socks should never, under any circumstances, be folded again.",
+    category: "Wildcard", difficulty: "Easy", framework: "PREP",
+    hints: ["Take the absurd stance seriously", "Your one 'undeniable' reason", "Rally the room to the cause"],
+    curveballs: ["Now deliver the passionate counter-manifesto for folding.", "Apply your logic to one other household chore."],
+  },
+
+  // ── Medium — Debate motions / Quotations / Roleplay scenarios ─────────────────
+  {
+    id: "db1",
+    text: "This house would ban homework. Argue your side.",
+    category: "Debate", difficulty: "Medium", framework: "PREP",
+    hints: ["Open with a clear position", "Your strongest single argument", "Pre-empt the obvious objection", "Close with conviction"],
+    curveballs: ["Switch benches — argue the opposite now.", "A teacher in the room says homework builds discipline. Respond."],
+  },
+  {
+    id: "qt1",
+    text: "\"Whether you think you can or you think you can't, you're right.\" React to this.",
+    category: "Quotation", difficulty: "Medium", framework: "PREP",
+    hints: ["What the quote actually claims", "Whether you buy it — and why", "A moment that proves or breaks it"],
+    curveballs: ["Now argue belief is overrated and circumstances win.", "Apply it to someone facing something genuinely hard."],
+  },
+  {
+    id: "sc3",
+    text: "You're a tour guide for a city that doesn't exist. Sell it to us.",
+    category: "Scenario", difficulty: "Medium", framework: "Three Pillars",
+    hints: ["Name it and set the mood", "Three things we have to see", "The line that makes us want to book"],
+    curveballs: ["A tourist asks about the downside. Be honest but keep selling.", "Now give the tour of its seedy underbelly."],
+  },
+  {
+    id: "db2",
+    text: "Should failure be graded in school — rewarded, even?",
+    category: "Debate", difficulty: "Medium", framework: "What · So What · Now What",
+    hints: ["State what 'grading failure' would mean", "Why it matters for how kids learn", "What you'd actually do about it"],
+    curveballs: ["Now argue this would just teach kids to fail on purpose.", "Design the grading rule in one sentence."],
+  },
+  {
+    id: "qt2",
+    text: "\"The best way to predict the future is to invent it.\" Do you agree?",
+    category: "Quotation", difficulty: "Medium", framework: "Past · Present · Future",
+    hints: ["What inventing-the-future looked like before", "Whether it's true today", "Where that mindset leads next"],
+    curveballs: ["Argue that most of the future is inherited, not invented.", "Name one future you'd refuse to invent."],
+  },
+  {
+    id: "sc4",
+    text: "You have 60 seconds to talk your way out of a parking ticket. Go.",
+    category: "Scenario", difficulty: "Medium", framework: "PREP",
+    hints: ["Open with your angle, not an apology", "Your most reasonable point", "Give the officer a way to say yes"],
+    curveballs: ["The officer says they've heard it all. Pivot.", "Now argue the ticket is completely fair — against yourself."],
+  },
+  {
+    id: "db3",
+    text: "This house believes social media has done more harm than good.",
+    category: "Debate", difficulty: "Medium", framework: "Three Pillars",
+    hints: ["Stake your claim", "Three distinct harms (or goods)", "Tie them into one verdict"],
+    curveballs: ["Switch sides and make it just as convincing.", "Concede the other side's best point, then beat it."],
+  },
+  {
+    id: "qt3",
+    text: "\"If it doesn't challenge you, it doesn't change you.\" True?",
+    category: "Quotation", difficulty: "Medium", framework: "PREP",
+    hints: ["Unpack what it's really saying", "Where it holds up", "Where it falls apart"],
+    curveballs: ["Argue that some of the best growth is effortless.", "Apply it to a challenge you're avoiding."],
+  },
+  {
+    id: "sc5",
+    text: "You're accepting an award for something you didn't actually do. Give the speech.",
+    category: "Scenario", difficulty: "Medium", framework: "Story Arc",
+    hints: ["Open graciously — sell the moment", "Build toward the awkward truth", "Land somewhere honest or hilarious"],
+    curveballs: ["Someone in the crowd knows. Address them.", "Now give the speech turning the award down."],
+  },
+  {
+    id: "db4",
+    text: "Should learning a second language be required of everyone?",
+    category: "Debate", difficulty: "Medium", framework: "PREP",
+    hints: ["Position first", "The benefit that outweighs the cost", "Answer the 'but not everyone needs it' objection"],
+    curveballs: ["Now argue it should be optional, even discouraged.", "Pick the one language and defend that choice."],
+  },
+  {
+    id: "qt4",
+    text: "\"Comparison is the thief of joy.\" Make the case.",
+    category: "Quotation", difficulty: "Medium", framework: "What · So What · Now What",
+    hints: ["What comparison quietly does to us", "Why it matters more than we admit", "What to do instead"],
+    curveballs: ["Now argue comparison is actually a powerful motivator.", "Give one kind of comparison worth keeping."],
+  },
+  {
+    id: "sc6",
+    text: "Pitch your life as a movie to a producer who's already reaching for the door.",
+    category: "Scenario", difficulty: "Medium", framework: "Three Pillars",
+    hints: ["The hook in one sentence", "Three beats that sell the story", "The line that makes them sit back down"],
+    curveballs: ["They say it's been done. Differentiate it.", "Now pitch it as a comedy instead."],
+  },
+
+  // ── Hard — Abstract nouns / Deep quotations (high abstraction, fast framing) ──
+  {
+    id: "ab1",
+    text: "Distance.",
+    category: "Abstract", difficulty: "Hard", framework: "What · So What · Now What",
+    hints: ["Pick one meaning of the word fast", "Why that meaning matters", "Leave us with a thought we keep"],
+    curveballs: ["Now take the opposite meaning of 'distance' entirely.", "Make it personal in the last 20 seconds."],
+  },
+  {
+    id: "ab2",
+    text: "Silence.",
+    category: "Abstract", difficulty: "Hard", framework: "Three Pillars",
+    hints: ["Frame what kind of silence you mean", "Three faces of it", "What it teaches"],
+    curveballs: ["Argue that silence is more often cowardice than wisdom.", "Describe a silence that changed something."],
+  },
+  {
+    id: "ab3",
+    text: "The space between what we say and what we mean.",
+    category: "Abstract", difficulty: "Hard", framework: "PREP",
+    hints: ["Name the gap concretely", "Why it exists", "What closing it would cost — or give"],
+    curveballs: ["Argue that gap is necessary, even kind.", "Give an example where it caused real damage."],
+  },
+  {
+    id: "qt5",
+    text: "\"We are what we repeatedly do.\" — Aristotle. Build a speech on it.",
+    category: "Quotation", difficulty: "Hard", framework: "Three Pillars",
+    hints: ["What the claim demands of us", "Three ways it shows up", "Where it leaves free will"],
+    curveballs: ["Argue we are defined by our rare moments, not our habits.", "Apply it to who you're becoming right now."],
+  },
+  {
+    id: "ab4",
+    text: "Borders.",
+    category: "Abstract", difficulty: "Hard", framework: "Past · Present · Future",
+    hints: ["Choose a kind of border", "How it's shifted over time", "Where it's heading"],
+    curveballs: ["Argue the most important borders are invisible.", "Make the case for one border worth keeping."],
+  },
+  {
+    id: "ab5",
+    text: "What we owe to people we'll never meet.",
+    category: "Abstract", difficulty: "Hard", framework: "PREP",
+    hints: ["State whether we owe them anything", "Why", "What that obligation actually looks like"],
+    curveballs: ["Argue we owe the future nothing — only the present.", "Make it concrete: one thing you'd do today."],
+  },
+  {
+    id: "qt6",
+    text: "\"The map is not the territory.\" Unpack it.",
+    category: "Quotation", difficulty: "Hard", framework: "What · So What · Now What",
+    hints: ["Translate the metaphor", "Why mistaking the two is dangerous", "How to hold the map more lightly"],
+    curveballs: ["Argue that sometimes the map matters more than the territory.", "Apply it to how we see other people."],
+  },
+  {
+    id: "ab6",
+    text: "Inheritance — not money, but everything else we pass down.",
+    category: "Abstract", difficulty: "Hard", framework: "Three Pillars",
+    hints: ["Define the kind of inheritance you mean", "Three things we hand on without noticing", "What you want to pass on — or break"],
+    curveballs: ["Argue we should be free to reject what we inherit.", "Name one inheritance you're grateful for and one you're not."],
+  },
+  {
+    id: "ab7",
+    text: "Momentum.",
+    category: "Abstract", difficulty: "Hard", framework: "Past · Present · Future",
+    hints: ["Where momentum came from in your story", "What it's doing now", "Where it carries you"],
+    curveballs: ["Argue momentum is a trap that stops us choosing.", "Describe losing it — and getting it back."],
+  },
+  {
+    id: "qt7",
+    text: "\"No man ever steps in the same river twice.\" React.",
+    category: "Quotation", difficulty: "Hard", framework: "PREP",
+    hints: ["What the river really stands for", "Whether constant change is freeing or frightening", "What it asks of us"],
+    curveballs: ["Argue that some things genuinely don't change — and should.", "Apply it to a relationship or a place you returned to."],
+  },
+  {
+    id: "ab8",
+    text: "The cost of being understood.",
+    category: "Abstract", difficulty: "Hard", framework: "PREP",
+    hints: ["Claim that there is a cost", "What we give up to be truly seen", "Whether it's worth paying"],
+    curveballs: ["Argue being misunderstood is the greater freedom.", "Make it personal in your final lines."],
+  },
+  {
+    id: "ab9",
+    text: "Why we keep things we'll never use.",
+    category: "Abstract", difficulty: "Hard", framework: "What · So What · Now What",
+    hints: ["Name what we really hold onto", "What it says about us", "What letting go would mean"],
+    curveballs: ["Argue keeping them is wiser than throwing them out.", "Pick one object you'll never use but will never lose."],
+  },
 ];
 
 // ── Trial prompts ────────────────────────────────────────────────────────────
@@ -595,9 +848,14 @@ export function getRandomTrialTopic(): ImpromptuTopic {
   return TRIAL_TOPICS[Math.floor(Math.random() * TRIAL_TOPICS.length)];
 }
 
-export function getRandomTopic(difficulty: Difficulty): ImpromptuTopic {
+export function getRandomTopic(difficulty: Difficulty, exclude?: Set<string>): ImpromptuTopic {
   const pool = TOPIC_BANK.filter(t => t.difficulty === difficulty);
-  return pool[Math.floor(Math.random() * pool.length)];
+  // Prefer topics not shown recently so the bank actually rotates instead of
+  // serving the same handful. If everything's been excluded (exclude bigger than
+  // the pool), fall back to the full pool so we never return undefined.
+  const fresh = exclude && exclude.size > 0 ? pool.filter(t => !exclude.has(t.id)) : pool;
+  const from = fresh.length > 0 ? fresh : pool;
+  return from[Math.floor(Math.random() * from.length)];
 }
 
 export function getTopicsByDifficulty(difficulty: Difficulty): ImpromptuTopic[] {

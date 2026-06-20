@@ -7,6 +7,7 @@ import {
   type Dimension,
   type SkillProfile,
 } from "@/lib/skillProfile";
+import type { ImpromptuTopic, Difficulty } from "@/data/impromptuTopics";
 
 // ─── AI provider status channel ────────────────────────────────────────────
 // The fallback chain (Groq → OpenRouter → Cerebras → Gemini) can sit for up
@@ -383,6 +384,57 @@ Each topic is a single clear question or phrase the speaker can react to immedia
       example: [],
     };
   });
+}
+
+// Generate ONE fresh impromptu topic in a randomly-chosen style, returning a
+// full ImpromptuTopic the session can drop in directly. Used by the "Surprise
+// me" button for genuinely unlimited, stylistically-varied practice prompts.
+const FRESH_TOPIC_STYLES = [
+  "a single abstract noun or short phrase (e.g. 'Distance', 'Silence', 'The space between words')",
+  "a short quotation or proverb to react to",
+  "a 'this house believes…' style debate motion",
+  "a roleplay scenario that starts with 'You are…' or 'You have 60 seconds to…'",
+  "an everyday object used as a springboard",
+  "a playful, absurd, or unexpected challenge",
+  "a vivid hypothetical ('What if…', 'If you could…')",
+];
+const FRESH_TOPIC_FRAMEWORKS = [
+  "PREP", "Past · Present · Future", "What · So What · Now What", "Story Arc", "Three Pillars",
+];
+
+export async function generateFreshImpromptuTopic(difficulty: string): Promise<ImpromptuTopic> {
+  const style = FRESH_TOPIC_STYLES[Math.floor(Math.random() * FRESH_TOPIC_STYLES.length)];
+  const prompt = `Generate ONE fresh impromptu speaking topic in this exact style: ${style}.
+Difficulty level: ${difficulty}.
+
+Return ONLY valid JSON, no markdown, no extra text:
+{
+  "text": "the prompt the speaker reacts to",
+  "category": "one of: Abstract, Quotation, Debate, Scenario, Object, Wildcard, Opinion, Personal, Creative",
+  "framework": "one of: PREP, Past · Present · Future, What · So What · Now What, Story Arc, Three Pillars",
+  "hints": ["3 short prep cues, a few words each"],
+  "curveballs": ["2 surprise pivots, e.g. 'now argue the opposite'"]
+}
+
+Make it specific, vivid, and genuinely DIFFERENT from a generic 'what do you think about X' opinion question.
+${PLAIN_ENGLISH_RULES}`;
+
+  const response = await callAI(prompt, 0, 0.95);
+  const jsonMatch = response.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) throw new Error("Invalid response format from AI");
+  const raw = JSON.parse(jsonMatch[0]);
+  const text = String(raw.text || "").trim();
+  if (!text) throw new Error("AI returned an empty topic");
+
+  return {
+    id: `ai-${Date.now()}`,
+    text,
+    category: raw.category || "Wildcard",
+    difficulty: difficulty as Difficulty,
+    framework: FRESH_TOPIC_FRAMEWORKS.includes(raw.framework) ? raw.framework : "PREP",
+    hints: Array.isArray(raw.hints) ? raw.hints.slice(0, 4).map(String) : [],
+    curveballs: Array.isArray(raw.curveballs) ? raw.curveballs.slice(0, 2).map(String) : [],
+  };
 }
 
 export async function generateArenaPrompt(gamemode: string): Promise<string> {

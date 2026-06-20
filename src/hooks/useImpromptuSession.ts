@@ -5,7 +5,7 @@ import { useLocalStorageState } from "@/hooks/useLocalStorageState";
 import { setTimerActive } from "@/lib/timerState";
 import { setRecordingActive } from "@/lib/recordingState";
 import { speechRecognitionSupported } from "@/lib/speechRecognition";
-import { coachImpromptu, transcribeAudio, type ImpromptuCoachReport } from "@/services/geminiService";
+import { coachImpromptu, transcribeAudio, generateFreshImpromptuTopic, type ImpromptuCoachReport } from "@/services/geminiService";
 import { logSkillEvent } from "@/lib/skillEvents";
 import { impromptuToDims } from "@/lib/skillScoring";
 import {
@@ -160,6 +160,39 @@ export function useImpromptuSession() {
 
   useEffect(() => { exportModeRef.current = exportMode; }, [exportMode]);
   useEffect(() => { topicRef.current = topic; }, [topic]);
+
+  // Remember recently-served topics so the bank rotates instead of repeating the
+  // same few. Capped, so over a long session it eventually frees old topics.
+  const recentTopicIdsRef = useRef<string[]>([topic.id]);
+  const RECENT_CAP = 12;
+  const rememberTopic = useCallback((id: string) => {
+    const arr = recentTopicIdsRef.current.filter(x => x !== id);
+    arr.unshift(id);
+    recentTopicIdsRef.current = arr.slice(0, RECENT_CAP);
+  }, []);
+  /** Pick a topic of the given difficulty, avoiding recently-served ones. */
+  const pickTopic = useCallback((d: Difficulty) => {
+    const t = getRandomTopic(d, new Set(recentTopicIdsRef.current));
+    rememberTopic(t.id);
+    return t;
+  }, [rememberTopic]);
+
+  // ── AI fresh-topic ("Surprise me") ───────────────────────────────────────────
+  const [loadingTopic, setLoadingTopic] = useState(false);
+  const loadFreshTopic = useCallback(async () => {
+    setLoadingTopic(true);
+    try {
+      const t = await generateFreshImpromptuTopic(difficultyRef.current);
+      rememberTopic(t.id);
+      setTopicState(t);
+    } catch {
+      // AI unavailable/offline — fall back to a fresh static topic so the button
+      // never dead-ends.
+      setTopicState(pickTopic(difficultyRef.current));
+    } finally {
+      setLoadingTopic(false);
+    }
+  }, [rememberTopic, pickTopic]);
   useEffect(() => { prepTimeRef.current = prepTime; }, [prepTime]);
   useEffect(() => { durationRef.current = duration; }, [duration]);
   useEffect(() => { difficultyRef.current = difficulty; }, [difficulty]);
@@ -629,28 +662,21 @@ export function useImpromptuSession() {
     (d?: Difficulty) => {
       const diff = d ?? difficultyRef.current;
       if (d) setDifficultyState(d);
-      reset(getRandomTopic(diff));
+      reset(pickTopic(diff));
     },
-    [reset]
+    [reset, pickTopic]
   );
 
   const shuffleTopic = useCallback(() => {
-    const current = topicRef.current;
-    let next = getRandomTopic(difficultyRef.current);
-    let guard = 0;
-    while (next.id === current.id && guard < 10) {
-      next = getRandomTopic(difficultyRef.current);
-      guard++;
-    }
-    setTopicState(next);
-  }, []);
+    setTopicState(pickTopic(difficultyRef.current));
+  }, [pickTopic]);
 
   // Config setters
   const setTopic = useCallback((t: ImpromptuTopic) => setTopicState(t), []);
   const setDifficulty = useCallback((d: Difficulty) => {
     setDifficultyState(d);
-    setTopicState(getRandomTopic(d));
-  }, []);
+    setTopicState(pickTopic(d));
+  }, [pickTopic]);
   const setDuration = useCallback((d: number) => {
     userDurationRef.current = d;
     setDurationState(d);
@@ -811,6 +837,8 @@ export function useImpromptuSession() {
     goAgain,
     newTopic,
     shuffleTopic,
+    loadFreshTopic,
+    loadingTopic,
     reset,
     drillCurveball,
 
