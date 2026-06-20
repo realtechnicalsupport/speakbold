@@ -11,6 +11,13 @@ import {
   buildCoachExport,
 } from "@/lib/impromptuExport";
 import { analyzeVoice, type VoiceMetrics } from "@/lib/voiceAnalysis";
+import { lastReps, logRep, type ImpromptuRep } from "@/lib/impromptuRepLog";
+import {
+  buildPauseInsights, pauseClustering, paceOverTime, trailingOff,
+  rollingAverages, repeatedPhrases,
+} from "@/lib/impromptuInsights";
+
+const fmtTime = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, "0")}`;
 
 interface Props {
   topic: ImpromptuTopic;
@@ -70,6 +77,42 @@ export const ImpromptuCoachExport = ({
     return () => { cancelled = true; };
   }, [recordingBlobUrl]);
 
+  // Trend tracking — load prior reps once, then log this one so the next session
+  // can compare against it. Loading must precede logging so "last N" excludes now.
+  const [priors, setPriors] = useState<ImpromptuRep[]>([]);
+  const loggedRef = useRef(false);
+  useEffect(() => {
+    if (processing || noSpeech || loggedRef.current) return;
+    loggedRef.current = true;
+    setPriors(lastReps(10));
+    logRep({
+      wpm,
+      fillerCount: fillerTotal,
+      totalWords,
+      durationSec,
+      targetSec: duration,
+      projectedPct: Math.round((durationSec / Math.max(1, duration)) * 100),
+      transcript,
+    });
+  }, [processing, noSpeech, wpm, fillerTotal, totalWords, durationSec, duration, transcript]);
+
+  // Acoustic-derived insights (need the voice analysis).
+  const acoustic = useMemo(() => {
+    if (!voice) return undefined;
+    return {
+      pauses: buildPauseInsights(transcript, voice.segments, voice.pauses),
+      clustering: pauseClustering(voice.pauses, durationSec),
+      pace: paceOverTime(transcript, voice.segments, durationSec),
+      trailing: trailingOff(voice.segments),
+    };
+  }, [voice, transcript, durationSec]);
+
+  const rolling = useMemo(() => rollingAverages(priors.slice(0, 5)), [priors]);
+  const repeated = useMemo(
+    () => repeatedPhrases(transcript, priors.map(p => p.transcript)),
+    [transcript, priors],
+  );
+
   const exportText = useMemo(
     () => buildCoachExport({
       topicText: topic.text,
@@ -81,8 +124,9 @@ export const ImpromptuCoachExport = ({
       wpm,
       totalWords,
       voice,
+      insights: { ...(acoustic || {}), rolling, repeated },
     }),
-    [topic.text, prepNotes, openingLine, transcript, durationSec, duration, wpm, totalWords, voice]
+    [topic.text, prepNotes, openingLine, transcript, durationSec, duration, wpm, totalWords, voice, acoustic, rolling, repeated]
   );
 
   const [copied, setCopied] = useState(false);
@@ -248,6 +292,98 @@ export const ImpromptuCoachExport = ({
                   </div>
                 </>
               ) : null}
+            </div>
+          )}
+
+          {/* Pause map + clustering pattern */}
+          {acoustic && acoustic.pauses.length > 0 && (
+            <div className="rounded-[1.5rem] border border-border/25 bg-muted/3 p-5 space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="text-[9px] font-black uppercase tracking-[0.5em] opacity-50">PAUSE MAP</span>
+                <span className="text-[8px] opacity-25">· word location estimated</span>
+              </div>
+              <div className="space-y-1.5">
+                {acoustic.pauses.map((p, i) => (
+                  <div key={i} className="flex items-center gap-2 text-xs">
+                    <span className="tabular-nums opacity-40 w-9 shrink-0">{fmtTime(p.startSec)}</span>
+                    <span className={cn(
+                      "px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border shrink-0",
+                      p.type === "search"
+                        ? "border-amber-500/40 bg-amber-500/10 text-amber-300/80"
+                        : "border-border/40 opacity-50"
+                    )}>
+                      {p.type === "search" ? "search" : "boundary"}
+                    </span>
+                    <span className="tabular-nums opacity-40 shrink-0">{p.durationSec}s</span>
+                    {(p.beforeWords || p.afterWords) && (
+                      <span className="opacity-50 truncate">…{p.beforeWords} ⟂ {p.afterWords}…</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {acoustic.clustering.label !== "too few" && (
+                <p className="text-[10px] opacity-40 leading-relaxed pt-2 border-t border-border/20">
+                  <span className="font-black uppercase tracking-wider">{acoustic.clustering.label}</span> · {acoustic.clustering.detail}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Pace trend + trailing off */}
+          {acoustic && (
+            <div className="rounded-[1.5rem] border border-border/25 bg-muted/3 p-5 grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-[0.4em] opacity-40 mb-1">PACE OVER TIME</p>
+                <p className="text-sm font-black tabular-nums">
+                  {acoustic.pace.wpm[0]} → {acoustic.pace.wpm[1]} → {acoustic.pace.wpm[2]}
+                  <span className="text-[10px] opacity-40"> wpm</span>
+                </p>
+                <p className={cn("text-[10px] font-bold mt-0.5 capitalize",
+                  acoustic.pace.trend === "slowing" ? "text-amber-400" : "opacity-40")}>
+                  {acoustic.pace.trend}
+                </p>
+              </div>
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-[0.4em] opacity-40 mb-1">TRAILING OFF</p>
+                {acoustic.trailing.label === "n/a" ? (
+                  <p className="text-sm opacity-40">—</p>
+                ) : (
+                  <>
+                    <p className={cn("text-sm font-black capitalize",
+                      acoustic.trailing.label === "frequent" ? "text-amber-400" : "")}>
+                      {acoustic.trailing.label}
+                    </p>
+                    <p className="text-[10px] opacity-40 mt-0.5">{acoustic.trailing.faded}/{acoustic.trailing.total} phrases faded</p>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Trend vs last reps + repeated phrases */}
+          {(rolling || repeated.length > 0) && (
+            <div className="rounded-[1.5rem] border border-border/25 bg-muted/3 p-5 space-y-3">
+              {rolling && (
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-[0.5em] opacity-50 mb-1">TREND · LAST {rolling.count}</p>
+                  <p className="text-xs opacity-55 leading-relaxed">
+                    avg <b>{rolling.avgWpm}</b> wpm · <b>{rolling.avgFillers}</b> fillers · <b>{rolling.avgProjectedPct}%</b> of target
+                    <span className="opacity-50"> — this rep: {wpm} wpm · {fillerTotal} fillers · {Math.round((durationSec / Math.max(1, duration)) * 100)}%</span>
+                  </p>
+                </div>
+              )}
+              {repeated.length > 0 && (
+                <div className="pt-2 border-t border-border/20">
+                  <p className="text-[9px] font-black uppercase tracking-[0.5em] opacity-50 mb-2">REPEATED PHRASES</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {repeated.map((ph, i) => (
+                      <span key={i} className="px-2.5 py-1 rounded-full text-[11px] border border-amber-500/25 bg-amber-500/8 text-amber-300/80">
+                        "{ph}"
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

@@ -60,6 +60,18 @@ export function bracketFillers(text: string): string {
 }
 
 import type { VoiceMetrics } from "@/lib/voiceAnalysis";
+import type {
+  PauseInsight, ClusteringResult, PaceTrend, TrailingOff, RollingAverages,
+} from "@/lib/impromptuInsights";
+
+export interface CoachExportInsights {
+  pauses?: PauseInsight[];
+  clustering?: ClusteringResult;
+  pace?: PaceTrend;
+  trailing?: TrailingOff;
+  rolling?: RollingAverages | null;
+  repeated?: string[];
+}
 
 export interface CoachExportInput {
   topicText: string;
@@ -71,6 +83,13 @@ export interface CoachExportInput {
   wpm: number;
   totalWords: number;
   voice?: VoiceMetrics | null;
+  insights?: CoachExportInsights;
+}
+
+function fmtTime(sec: number): string {
+  const m = Math.floor(sec / 60);
+  const s = Math.round(sec % 60);
+  return `${m}:${String(s).padStart(2, "0")}`;
 }
 
 /** The single block of text the "Copy to Coach" button puts on the clipboard. */
@@ -108,6 +127,49 @@ export function buildCoachExport(i: CoachExportInput): string {
       `  - Pauses (>0.6s): ${v.pauseCount}${v.longestPauseSec > 0 ? ` (longest ${v.longestPauseSec}s)` : ""}`,
       "",
     );
+  }
+
+  const ins = i.insights;
+  if (ins) {
+    if (ins.pauses && ins.pauses.length > 0) {
+      lines.push("PAUSE MAP (type · approx location — word timing is estimated):");
+      for (const p of ins.pauses) {
+        const tag = p.type === "search" ? "SEARCH (mid-thought stall)" : "boundary (winding down)";
+        const ctx = p.beforeWords || p.afterWords
+          ? ` …"${p.beforeWords}" ⟂ "${p.afterWords}"…`
+          : "";
+        lines.push(`  - ${fmtTime(p.startSec)} · ${p.durationSec}s · ${tag} · ≈ after word ${p.approxWordIndex}${ctx}`);
+      }
+      lines.push("");
+    }
+    if (ins.clustering) {
+      lines.push(`PAUSE PATTERN: ${ins.clustering.label} — ${ins.clustering.detail}`, "");
+    }
+    if (ins.pace) {
+      lines.push(
+        `PACE OVER TIME (wpm by third): ${ins.pace.wpm[0]} → ${ins.pace.wpm[1]} → ${ins.pace.wpm[2]} (${ins.pace.trend})`,
+        "",
+      );
+    }
+    if (ins.trailing && ins.trailing.label !== "n/a") {
+      lines.push(
+        `TRAILING OFF: ${ins.trailing.label} — volume faded at the end of ${ins.trailing.faded}/${ins.trailing.total} phrases (${ins.trailing.pct}%).`,
+        "",
+      );
+    }
+    if (ins.rolling) {
+      const r = ins.rolling;
+      lines.push(
+        `TREND vs last ${r.count} rep${r.count === 1 ? "" : "s"}: avg ${r.avgWpm} wpm · ${r.avgFillers} fillers · ${r.avgProjectedPct}% of target time.`,
+        `  (this rep: ${i.wpm} wpm · ${total} fillers · ${Math.round((i.durationSec / Math.max(1, i.targetSec)) * 100)}% of target)`,
+        "",
+      );
+    }
+    if (ins.repeated && ins.repeated.length > 0) {
+      lines.push("REPEATED PHRASES (reused from recent sessions):");
+      for (const ph of ins.repeated) lines.push(`  - "${ph}"`);
+      lines.push("");
+    }
   }
 
   lines.push(

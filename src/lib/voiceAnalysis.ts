@@ -6,6 +6,25 @@
 // it degrades gracefully: if the audio can't be decoded (e.g. some Safari/opus
 // cases) it returns null and the UI simply hides the panel.
 
+/** A continuous run of speech between two long pauses. */
+export interface VoiceSegment {
+  startSec: number;
+  endSec: number;
+  meanDb: number;
+  startDb: number;   // mean dB of the first ~300ms of voiced audio
+  endDb: number;     // mean dB of the last ~300ms of voiced audio
+}
+
+/** A silence longer than the pause threshold, classified by the volume leading
+ *  into it. A fade before the gap reads as a sentence/clause boundary; stable
+ *  volume into an abrupt stop reads as a mid-thought stall (word-searching). */
+export interface VoicePause {
+  startSec: number;
+  durationSec: number;
+  fadeDb: number;                  // how much volume dropped into the pause
+  type: "boundary" | "search";
+}
+
 export interface VoiceMetrics {
   meanPitchHz: number;
   pitchStdHz: number;
@@ -17,6 +36,8 @@ export interface VoiceMetrics {
   longestPauseSec: number;
   /** Normalised (0–1) pitch contour, ~24 buckets, for a sparkline. */
   contour: number[];
+  segments: VoiceSegment[];
+  pauses: VoicePause[];
 }
 
 const TARGET_RATE = 8000;     // downsample target — plenty for voice F0
@@ -129,24 +150,75 @@ export async function analyzeVoice(blob: Blob): Promise<VoiceMetrics | null> {
     const volumeDynamicsLabel: VoiceMetrics["volumeDynamicsLabel"] =
       dbStd < 3 ? "flat" : dbStd < 6 ? "some variation" : "dynamic";
 
-    // Pauses — runs of silent frames longer than ~0.6s.
+    // ── Segments + typed pauses ──────────────────────────────────────────────
+    // Per-frame loudness in dB (for fade detection); silence frames sit very low.
+    const frameDb = frameRms.map(r => 20 * Math.log10(r + 1e-9));
     const frameSec = HOP / rate;
     const pauseFrames = Math.ceil(0.6 / frameSec);
-    let run = 0;
-    let pauseCount = 0;
-    let longestRun = 0;
-    for (const voiced of voicedFlags) {
-      if (!voiced) {
-        run++;
-      } else {
-        if (run >= pauseFrames) pauseCount++;
-        longestRun = Math.max(longestRun, run);
+    const tailFrames = Math.max(1, Math.ceil(0.3 / frameSec));
+    const nFrames = voicedFlags.length;
+
+    // Long-pause frame ranges (silence runs >= threshold).
+    const longPauses: { s: number; e: number }[] = [];
+    {
+      let run = 0;
+      for (let f = 0; f <= nFrames; f++) {
+        const silent = f < nFrames && !voicedFlags[f];
+        if (silent) { run++; continue; }
+        if (run >= pauseFrames) longPauses.push({ s: f - run, e: f });
         run = 0;
       }
     }
-    if (run >= pauseFrames) pauseCount++;
-    longestRun = Math.max(longestRun, run);
-    const longestPauseSec = Math.round(longestRun * frameSec * 10) / 10;
+
+    // Segments = spans between long pauses.
+    const segSpans: { s: number; e: number }[] = [];
+    let segStart = 0;
+    for (const p of longPauses) {
+      if (p.s > segStart) segSpans.push({ s: segStart, e: p.s });
+      segStart = p.e;
+    }
+    if (segStart < nFrames) segSpans.push({ s: segStart, e: nFrames });
+
+    const segMeanDb = (s: number, e: number): number => {
+      const v: number[] = [];
+      for (let f = s; f < e; f++) if (voicedFlags[f]) v.push(frameDb[f]);
+      return v.length ? v.reduce((a, b) => a + b, 0) / v.length : -90;
+    };
+    const edgeDb = (s: number, e: number, tail: boolean): number => {
+      const v: number[] = [];
+      if (tail) {
+        for (let f = e - 1; f >= s && v.length < tailFrames; f--) if (voicedFlags[f]) v.push(frameDb[f]);
+      } else {
+        for (let f = s; f < e && v.length < tailFrames; f++) if (voicedFlags[f]) v.push(frameDb[f]);
+      }
+      return v.length ? v.reduce((a, b) => a + b, 0) / v.length : segMeanDb(s, e);
+    };
+
+    const segments: VoiceSegment[] = segSpans.map(({ s, e }) => ({
+      startSec: Math.round(s * frameSec * 10) / 10,
+      endSec: Math.round(e * frameSec * 10) / 10,
+      meanDb: Math.round(segMeanDb(s, e) * 10) / 10,
+      startDb: Math.round(edgeDb(s, e, false) * 10) / 10,
+      endDb: Math.round(edgeDb(s, e, true) * 10) / 10,
+    }));
+
+    // Classify each long pause by the fade of the segment that precedes it.
+    const FADE_DB = 4; // a >=4dB drop into the gap reads as "winding down"
+    const pauses: VoicePause[] = longPauses.map(p => {
+      const prev = segSpans.filter(sp => sp.e <= p.s).pop();
+      const mean = prev ? segMeanDb(prev.s, prev.e) : -90;
+      const end = prev ? edgeDb(prev.s, prev.e, true) : mean;
+      const fadeDb = Math.round((mean - end) * 10) / 10;
+      return {
+        startSec: Math.round(p.s * frameSec * 10) / 10,
+        durationSec: Math.round((p.e - p.s) * frameSec * 10) / 10,
+        fadeDb,
+        type: fadeDb >= FADE_DB ? "boundary" : "search",
+      };
+    });
+
+    const pauseCount = pauses.length;
+    const longestPauseSec = pauses.reduce((m, p) => Math.max(m, p.durationSec), 0);
 
     // Contour — bucket voiced pitches across the timeline for a sparkline.
     const BUCKETS = 24;
@@ -175,6 +247,8 @@ export async function analyzeVoice(blob: Blob): Promise<VoiceMetrics | null> {
       pauseCount,
       longestPauseSec,
       contour,
+      segments,
+      pauses,
     };
   } catch {
     return null;
