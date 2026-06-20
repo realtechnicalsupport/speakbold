@@ -59,6 +59,8 @@ export function bracketFillers(text: string): string {
   return text.replace(buildPattern(), m => `[${m}]`);
 }
 
+import type { VoiceMetrics } from "@/lib/voiceAnalysis";
+
 export interface CoachExportInput {
   topicText: string;
   prepNotes: string;
@@ -68,6 +70,7 @@ export interface CoachExportInput {
   targetSec: number;
   wpm: number;
   totalWords: number;
+  voice?: VoiceMetrics | null;
 }
 
 /** The single block of text the "Copy to Coach" button puts on the clipboard. */
@@ -92,6 +95,19 @@ export function buildCoachExport(i: CoachExportInput): string {
 
   if (i.openingLine && i.openingLine.trim()) {
     lines.push("PLANNED OPENING:", `"${i.openingLine.trim()}"`, "");
+  }
+
+  if (i.voice) {
+    const v = i.voice;
+    lines.push(
+      "DELIVERY (approximate, on-device acoustic analysis):",
+      `  - Average pitch: ${v.meanPitchHz} Hz`,
+      `  - Pitch variation: ${v.pitchRangeLabel} (±${v.pitchStdHz} Hz)`,
+      `  - Volume dynamics: ${v.volumeDynamicsLabel}`,
+      `  - Voiced/projected: ${v.voicedPct}% of speaking time`,
+      `  - Pauses (>0.6s): ${v.pauseCount}${v.longestPauseSec > 0 ? ` (longest ${v.longestPauseSec}s)` : ""}`,
+      "",
+    );
   }
 
   lines.push(

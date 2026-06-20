@@ -1,6 +1,6 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Mic2, Copy, Check, Shuffle, ClipboardList, Volume2 } from "lucide-react";
+import { Mic2, Copy, Check, Shuffle, ClipboardList, Volume2, AudioLines } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ClipPlayer } from "@/components/ClipPlayer";
 import type { ImpromptuTopic } from "@/data/impromptuTopics";
@@ -10,6 +10,7 @@ import {
   totalFillers,
   buildCoachExport,
 } from "@/lib/impromptuExport";
+import { analyzeVoice, type VoiceMetrics } from "@/lib/voiceAnalysis";
 
 interface Props {
   topic: ImpromptuTopic;
@@ -46,6 +47,29 @@ export const ImpromptuCoachExport = ({
   const fillerTypes = useMemo(() => countFillerTypes(transcript).filter(f => f.count > 0), [transcript]);
   const fillerTotal = useMemo(() => totalFillers(transcript), [transcript]);
 
+  // On-device acoustic analysis (pitch, dynamics, pauses). Runs once when the
+  // recording is available — no API, nothing leaves the device. null = couldn't
+  // decode (or no recording), in which case the panel just doesn't show.
+  const [voice, setVoice] = useState<VoiceMetrics | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  useEffect(() => {
+    if (!recordingBlobUrl) { setVoice(null); return; }
+    let cancelled = false;
+    setAnalyzing(true);
+    (async () => {
+      try {
+        const blob = await (await fetch(recordingBlobUrl)).blob();
+        const metrics = await analyzeVoice(blob);
+        if (!cancelled) setVoice(metrics);
+      } catch {
+        if (!cancelled) setVoice(null);
+      } finally {
+        if (!cancelled) setAnalyzing(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [recordingBlobUrl]);
+
   const exportText = useMemo(
     () => buildCoachExport({
       topicText: topic.text,
@@ -56,8 +80,9 @@ export const ImpromptuCoachExport = ({
       targetSec: duration,
       wpm,
       totalWords,
+      voice,
     }),
-    [topic.text, prepNotes, openingLine, transcript, durationSec, duration, wpm, totalWords]
+    [topic.text, prepNotes, openingLine, transcript, durationSec, duration, wpm, totalWords, voice]
   );
 
   const [copied, setCopied] = useState(false);
@@ -169,6 +194,62 @@ export const ImpromptuCoachExport = ({
               </div>
             )}
           </div>
+
+          {/* On-device delivery analysis (pitch / dynamics / pauses) */}
+          {(analyzing || voice) && (
+            <div className="rounded-[1.5rem] border border-border/25 bg-muted/3 p-5 space-y-4">
+              <div className="flex items-center gap-2">
+                <AudioLines className="h-3 w-3 opacity-50" />
+                <span className="text-[9px] font-black uppercase tracking-[0.5em] opacity-50">DELIVERY</span>
+                <span className="text-[8px] font-medium opacity-25 normal-case tracking-normal">· on-device, no upload</span>
+              </div>
+
+              {analyzing ? (
+                <p className="text-xs opacity-40 italic py-2">Analysing your voice…</p>
+              ) : voice ? (
+                <>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    <div className="rounded-xl border border-border/30 bg-muted/4 p-3">
+                      <p className="text-[9px] font-black uppercase tracking-[0.3em] opacity-40">PITCH</p>
+                      <p className="text-lg font-black tabular-nums mt-1">{voice.meanPitchHz}<span className="text-[10px] opacity-40"> Hz</span></p>
+                    </div>
+                    <div className="rounded-xl border border-border/30 bg-muted/4 p-3">
+                      <p className="text-[9px] font-black uppercase tracking-[0.3em] opacity-40">VARIATION</p>
+                      <p className={cn("text-sm font-black mt-1 capitalize",
+                        voice.pitchRangeLabel === "monotone" ? "text-amber-400"
+                          : voice.pitchRangeLabel === "expressive" ? "text-emerald-400" : "")}>
+                        {voice.pitchRangeLabel}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-border/30 bg-muted/4 p-3">
+                      <p className="text-[9px] font-black uppercase tracking-[0.3em] opacity-40">VOLUME</p>
+                      <p className="text-sm font-black mt-1 capitalize">{voice.volumeDynamicsLabel}</p>
+                    </div>
+                    <div className="rounded-xl border border-border/30 bg-muted/4 p-3">
+                      <p className="text-[9px] font-black uppercase tracking-[0.3em] opacity-40">PAUSES</p>
+                      <p className="text-lg font-black tabular-nums mt-1">{voice.pauseCount}</p>
+                    </div>
+                  </div>
+
+                  {/* Pitch contour sparkline */}
+                  <div className="space-y-1.5">
+                    <p className="text-[9px] font-black uppercase tracking-[0.4em] opacity-40">PITCH OVER TIME</p>
+                    <div className="flex items-end gap-0.5 h-10">
+                      {voice.contour.map((v, i) => (
+                        <div key={i} className="flex-1 rounded-sm bg-primary/40"
+                          style={{ height: `${Math.max(6, v * 100)}%` }} />
+                      ))}
+                    </div>
+                    <p className="text-[9px] opacity-25">
+                      {voice.pitchRangeLabel === "monotone"
+                        ? "Fairly flat — try stretching your high and low notes for emphasis."
+                        : "A varied line reads as expressive delivery."}
+                    </p>
+                  </div>
+                </>
+              ) : null}
+            </div>
+          )}
 
           {/* Recording playback */}
           {recordingBlobUrl && (
