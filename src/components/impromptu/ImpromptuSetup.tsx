@@ -6,6 +6,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import type { Difficulty, ImpromptuTopic } from "@/data/impromptuTopics";
 import { FRAMEWORKS, COMPETITION_PREP_SECONDS, COMPETITION_SPEAK_SECONDS } from "@/data/impromptuTopics";
+import { loadCustomPrompts, addCustomPrompt, removeCustomPrompt, type CustomPrompt } from "@/lib/impromptuCustom";
+import { Pencil, Trash2 } from "lucide-react";
 import type { ImpromptuStats } from "@/lib/impromptuHistory";
 import type { ImpromptuSessionRecord } from "@/lib/impromptuHistory";
 
@@ -26,6 +28,7 @@ interface Props {
   onShuffle: () => void;
   onFreshTopic: () => void;
   loadingTopic: boolean;
+  onSetTopic: (t: ImpromptuTopic) => void;
   onSetDifficulty: (d: Difficulty) => void;
   onSetDuration: (d: number) => void;
   onSetPrepTime: (s: number) => void;
@@ -258,6 +261,7 @@ export const ImpromptuSetup = ({
   onShuffle,
   onFreshTopic,
   loadingTopic,
+  onSetTopic,
   onSetDifficulty,
   onSetDuration,
   onSetPrepTime,
@@ -275,6 +279,42 @@ export const ImpromptuSetup = ({
     onSetPrepTime(COMPETITION_PREP_SECONDS);
     onSetDuration(COMPETITION_SPEAK_SECONDS);
   }, [onSetPrepTime, onSetDuration]);
+
+  // ── Custom prompts ───────────────────────────────────────────────────────
+  const [customOpen, setCustomOpen] = useState(false);
+  const [customText, setCustomText] = useState("");
+  const [customFw, setCustomFw] = useState<string>("PREP");
+  const [savedCustom, setSavedCustom] = useState<CustomPrompt[]>(() => loadCustomPrompts());
+
+  const makeCustomTopic = useCallback((text: string, fw: string): ImpromptuTopic => ({
+    id: `custom-${Date.now()}`,
+    text: text.trim(),
+    category: "Custom",
+    difficulty,
+    framework: fw,
+    hints: [],
+    curveballs: [],
+  }), [difficulty]);
+
+  const useCustomPrompt = useCallback(() => {
+    const text = customText.trim();
+    if (!text) return;
+    addCustomPrompt(text, customFw);
+    setSavedCustom(loadCustomPrompts());
+    onSetTopic(makeCustomTopic(text, customFw));
+    setCustomText("");
+    setCustomOpen(false);
+  }, [customText, customFw, makeCustomTopic, onSetTopic]);
+
+  const pickSavedCustom = useCallback((p: CustomPrompt) => {
+    onSetTopic(makeCustomTopic(p.text, p.framework));
+    setCustomOpen(false);
+  }, [makeCustomTopic, onSetTopic]);
+
+  const deleteSavedCustom = useCallback((id: string) => {
+    removeCustomPrompt(id);
+    setSavedCustom(loadCustomPrompts());
+  }, []);
 
   const [seenTopics, setSeenTopics] = useState<Set<string>>(() => loadSeenTopics());
   const [showTutorial, setShowTutorial] = useState(false);
@@ -769,6 +809,94 @@ export const ImpromptuSetup = ({
                   {loadingTopic ? "Conjuring…" : "Surprise me — fresh AI topic"}
                 </span>
               </button>
+
+              {/* Write your own — custom prompts, saved locally */}
+              <button
+                onClick={() => setCustomOpen(o => !o)}
+                className="w-full h-12 rounded-[1.25rem] border border-border/50 flex items-center justify-center gap-2 hover:border-primary/40 hover:text-primary transition-all"
+              >
+                <Pencil className="h-4 w-4" />
+                <span className="text-xs font-black uppercase tracking-[0.3em]">Write your own</span>
+              </button>
+
+              <AnimatePresence>
+                {customOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.25 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="rounded-[1.5rem] border border-border/40 bg-muted/3 p-5 space-y-4">
+                      <textarea
+                        value={customText}
+                        onChange={e => setCustomText(e.target.value)}
+                        rows={2}
+                        placeholder="Type your own prompt or motion…"
+                        className="w-full bg-transparent border border-border/30 rounded-xl p-3 text-sm leading-relaxed placeholder:opacity-25 outline-none focus:border-primary/40 transition-colors resize-none"
+                      />
+
+                      {/* Framework choice */}
+                      <div className="space-y-2">
+                        <p className="text-[9px] font-black uppercase tracking-[0.5em] opacity-30">Framework</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {Object.keys(FRAMEWORKS).map(fw => (
+                            <button
+                              key={fw}
+                              onClick={() => setCustomFw(fw)}
+                              className={cn(
+                                "px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider border transition-all",
+                                customFw === fw
+                                  ? "border-primary/50 bg-primary/10 text-primary"
+                                  : "border-border/40 opacity-50 hover:opacity-90"
+                              )}
+                            >
+                              {FRAMEWORKS[fw].name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={useCustomPrompt}
+                        disabled={!customText.trim()}
+                        className="w-full h-11 rounded-[1.25rem] bg-primary text-white flex items-center justify-center gap-2 shadow-glow disabled:opacity-40 disabled:shadow-none"
+                      >
+                        <Check className="h-4 w-4" />
+                        <span className="text-xs font-black uppercase tracking-[0.3em]">Use this prompt</span>
+                      </button>
+
+                      {/* Saved custom prompts */}
+                      {savedCustom.length > 0 && (
+                        <div className="space-y-2 pt-2 border-t border-border/20">
+                          <p className="text-[9px] font-black uppercase tracking-[0.5em] opacity-30">Saved ({savedCustom.length})</p>
+                          <div className="space-y-1.5 max-h-40 overflow-y-auto scrollbar-hide">
+                            {savedCustom.map(p => (
+                              <div key={p.id} className="flex items-center gap-2 group">
+                                <button
+                                  onClick={() => pickSavedCustom(p)}
+                                  className="flex-1 text-left px-3 py-2 rounded-xl bg-muted/20 border border-border/30 hover:border-primary/40 transition-all min-w-0"
+                                >
+                                  <p className="text-xs opacity-70 truncate">{p.text}</p>
+                                  <p className="text-[9px] font-black uppercase tracking-widest opacity-30 mt-0.5">{p.framework}</p>
+                                </button>
+                                <button
+                                  onClick={() => deleteSavedCustom(p.id)}
+                                  aria-label="Delete prompt"
+                                  className="h-8 w-8 shrink-0 rounded-lg flex items-center justify-center opacity-30 hover:opacity-100 hover:text-red-400 transition-all"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               {/* Config recap chips */}
               <div className="flex items-center justify-center gap-2 flex-wrap text-[10px] font-black uppercase tracking-widest">

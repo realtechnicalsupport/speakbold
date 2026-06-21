@@ -56,6 +56,7 @@ const Impromptu = () => {
     goAgain,
     newTopic,
     shuffleTopic,
+    setTopic,
     loadFreshTopic,
     loadingTopic,
     setDifficulty,
@@ -134,6 +135,7 @@ const Impromptu = () => {
                 onShuffle={shuffleTopic}
                 onFreshTopic={loadFreshTopic}
                 loadingTopic={loadingTopic}
+                onSetTopic={setTopic}
                 onSetDifficulty={setDifficulty}
                 onSetDuration={setDuration}
                 onSetPrepTime={setPrepTime}

@@ -2,7 +2,9 @@ export type Difficulty = "Easy" | "Medium" | "Hard" | "News";
 export type Category =
   | "Personal" | "Opinion" | "Creative" | "Business" | "Philosophical" | "Current Affairs"
   // Newer, more varied prompt styles — the kind real impromptu rounds throw at you.
-  | "Abstract" | "Quotation" | "Debate" | "Scenario" | "Object" | "Wildcard";
+  | "Abstract" | "Quotation" | "Debate" | "Scenario" | "Object" | "Wildcard"
+  // User-authored prompts.
+  | "Custom";
 
 export interface ImpromptuTopic {
   id: string;
